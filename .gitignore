@@ -1,0 +1,6 @@
+/phylotree_builder_v0.0.1/.pixi/
+/phylotree_builder_v0.0.1/__pycache__/
+/phylotree_builder_v0.0.1/lib/
+/phylotree_builder_v0.0.1/test*/
+*.fasta
+*.log
