@@ -21,6 +21,7 @@ from Bio import SeqIO, Phylo
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from ete4 import Tree
+from tree_summary_plot import create_tree_distance_heatmaps
 
 mpl.set_loglevel("warning")  # 或 "error"
 mpl.use("Agg", force=True)
@@ -527,6 +528,7 @@ class PhylogeneticPipeline:
             f.write(f"ML_iqtree\t{tree_files[2]}\n")
             f.write(f"BI_mrbayes\t{tree_files[3]}\n")
 
+        heatmap_paths = []
         r_commands = [
             ["Rscript", self.cal_treedist_method_path, str(path_tree_info)],
             [
@@ -567,6 +569,18 @@ class PhylogeneticPipeline:
 
         if not tree_distance_completed:
             sys.exit(1)
+        try:
+            heatmap_paths = create_tree_distance_heatmaps(
+                path_trees_summary / "tree_distance_matrix.tsv",
+                path_trees_summary / "rf_distance_matrix.tsv",
+                path_trees_summary / "tree_distance_heatmaps.png",
+                path_trees_summary / "tree_distance_heatmaps.pdf",
+            )
+            self.logger.info(
+                f"树距离热图已保存: {heatmap_paths[0]} 和 {heatmap_paths[1]}"
+            )
+        except Exception as e:
+            self.logger.warning(f"生成树距离热图失败: {e}")
 
         summary_file = path_trees_summary / "analysis_summary.txt"
 
@@ -607,7 +621,17 @@ class PhylogeneticPipeline:
             f.write("├── maximum_likelihood/     # 极大似然法结果\n")
             f.write("├── bayesian_method/        # 贝叶斯法结果\n")
             f.write("├── visualizations/         # 树图可视化\n")
-            f.write("└── analysis_summary.txt    # 本总结文件\n\n")
+            f.write("└── tree_summary/           # 树距离矩阵与热图\n\n")
+
+            f.write("tree_summary 目录内容:\n")
+            f.write("-" * 40 + "\n")
+            f.write("- tree_meta_data.tsv\n")
+            f.write("- tree_distance_matrix.tsv\n")
+            f.write("- rf_distance_matrix.tsv\n")
+            if heatmap_paths:
+                f.write("- tree_distance_heatmaps.png\n")
+                f.write("- tree_distance_heatmaps.pdf\n")
+            f.write("- analysis_summary.txt\n\n")
 
             f.write("注意事项:\n")
             f.write("-" * 40 + "\n")
@@ -615,6 +639,7 @@ class PhylogeneticPipeline:
             f.write("2. 可使用FigTree、iTOL等工具进一步查看和编辑\n")
             f.write("3. 极大似然法结果包含bootstrap支持值\n")
             f.write("4. 贝叶斯法结果包含后验概率支持值\n")
+            f.write("5. tree_summary 目录同时包含距离矩阵 TSV 和合并热图\n")
 
         self.logger.info(f"结果总结已保存: {summary_file}")
 

@@ -21,6 +21,7 @@ import argparse
 from Bio import SeqIO, Phylo
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from tree_summary_plot import create_tree_distance_heatmaps
 
 mpl.set_loglevel("warning")  # or "error"
 mpl.use("Agg", force=True)
@@ -637,6 +638,7 @@ class ProteinPhylogeneticPipeline:
             f.write(f"MP_phylip\t{tree_files[3] if tree_files[3] else 'NULL'}\n")
 
         # call R script to calculate pairwise tree distances if available
+        heatmap_paths = []
         if Path(self.cal_treedist_method_path).exists():
             r_commands = [
                 ["Rscript", self.cal_treedist_method_path, str(path_tree_info)],
@@ -682,6 +684,21 @@ class ProteinPhylogeneticPipeline:
 
             if not tree_distance_completed:
                 self.logger.warning("Tree distance calculation failed")
+            else:
+                try:
+                    heatmap_paths = create_tree_distance_heatmaps(
+                        path_trees_summary / "tree_distance_matrix.tsv",
+                        path_trees_summary / "rf_distance_matrix.tsv",
+                        path_trees_summary / "tree_distance_heatmaps.png",
+                        path_trees_summary / "tree_distance_heatmaps.pdf",
+                    )
+                    self.logger.info(
+                        f"Tree distance heatmaps saved: {heatmap_paths[0]} and {heatmap_paths[1]}"
+                    )
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to generate tree distance heatmaps: {e}"
+                    )
         else:
             self.logger.warning(
                 f"Tree distance R script not found: {self.cal_treedist_method_path}"
@@ -732,6 +749,16 @@ class ProteinPhylogeneticPipeline:
             f.write("├── visualizations/         # tree visualizations\n")
             f.write("└── tree_summary/           # tree distance analyses\n\n")
 
+            f.write("Tree summary outputs:\n")
+            f.write("-" * 40 + "\n")
+            f.write("- tree_meta_data.tsv\n")
+            f.write("- tree_distance_matrix.tsv\n")
+            f.write("- rf_distance_matrix.tsv\n")
+            if heatmap_paths:
+                f.write("- tree_distance_heatmaps.png\n")
+                f.write("- tree_distance_heatmaps.pdf\n")
+            f.write("- analysis_summary.txt\n\n")
+
             f.write("Notes for protein analyses:\n")
             f.write("-" * 40 + "\n")
             f.write("1. All tree files are in Newick format (.nwk)\n")
@@ -746,7 +773,10 @@ class ProteinPhylogeneticPipeline:
                 "5. MrBayes runs with a mixed amino-acid prior for model averaging\n"
             )
             f.write(
-                "6. Use FigTree, iTOL, or other viewers to inspect and edit trees further\n"
+                "6. tree_summary includes both TSV distance matrices and a combined heatmap figure\n"
+            )
+            f.write(
+                "7. Use FigTree, iTOL, or other viewers to inspect and edit trees further\n"
             )
 
         self.logger.info(f"Summary saved: {summary_file}")
