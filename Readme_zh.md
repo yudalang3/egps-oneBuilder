@@ -11,7 +11,7 @@ English documentation: [`README.md`](README.md)
 - 按输入类型分别提供蛋白质流程和 DNA/CDS 流程。
 - 支持 MAFFT 比对、PHYLIP 距离法/简约法、IQ-TREE 极大似然、MrBayes 贝叶斯分析。
 - 提供树图可视化，以及 TreeDist / Robinson-Foulds 距离统计。
-- 保留 DNA 管线和 Java 纠缠树（Tanglegram）模块，方便和 eGPS 其他组件衔接。
+- 保留 DNA 管线，并提供一个独立的 Java 纠缠树（Tanglegram）查看器，用来交互式比较四种方法得到的系统发育树。
 
 ## 输入与输出
 
@@ -73,6 +73,36 @@ zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 5. 生成树图、总结报告和树距离统计。
 6. 如需进一步比较不同结果，可使用 Java 纠缠树（Tanglegram）模块。
 
+## Tanglegram 查看器
+
+仓库现在提供了一个独立的 Java Swing Tanglegram 查看器，用来把四种建树方法的结果按两两配对方式进行可视化比较。
+
+在 `phylotree_builder_v0.0.1/` 目录下编译：
+
+```bash
+javac -cp "lib/*:java_tanglegram" -d java_tanglegram java_tanglegram/tanglegram/*.java
+```
+
+不预加载任何结果，直接启动：
+
+```bash
+java -cp "java_tanglegram:lib/*" tanglegram.launcher
+```
+
+启动时直接加载一个流程输出的 `tree_summary/`：
+
+```bash
+java -cp "java_tanglegram:lib/*" tanglegram.launcher -dir /path/to/tree_summary
+```
+
+使用说明：
+
+- 主窗口标题固定为 `Tanglegram`。
+- 菜单栏只有 `Files > Open`。
+- `Open` 需要选择一次流程输出里的 `tree_summary/` 目录。
+- 如果 `tree_meta_data.tsv` 里写的是失效路径或某台机器上的绝对路径，程序会自动回退到标准输出目录 `distance_method/`、`maximum_likelihood/`、`bayesian_method/`、`parsimony_method/` 里查找对应树文件。
+- 如果启动时不带 `-dir` 参数，界面会先保持空白，等待用户点击菜单导入 `tree_summary/`。
+
 ## 依赖与环境
 
 - Linux
@@ -89,7 +119,7 @@ zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 ## 其他模块
 
 - `phylo_pipeline_4dna.py`：DNA/CDS 管线主入口，对齐了蛋白质流程的本地辅助脚本、MAD 定根和名称恢复逻辑
-- `java_tanglegram/`：Java Swing 纠缠树（Tanglegram）模块，属于更大的 eGPS 平台代码，不是一个独立 Java 应用
+- `java_tanglegram/`：独立的 Java Swing 纠缠树（Tanglegram）查看器，会把四棵树按 6 种两两组合显示在标签页中
 
 ## 说明
 

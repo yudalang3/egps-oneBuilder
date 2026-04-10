@@ -11,7 +11,7 @@ A Linux-based phylogenetic tree pipeline. It supports protein and DNA/CDS sequen
 - The repository provides one workflow for protein input and one for DNA/CDS input.
 - Supports MAFFT alignment, PHYLIP distance/parsimony methods, IQ-TREE maximum likelihood, and MrBayes Bayesian inference.
 - Generates tree visualizations plus TreeDist and Robinson-Foulds distance statistics.
-- Keeps the DNA pipeline and Java tanglegram module for compatibility with the wider eGPS ecosystem.
+- Keeps the DNA pipeline and provides a standalone Java tanglegram viewer for interactive comparison of the four inferred trees.
 
 ## Input and Output
 
@@ -73,6 +73,36 @@ The timings below come from real runs of the bundled demo inputs on the current 
 5. Generate plots, summary reports, and tree distance statistics.
 6. Use the Java tanglegram module if you want to compare results interactively.
 
+## Tanglegram Viewer
+
+The repository now includes a standalone Java Swing viewer for pairwise tanglegram comparison across the four tree-building methods.
+
+Compile from `phylotree_builder_v0.0.1/`:
+
+```bash
+javac -cp "lib/*:java_tanglegram" -d java_tanglegram java_tanglegram/tanglegram/*.java
+```
+
+Launch without loading data first:
+
+```bash
+java -cp "java_tanglegram:lib/*" tanglegram.launcher
+```
+
+Launch and immediately load one pipeline result:
+
+```bash
+java -cp "java_tanglegram:lib/*" tanglegram.launcher -dir /path/to/tree_summary
+```
+
+Usage notes:
+
+- The window title is `Tanglegram`.
+- The menu bar contains only `Files > Open`.
+- `Open` expects a `tree_summary/` directory from a pipeline run.
+- If `tree_meta_data.tsv` contains stale or machine-specific paths, the viewer falls back to the standard sibling folders `distance_method/`, `maximum_likelihood/`, `bayesian_method/`, and `parsimony_method/`.
+- If no `-dir` argument is provided, the app starts empty and waits for the user to import a `tree_summary/` directory from the menu.
+
 ## Dependencies and Environment
 
 - Linux
@@ -89,7 +119,7 @@ The timings below come from real runs of the bundled demo inputs on the current 
 ## Other Modules
 
 - `phylo_pipeline_4dna.py`: DNA/CDS pipeline entrypoint, now aligned with the protein workflow's local helper scripts, MAD rerooting, and name-restoration flow
-- `java_tanglegram/`: Java Swing tanglegram module for the broader eGPS platform; it is not a standalone Java application here
+- `java_tanglegram/`: standalone Java Swing tanglegram viewer for comparing the four pipeline trees in six pairwise tabs
 
 ## Notes
 
