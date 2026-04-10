@@ -1,5 +1,9 @@
 # eGPS oneBuilder
 
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+Chinese documentation: [`Readme_zh.md`](Readme_zh.md)
+
 A Linux-based phylogenetic tree pipeline. It supports protein and DNA/CDS sequence alignment, tree inference, visualization, and comparison across multiple methods.
 
 ## Highlights
@@ -103,3 +107,7 @@ The timings below come from real runs of the bundled demo inputs on the current 
 - MAD rerooting depends on the vendored binary at `phylotree_builder_v0.0.1/third_party/mad/mad`. If it is missing, the pipelines keep the original trees and continue.
 - With the current defaults, the protein workflow is much slower than the DNA/CDS workflow mainly because the protein pipeline runs MrBayes with more generations (`50000` vs `10000`), not because the other tree-building methods are inherently different in kind.
 - Sample inputs and sample output directories live at the repository root, not inside `phylotree_builder_v0.0.1/`.
+
+## License
+
+Apache-2.0. See `LICENSE`.

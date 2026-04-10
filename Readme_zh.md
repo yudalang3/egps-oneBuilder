@@ -1,5 +1,9 @@
 # eGPS oneBuilder
 
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+English documentation: [`Readme.md`](Readme.md)
+
 一个运行在 Linux 下的系统发育树构建管线。它支持蛋白质序列和 DNA/CDS 序列的比对、建树、可视化，以及不同方法结果的对比。
 
 ## 项目特点
@@ -103,3 +107,7 @@ zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 - MAD 重新定根依赖仓库内的 `phylotree_builder_v0.0.1/third_party/mad/mad`。如果缺失，主管线会保留原树继续执行。
 - 当前默认参数下，蛋白质流程比 DNA/CDS 流程慢得多，主要原因不是算法类别不同，而是蛋白质流程默认给 MrBayes 设置了更高的迭代代数（`50000` 对 `10000`）。
 - 本仓库里的示例数据和示例输出都在仓库根目录，不在 `phylotree_builder_v0.0.1/` 子目录里。
+
+## 开源协议
+
+本项目采用 Apache-2.0 协议，详见 `LICENSE`。
