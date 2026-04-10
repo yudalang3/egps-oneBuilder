@@ -49,6 +49,17 @@ zsh phylotree_builder_v0.0.1/s2_phylo_4dna.zsh \
 zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 ```
 
+## 运行耗时预期
+
+下面的时间来自当前仓库自带示例数据在当前开发机上的实际运行日志，只能作为量级参考，不代表所有数据集的固定耗时。
+
+- 蛋白质示例 `gold_standard_protein_aligned.fasta`：整条流程约 8 到 9 分钟。
+- 蛋白质流程里最慢的是 MrBayes 贝叶斯步骤；当前默认参数是 `ngen=50000`，单这一步大约用了 7.5 到 8.5 分钟。
+- 同一条蛋白质流程中，IQ-TREE 极大似然步骤大约 35 到 40 秒，距离法和简约法通常只要几秒内，后处理（MAD 定根、可视化、树距离统计）大约还需要 20 到 30 秒。
+- DNA/CDS 示例 `gold_standard_cds_aligned.fasta`：整条流程约 40 到 45 秒。
+- 当前 DNA/CDS 示例里，IQ-TREE 大约 10 到 12 秒，MrBayes 大约 9 到 10 秒，MAD 定根、可视化和树距离统计加起来大约 15 到 25 秒。
+- 如果你的数据更多、序列更长、bootstrap 更高、或把 MrBayes 代数调大，贝叶斯法通常会首先成为最慢步骤。
+
 ## 工作流程
 
 1. 输入比对后的 FASTA 文件。
@@ -73,7 +84,7 @@ zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 
 ## 其他模块
 
-- `phylo_pipeline_4dna.py`：DNA/CDS 管线，保留用于兼容和扩展；其中部分辅助路径不在本仓库内
+- `phylo_pipeline_4dna.py`：DNA/CDS 管线主入口，对齐了蛋白质流程的本地辅助脚本、MAD 定根和名称恢复逻辑
 - `java_tanglegram/`：Java Swing 纠缠树（Tanglegram）模块，属于更大的 eGPS 平台代码，不是一个独立 Java 应用
 
 ## 说明
@@ -90,4 +101,5 @@ zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 - 如果直接运行主 Python 脚本而不是用包装脚本，某些环境下还需要设置 `LD_LIBRARY_PATH=phylotree_builder_v0.0.1/.pixi/envs/default/lib`，否则 `numpy`、`Rscript` 或 IQ-TREE 可能无法正常加载依赖。
 - IQ-TREE 在当前 Pixi 环境里可能显示为 `iqtree3`；仓库脚本已经做了兼容处理，但如果你手动调命令，需要留意这个命令名差异。
 - MAD 重新定根依赖仓库内的 `phylotree_builder_v0.0.1/third_party/mad/mad`。如果缺失，主管线会保留原树继续执行。
+- 当前默认参数下，蛋白质流程比 DNA/CDS 流程慢得多，主要原因不是算法类别不同，而是蛋白质流程默认给 MrBayes 设置了更高的迭代代数（`50000` 对 `10000`）。
 - 本仓库里的示例数据和示例输出都在仓库根目录，不在 `phylotree_builder_v0.0.1/` 子目录里。

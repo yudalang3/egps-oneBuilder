@@ -6,5 +6,6 @@
 /phylotree_builder_v0.0.1/third_party/
 /test1/
 /test2/
+/launch.md
 *.fasta
 *.log

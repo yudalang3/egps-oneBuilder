@@ -49,6 +49,17 @@ If your input FASTA is not aligned yet, run MAFFT first:
 zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 ```
 
+## Runtime Expectations
+
+The timings below come from real runs of the bundled demo inputs on the current development machine. Treat them as order-of-magnitude guidance, not fixed guarantees.
+
+- Protein demo `gold_standard_protein_aligned.fasta`: about 8 to 9 minutes end to end.
+- In the protein workflow, the slowest step is MrBayes. With the current default `ngen=50000`, that step alone took about 7.5 to 8.5 minutes.
+- In the same protein run, IQ-TREE took about 35 to 40 seconds, distance and parsimony steps finished within seconds, and post-processing (MAD rerooting, visualization, and tree-distance summaries) took another roughly 20 to 30 seconds.
+- DNA/CDS demo `gold_standard_cds_aligned.fasta`: about 40 to 45 seconds end to end.
+- In the current DNA/CDS demo, IQ-TREE took about 10 to 12 seconds, MrBayes took about 9 to 10 seconds, and MAD rerooting plus visualization plus tree-distance summaries added another roughly 15 to 25 seconds.
+- On larger datasets, with longer sequences, more bootstrap replicates, or more MrBayes generations, the Bayesian step is usually the first one that becomes the bottleneck.
+
 ## Workflow
 
 1. Start from an aligned FASTA file.
@@ -73,7 +84,7 @@ zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 
 ## Other Modules
 
-- `phylo_pipeline_4dna.py`: DNA/CDS pipeline kept for compatibility and extension; some helper paths are external to this repository
+- `phylo_pipeline_4dna.py`: DNA/CDS pipeline entrypoint, now aligned with the protein workflow's local helper scripts, MAD rerooting, and name-restoration flow
 - `java_tanglegram/`: Java Swing tanglegram module for the broader eGPS platform; it is not a standalone Java application here
 
 ## Notes
@@ -90,4 +101,5 @@ zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 - If you run the main Python scripts directly rather than using the wrapper scripts, some environments also require `LD_LIBRARY_PATH=phylotree_builder_v0.0.1/.pixi/envs/default/lib`; otherwise dependencies such as NumPy, R, or IQ-TREE may fail to load.
 - In the current Pixi environment, IQ-TREE may appear as `iqtree3`; the repository scripts handle this automatically, but manual commands need to account for the binary name.
 - MAD rerooting depends on the vendored binary at `phylotree_builder_v0.0.1/third_party/mad/mad`. If it is missing, the pipelines keep the original trees and continue.
+- With the current defaults, the protein workflow is much slower than the DNA/CDS workflow mainly because the protein pipeline runs MrBayes with more generations (`50000` vs `10000`), not because the other tree-building methods are inherently different in kind.
 - Sample inputs and sample output directories live at the repository root, not inside `phylotree_builder_v0.0.1/`.
