@@ -4,7 +4,7 @@
 
 ## 项目特点
 
-- 蛋白质流程更完整，推荐优先使用。
+- 按输入类型分别提供蛋白质流程和 DNA/CDS 流程。
 - 支持 MAFFT 比对、PHYLIP 距离法/简约法、IQ-TREE 极大似然、MrBayes 贝叶斯分析。
 - 提供树图可视化，以及 TreeDist / Robinson-Foulds 距离统计。
 - 保留 DNA 管线和 Java 纠缠树（Tanglegram）模块，方便和 eGPS 其他组件衔接。
@@ -27,23 +27,26 @@
 
 ## Quick Start
 
-### 蛋白质流程
+### 蛋白质输入
 
 ```bash
-zsh s1_quick_align.zsh input.fasta
-zsh s2_phylo_4prot.zsh input.aligned.fasta
+zsh phylotree_builder_v0.0.1/s2_phylo_4prot.zsh \
+  input_demo/simu/gold_standard_protein_aligned.fasta demo_protein
 ```
 
-如果你已经有对齐好的 FASTA，也可以直接运行主管线：
+### DNA/CDS 输入
 
 ```bash
-pixi run --manifest-path phylotree_builder_v0.0.1 python phylotree_builder_v0.0.1/phylo_pipeline_4prot.py input.aligned.fasta -o phylo_results_protein
+zsh phylotree_builder_v0.0.1/s2_phylo_4dna.zsh \
+  input_demo/simu/gold_standard_cds_aligned.fasta demo_dna
 ```
 
-### DNA/CDS 流程
+### 非对齐输入
+
+如果你的输入还没有完成多序列比对，可以先运行：
 
 ```bash
-pixi run --manifest-path phylotree_builder_v0.0.1 python phylotree_builder_v0.0.1/phylo_pipeline_4dna.py input.aligned.fasta -o phylo_results
+zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 ```
 
 ## 工作流程
@@ -61,12 +64,12 @@ pixi run --manifest-path phylotree_builder_v0.0.1 python phylotree_builder_v0.0.
 - Pixi 环境，依赖定义在 `phylotree_builder_v0.0.1/pixi.toml`
 - 主要依赖：`phylip`、`iqtree`、`mrbayes`、`biopython`、`ete4`、`r-treedist`、`matplotlib`、`mafft`
 - 蛋白质管线会使用同目录下的 `help_utils.py` 和 `cal_pair_wise_tree_dist.R`
-- MAD 重新定根工具默认路径为 `/opt/BioInfo/MAD/mad/mad`，如果不存在，程序会保留原树
+- MAD 重新定根工具默认路径为 `phylotree_builder_v0.0.1/third_party/mad/mad`
 
 ## 示例数据
 
-- `phylotree_builder_v0.0.1/input_demo/simu/`：模拟的对齐数据示例
-- `phylotree_builder_v0.0.1/test1/`：示例输出目录结构
+- `input_demo/simu/`：模拟的对齐数据示例
+- `test1/`：示例输出目录结构
 
 ## 其他模块
 
@@ -75,5 +78,16 @@ pixi run --manifest-path phylotree_builder_v0.0.1 python phylotree_builder_v0.0.
 
 ## 说明
 
-- 蛋白质管线会在 PHYLIP 转换前把序列 ID 临时重命名为 `seqN`，并在输出阶段恢复原名。
-- 如果序列 ID 很长，优先使用蛋白质管线提供的包装脚本。
+- 蛋白质管线和 DNA/CDS 管线都会在 PHYLIP 转换前把序列 ID 临时重命名为 `seqN`，并在输出阶段恢复原名。
+- 推荐优先使用仓库内提供的包装脚本，而不是直接手动拼接 `pixi run ... python3.13 ...` 命令。
+
+## 注意事项与常见坑
+
+- PHYLIP 使用的是 strict 格式，传统上序列 ID 最好不要超过 10 个字符。本仓库两条主管线都会自动把 ID 临时改成 `seqN`，但如果你手动调用 PHYLIP 工具，仍要注意这个限制。
+- 蛋白质输入请走蛋白质流程，DNA/CDS 输入请走 DNA/CDS 流程。
+- 包装脚本依赖 `pixi` 可执行文件。如果你的 shell 里找不到 `pixi`，请先把 Pixi 加到 `PATH`，或者设置环境变量 `PIXI_EXE`。
+- 直接调用 Python 管线时，优先使用 `python3.13`，不要假设 Pixi 环境里一定有 `python` 这个命令名。
+- 如果直接运行主 Python 脚本而不是用包装脚本，某些环境下还需要设置 `LD_LIBRARY_PATH=phylotree_builder_v0.0.1/.pixi/envs/default/lib`，否则 `numpy`、`Rscript` 或 IQ-TREE 可能无法正常加载依赖。
+- IQ-TREE 在当前 Pixi 环境里可能显示为 `iqtree3`；仓库脚本已经做了兼容处理，但如果你手动调命令，需要留意这个命令名差异。
+- MAD 重新定根依赖仓库内的 `phylotree_builder_v0.0.1/third_party/mad/mad`。如果缺失，主管线会保留原树继续执行。
+- 本仓库里的示例数据和示例输出都在仓库根目录，不在 `phylotree_builder_v0.0.1/` 子目录里。

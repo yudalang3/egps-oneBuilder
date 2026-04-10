@@ -1,5 +1,7 @@
 #!/bin/zsh
 
+set -euo pipefail
+
 # 检查是否提供了输入文件
 if [[ $# -ne 1 ]]; then
     echo "用法: zsh $0 <input.fasta>"
@@ -29,6 +31,13 @@ fi
 # 执行 mafft 命令
 # 获取脚本所在目录的绝对路径
 script_dir="${0:a:h}"
-pixi run --manifest-path $script_dir mafft --reorder --localpair --maxiterate 1000 "$input" > "$output"
+pixi_exe="${PIXI_EXE:-/home/dell/.pixi/bin/pixi}"
+
+if [[ ! -x "$pixi_exe" ]]; then
+    echo "错误: 找不到 pixi。请设置 PIXI_EXE，或安装到 /home/dell/.pixi/bin/pixi。"
+    exit 1
+fi
+
+"$pixi_exe" run --manifest-path "$script_dir" mafft --reorder --localpair --maxiterate 1000 "$input" > "$output"
 
 echo "比对完成！输出文件: $output"

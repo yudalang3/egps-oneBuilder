@@ -4,7 +4,7 @@ A Linux-based phylogenetic tree pipeline. It supports protein and DNA/CDS sequen
 
 ## Highlights
 
-- The protein workflow is the most complete path and is recommended first.
+- The repository provides one workflow for protein input and one for DNA/CDS input.
 - Supports MAFFT alignment, PHYLIP distance/parsimony methods, IQ-TREE maximum likelihood, and MrBayes Bayesian inference.
 - Generates tree visualizations plus TreeDist and Robinson-Foulds distance statistics.
 - Keeps the DNA pipeline and Java tanglegram module for compatibility with the wider eGPS ecosystem.
@@ -27,23 +27,26 @@ A Linux-based phylogenetic tree pipeline. It supports protein and DNA/CDS sequen
 
 ## Quick Start
 
-### Protein Workflow
+### Protein Input
 
 ```bash
-zsh s1_quick_align.zsh input.fasta
-zsh s2_phylo_4prot.zsh input.aligned.fasta
+zsh phylotree_builder_v0.0.1/s2_phylo_4prot.zsh \
+  input_demo/simu/gold_standard_protein_aligned.fasta demo_protein
 ```
 
-If you already have an aligned FASTA, run the main pipeline directly:
+### DNA/CDS Input
 
 ```bash
-pixi run --manifest-path phylotree_builder_v0.0.1 python phylotree_builder_v0.0.1/phylo_pipeline_4prot.py input.aligned.fasta -o phylo_results_protein
+zsh phylotree_builder_v0.0.1/s2_phylo_4dna.zsh \
+  input_demo/simu/gold_standard_cds_aligned.fasta demo_dna
 ```
 
-### DNA/CDS Workflow
+### Unaligned Input
+
+If your input FASTA is not aligned yet, run MAFFT first:
 
 ```bash
-pixi run --manifest-path phylotree_builder_v0.0.1 python phylotree_builder_v0.0.1/phylo_pipeline_4dna.py input.aligned.fasta -o phylo_results
+zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 ```
 
 ## Workflow
@@ -61,12 +64,12 @@ pixi run --manifest-path phylotree_builder_v0.0.1 python phylotree_builder_v0.0.
 - Pixi environment, declared in `phylotree_builder_v0.0.1/pixi.toml`
 - Core dependencies: `phylip`, `iqtree`, `mrbayes`, `biopython`, `ete4`, `r-treedist`, `matplotlib`, `mafft`
 - The protein pipeline uses the local `help_utils.py` and `cal_pair_wise_tree_dist.R`
-- MAD rerooting defaults to `/opt/BioInfo/MAD/mad/mad`; if it is missing, the original trees are kept
+- MAD rerooting defaults to `phylotree_builder_v0.0.1/third_party/mad/mad`
 
 ## Example Data
 
-- `phylotree_builder_v0.0.1/input_demo/simu/`: simulated aligned input data
-- `phylotree_builder_v0.0.1/test1/`: example output directory layout
+- `input_demo/simu/`: simulated aligned input data
+- `test1/`: example output directory layout
 
 ## Other Modules
 
@@ -75,5 +78,16 @@ pixi run --manifest-path phylotree_builder_v0.0.1 python phylotree_builder_v0.0.
 
 ## Notes
 
-- The protein pipeline temporarily renames sequence IDs to `seqN` before PHYLIP conversion, then restores the original names in the output trees.
-- If your sequence IDs are long, prefer the protein wrapper scripts.
+- Both the protein and DNA/CDS pipelines temporarily rename sequence IDs to `seqN` before PHYLIP conversion, then restore the original names in the output trees.
+- Prefer the repository wrapper scripts over assembling `pixi run ... python3.13 ...` commands by hand.
+
+## Known Gotchas
+
+- PHYLIP uses the strict format here, so sequence IDs traditionally need to stay within 10 characters. Both repository pipelines handle this automatically by renaming IDs to `seqN`, but the limitation still matters if you invoke PHYLIP tools manually.
+- Use the protein workflow for protein input and the DNA/CDS workflow for DNA or CDS input.
+- The wrapper scripts assume that `pixi` is callable. If your shell cannot find it, add Pixi to `PATH` or set `PIXI_EXE` explicitly.
+- When invoking the Python pipelines directly, use `python3.13` instead of assuming a plain `python` executable exists inside the Pixi environment.
+- If you run the main Python scripts directly rather than using the wrapper scripts, some environments also require `LD_LIBRARY_PATH=phylotree_builder_v0.0.1/.pixi/envs/default/lib`; otherwise dependencies such as NumPy, R, or IQ-TREE may fail to load.
+- In the current Pixi environment, IQ-TREE may appear as `iqtree3`; the repository scripts handle this automatically, but manual commands need to account for the binary name.
+- MAD rerooting depends on the vendored binary at `phylotree_builder_v0.0.1/third_party/mad/mad`. If it is missing, the pipelines keep the original trees and continue.
+- Sample inputs and sample output directories live at the repository root, not inside `phylotree_builder_v0.0.1/`.

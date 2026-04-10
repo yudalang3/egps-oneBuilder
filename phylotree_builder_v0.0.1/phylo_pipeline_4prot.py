@@ -14,7 +14,7 @@ import sys
 import subprocess
 import shutil
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 import logging
 from datetime import datetime
 import argparse
@@ -26,7 +26,8 @@ mpl.set_loglevel("warning")  # or "error"
 mpl.use("Agg", force=True)
 import warnings
 from ete4 import Tree
-warnings.filterwarnings('ignore')
+
+warnings.filterwarnings("ignore")
 
 
 class ProteinPhylogeneticPipeline:
@@ -42,34 +43,52 @@ class ProteinPhylogeneticPipeline:
         self.original_file = None  # original input file path
         self.new_name2ori_name_dict: Dict[str, str] = None
         self.output_dir = Path(output_dir).resolve()
+        self.script_dir = Path(__file__).parent.resolve()
 
         # initialize logging and output directories
         self.setup_logging()
         self.create_directories()
 
         # software paths (will be set during checks)
-        self.phylip_dir = None
+        self.phylip_commands: Dict[str, str] = {}
         self.iqtree_path = None
         self.mrbayes_path = None
 
         # MAD executable for rerooting
-        self.mad_method_path = "/opt/BioInfo/MAD/mad/mad"
+        self.mad_method_path = str(self.script_dir / "third_party" / "mad" / "mad")
         # Path to R script for pairwise tree distances (optional)
-        script_dir = Path(__file__).parent.resolve()
-        self.cal_treedist_method_path = str(script_dir / "cal_pair_wise_tree_dist.R")
+        self.cal_treedist_method_path = str(
+            self.script_dir / "cal_pair_wise_tree_dist.R"
+        )
+
+    def _resolve_command(
+        self, command_names: List[str], bundled_glob: Optional[str] = None
+    ) -> Optional[str]:
+        for command_name in command_names:
+            resolved_path = shutil.which(command_name)
+            if resolved_path:
+                return resolved_path
+
+        if bundled_glob:
+            bundled_matches = sorted(self.script_dir.glob(bundled_glob))
+            for bundled_match in bundled_matches:
+                if bundled_match.exists():
+                    return str(bundled_match)
+
+        return None
 
     def setup_logging(self):
         """Configure logging system"""
-        log_file = f"phylo_pipeline_protein_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        log_file = (
+            f"phylo_pipeline_protein_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        )
         logging.basicConfig(
             level=logging.DEBUG,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(log_file),
-                logging.StreamHandler()
-            ]
+            format="%(asctime)s - %(levelname)s - %(message)s",
+            handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
         )
         self.logger = logging.getLogger(__name__)
+
     def name_convention(self):
         """Set name convention for input sequences.
 
@@ -79,9 +98,9 @@ class ProteinPhylogeneticPipeline:
         self.input_file = Path(self.input_file).resolve()
         iterator = SeqIO.parse(self.input_file, "fasta")
         records = list(iterator)
-            # If needed, convert sequence IDs to indexed names
+        # If needed, convert sequence IDs to indexed names
         new_name2ori_name_dict: Dict[str, str] = {}
-        for index,record in enumerate(records, start=1):
+        for index, record in enumerate(records, start=1):
             new_name = f"seq{index}"
             new_name2ori_name_dict[new_name] = record.id
             # DO NOT need to care about record.name, this is not for fasta
@@ -90,7 +109,9 @@ class ProteinPhylogeneticPipeline:
             record.id = f"seq{index}"
         self.new_name2ori_name_dict = new_name2ori_name_dict
         self.original_file = self.input_file
-        self.input_file = self.output_dir / (self.input_file.stem + "_tmp" + self.input_file.suffix)
+        self.input_file = self.output_dir / (
+            self.input_file.stem + "_tmp" + self.input_file.suffix
+        )
 
         SeqIO.write(records, self.input_file, "fasta")
 
@@ -104,7 +125,7 @@ class ProteinPhylogeneticPipeline:
             self.output_dir / "parsimony_method",
             self.output_dir / "maximum_likelihood",
             self.output_dir / "bayesian_method",
-            self.output_dir / "visualizations"
+            self.output_dir / "visualizations",
         ]
 
         for dir_path in directories:
@@ -116,31 +137,42 @@ class ProteinPhylogeneticPipeline:
         """Check and (optionally) install required external software"""
         self.logger.info("Checking required software...")
 
-    # Install/check packages
-    # MrBayes executable is typically 'mb'
-        software_packages = [
-            ("phylip", "phylip"),
-            ("iqtree", "iqtree"),
-            ("mrbayes", "mb")
+        self.iqtree_path = self._resolve_command(["iqtree", "iqtree2", "iqtree3"])
+        self.mrbayes_path = self._resolve_command(["mb", "mrbayes"])
+        self.phylip_commands = {
+            "protdist": self._resolve_command(
+                ["protdist"], ".pixi/envs/default/share/phylip-*/exe/protdist"
+            ),
+            "neighbor": self._resolve_command(
+                ["neighbor"], ".pixi/envs/default/share/phylip-*/exe/neighbor"
+            ),
+            "protpars": self._resolve_command(
+                ["protpars"], ".pixi/envs/default/share/phylip-*/exe/protpars"
+            ),
+        }
+
+        if not self.iqtree_path:
+            self.logger.error("Failed to find IQ-TREE executable.")
+            sys.exit(1)
+        if not self.mrbayes_path:
+            self.logger.error("Failed to find MrBayes executable.")
+            sys.exit(1)
+
+        missing_phylip_commands = [
+            command_name
+            for command_name, resolved_path in self.phylip_commands.items()
+            if not resolved_path
         ]
-
-        for package, command in software_packages:
-            if not shutil.which(command):
-                self.logger.warning(f"Failed to find {package}, please install it manually.")
-                sys.exit(1)
-
-    # Set software paths
-        self.iqtree_path = shutil.which('iqtree') or shutil.which('iqtree2')
-        self.mrbayes_path = shutil.which('mb') or shutil.which('mrbayes')
-
-        # PHYLIP utilities for protein analyses
-        phylip_commands = ['protdist', 'neighbor', 'protpars']
-        for cmd in phylip_commands:
-            if not shutil.which(cmd):
-                self.logger.warning(f"PHYLIP command {cmd} not found; related functionality may be unavailable")
+        if missing_phylip_commands:
+            self.logger.error(
+                f"Failed to find required PHYLIP commands: {', '.join(missing_phylip_commands)}"
+            )
+            sys.exit(1)
 
         if self.mad_method_path and not Path(self.mad_method_path).exists():
-            self.logger.warning(f"MAD rerooting executable not found: {self.mad_method_path}")
+            self.logger.warning(
+                f"MAD rerooting executable not found: {self.mad_method_path}"
+            )
 
     def validate_input(self):
         """Validate input FASTA alignment"""
@@ -152,15 +184,19 @@ class ProteinPhylogeneticPipeline:
         try:
             sequences = list(SeqIO.parse(self.input_file, "fasta"))
             if len(sequences) < 3:
-                self.logger.error("At least 3 sequences are required to infer a phylogeny")
+                self.logger.error(
+                    "At least 3 sequences are required to infer a phylogeny"
+                )
                 sys.exit(1)
 
             # Check for protein alphabet (basic check against standard amino acids)
-            protein_chars = set('ACDEFGHIKLMNPQRSTVWY*X-')
+            protein_chars = set("ACDEFGHIKLMNPQRSTVWY*X-")
             for seq in sequences[:3]:  # inspect a few sequences
                 seq_chars = set(str(seq.seq).upper())
                 if not seq_chars.issubset(protein_chars):
-                    self.logger.warning("Sequences may not be standard protein sequences; please verify input")
+                    self.logger.warning(
+                        "Sequences may not be standard protein sequences; please verify input"
+                    )
 
             self.logger.info(f"Input validation successful: {len(sequences)} sequences")
             return sequences
@@ -199,9 +235,13 @@ class ProteinPhylogeneticPipeline:
         try:
             # 1. compute protein distance matrix with protdist
             protdist_input = "Y\n"  # accept defaults
-            proc = subprocess.Popen(['protdist'], stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                    text=True)
+            proc = subprocess.Popen(
+                [self.phylip_commands["protdist"]],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
             stdout, stderr = proc.communicate(input=protdist_input)
             # Now stdout/stderr are available for logging/debugging
             self.logger.debug("==Stdout of PHYLIP protdist==")
@@ -217,9 +257,13 @@ class ProteinPhylogeneticPipeline:
                 shutil.move("outfile", "infile")
 
             neighbor_input = "Y\n"  # accept defaults
-            proc = subprocess.Popen(['neighbor'], stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                    text=True)
+            proc = subprocess.Popen(
+                [self.phylip_commands["neighbor"]],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
             stdout, stderr = proc.communicate(input=neighbor_input)
             self.logger.debug("==Stdout of PHYLIP neighbor==")
             self.logger.debug(stdout)
@@ -234,9 +278,8 @@ class ProteinPhylogeneticPipeline:
             if os.path.exists("outfile"):
                 shutil.move("outfile", "distance_tree.nwk.txt")
 
-
             # check branch lengths: protdist/neighbor may produce negative branch lengths
-            content = Path("distance_tree.nwk").read_text().replace('\n', '')
+            content = Path("distance_tree.nwk").read_text().replace("\n", "")
             my_tree = Tree(content)
             has_value_less0 = False
             for node in my_tree.traverse():
@@ -249,7 +292,9 @@ class ProteinPhylogeneticPipeline:
                     # handle None values
                     node.dist = 0.0
             if has_value_less0:
-                self.logger.warning("Found negative branch lengths; set negatives to 0 and rewrote tree")
+                self.logger.warning(
+                    "Found negative branch lengths; set negatives to 0 and rewrote tree"
+                )
                 my_tree.write(outfile="distance_tree.nwk")
 
             self.logger.info("Distance-based inference completed")
@@ -275,9 +320,13 @@ class ProteinPhylogeneticPipeline:
         try:
             # Run protpars for protein parsimony analysis
             protpars_input = "4\n5\nY\n"  # default options
-            proc = subprocess.Popen(['protpars'], stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                    text=True)
+            proc = subprocess.Popen(
+                [self.phylip_commands["protpars"]],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
             stdout, stderr = proc.communicate(input=protpars_input)
             self.logger.debug("==Stdout of PHYLIP protpars==")
             self.logger.debug(stdout)
@@ -320,19 +369,28 @@ class ProteinPhylogeneticPipeline:
             # run IQ-TREE and let it select the best protein substitution model
             cmd = [
                 self.iqtree_path,
-                "-s", str(input_file),
-                "-m", "MFP",  # automatically select best protein model
-                "-mset", "WAG,LG,JTT,Dayhoff,DCMut,rtREV,cpREV,VT,Blosum62,mtMam,mtArt,HIVb,HIVw",  # restrict protein model set
-                "-bb", "1000",  # ultrafast bootstrap 1000 replicates
-                "-pre", "ml_tree",  # output prefix
+                "-s",
+                str(input_file),
+                "-m",
+                "MFP",  # automatically select best protein model
+                "-mset",
+                "WAG,LG,JTT,Dayhoff,DCMut,rtREV,cpREV,VT,Blosum62,mtMam,mtArt,HIVb,HIVw",  # restrict protein model set
+                "-bb",
+                "1000",  # ultrafast bootstrap 1000 replicates
+                "-pre",
+                "ml_tree",  # output prefix
                 "--quiet",
-                "-redo"  # rerun if necessary
+                "-redo",  # rerun if necessary
             ]
             self.logger.info(cmd)
 
-            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                    text=True)
+            proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
             stdout, stderr = proc.communicate()
             self.logger.debug("==Stdout of IQ-Tree==")
             self.logger.debug(stdout)
@@ -355,7 +413,9 @@ class ProteinPhylogeneticPipeline:
         self.logger.info("Starting Bayesian inference (MrBayes)...")
 
         if not self.mrbayes_path:
-            self.logger.warning("MrBayes path not explicitly set; will try to use system 'mb' executable")
+            self.logger.warning(
+                "MrBayes path not explicitly set; will try to use system 'mb' executable"
+            )
             mb_exec = "mb"
         else:
             mb_exec = str(self.mrbayes_path)
@@ -377,8 +437,12 @@ class ProteinPhylogeneticPipeline:
             mb_input.append(f"execute {nexus_file.name}\n")
             # protein model settings
             mb_input.append("prset aamodelpr=mixed;\n")  # use mixed amino-acid models
-            mb_input.append("lset rates=invgamma;\n")  # allow proportion of invariant sites + gamma-distributed rates
-            mb_input.append("mcmcp ngen=50000 samplefreq=100 printfreq=1000 diagnfreq=5000;\n")  # longer MCMC suitable for protein data
+            mb_input.append(
+                "lset rates=invgamma;\n"
+            )  # allow proportion of invariant sites + gamma-distributed rates
+            mb_input.append(
+                "mcmcp ngen=50000 samplefreq=100 printfreq=1000 diagnfreq=5000;\n"
+            )  # longer MCMC suitable for protein data
             mb_input.append("mcmc;\n")
             mb_input.append("sumt;\n")
             mb_input.append("quit;\n")
@@ -389,9 +453,13 @@ class ProteinPhylogeneticPipeline:
 
             # run MrBayes
             os.chdir(work_dir)
-            proc = subprocess.Popen([mb_exec], stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                    text=True)
+            proc = subprocess.Popen(
+                [mb_exec],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
             stdout, stderr = proc.communicate(input=mb_input_str)
             self.logger.debug("==Stdout of MrBayes==")
             self.logger.debug(stdout)
@@ -406,13 +474,16 @@ class ProteinPhylogeneticPipeline:
                 consensus_tree = file
                 try:
                     # Try to import a helper to convert Nexus trees to Newick
-                    sys.path.append(str(   Path(__file__).resolve().parents[0] ))
+                    sys.path.append(str(Path(__file__).resolve().parents[0]))
                     from help_utils import parse_nexus_tree
+
                     out_file = Path(str(consensus_tree) + ".nwk")
                     parse_nexus_tree(consensus_tree, out_file)
                     consensus_tree = out_file
                 except ImportError:
-                    self.logger.warning("parse_mrb_tree module not found; keeping original .con.tre file")
+                    self.logger.warning(
+                        "parse_mrb_tree module not found; keeping original .con.tre file"
+                    )
                     # Optionally implement conversion here if needed
                 break
 
@@ -433,10 +504,12 @@ class ProteinPhylogeneticPipeline:
         """Create a NEXUS file for MrBayes (protein data)"""
         sequences = list(SeqIO.parse(self.input_file, "fasta"))
 
-        with open(nexus_file, 'w') as f:
+        with open(nexus_file, "w") as f:
             f.write("#NEXUS\n\n")
             f.write("begin data;\n")
-            f.write(f"    dimensions ntax={len(sequences)} nchar={len(sequences[0].seq)};\n")
+            f.write(
+                f"    dimensions ntax={len(sequences)} nchar={len(sequences[0].seq)};\n"
+            )
             f.write("    format datatype=PROTEIN gap=- missing=?;\n")
             f.write("    matrix\n")
 
@@ -450,7 +523,9 @@ class ProteinPhylogeneticPipeline:
         """Restore original sequence names in tree files"""
         self.logger.info("Restoring original sequence names in trees...")
         if self.new_name2ori_name_dict is None:
-            self.logger.warning("No name mapping available; skipping name restoration in trees")
+            self.logger.warning(
+                "No name mapping available; skipping name restoration in trees"
+            )
             return tree_files
         """Use the ete4 library to read and rewrite trees with original names"""
         ret_paths: List[Path] = []
@@ -462,7 +537,9 @@ class ProteinPhylogeneticPipeline:
             # Ensure it's a Path
             tree_file = Path(tree_file)
             # Output path: original filename with .renamed appended
-            path_output = tree_file.with_name(tree_file.stem + ".renamed" + tree_file.suffix)
+            path_output = tree_file.with_name(
+                tree_file.stem + ".renamed" + tree_file.suffix
+            )
 
             try:
                 # Read the tree
@@ -473,7 +550,9 @@ class ProteinPhylogeneticPipeline:
                     if leaf.name in self.new_name2ori_name_dict:
                         leaf.name = self.new_name2ori_name_dict[leaf.name]
                     else:
-                        self.logger.warning(f"Leaf name {leaf.name} not found in mapping dictionary")
+                        self.logger.warning(
+                            f"Leaf name {leaf.name} not found in mapping dictionary"
+                        )
 
                 # Write to a new file
                 t.write(outfile=str(path_output))
@@ -486,7 +565,6 @@ class ProteinPhylogeneticPipeline:
                 ret_paths.append(tree_file)  # return original tree file
         return ret_paths
 
-
     def visualize_trees(self, tree_files, method_names):
         """Generate visualizations for inferred phylogenies"""
         self.logger.info("Generating tree visualizations...")
@@ -496,8 +574,8 @@ class ProteinPhylogeneticPipeline:
 
         # Configure fonts (include Sino-fonts as fallback if available)
         try:
-            plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
-            plt.rcParams['axes.unicode_minus'] = False
+            plt.rcParams["font.sans-serif"] = ["SimHei", "DejaVu Sans"]
+            plt.rcParams["axes.unicode_minus"] = False
         except:
             self.logger.error("plt.rcParams setting error.")
             pass
@@ -512,20 +590,34 @@ class ProteinPhylogeneticPipeline:
                     trees = list(list_trees)
                     Phylo.draw(trees[0], axes=axes[i], do_show=False)
                     if method.startswith("Parsimony"):
-                        title = f"{method} Method (unrooted), # of trees: {len(trees)}";
+                        title = f"{method} Method (unrooted), # of trees: {len(trees)}"
                     else:
-                        title = f"{method} Method (protein)";
+                        title = f"{method} Method (protein)"
                     axes[i].set_title(title, fontsize=14)
                 except Exception as e:
-                    axes[i].text(0.5, 0.5, f"Failed to read tree\n{method}",
-                                 ha='center', va='center', transform=axes[i].transAxes)
+                    axes[i].text(
+                        0.5,
+                        0.5,
+                        f"Failed to read tree\n{method}",
+                        ha="center",
+                        va="center",
+                        transform=axes[i].transAxes,
+                    )
                     self.logger.error(f"Failed to visualize {method}: {e}")
             else:
-                axes[i].text(0.5, 0.5, f"Tree file not found\n{method}",
-                             ha='center', va='center', transform=axes[i].transAxes)
+                axes[i].text(
+                    0.5,
+                    0.5,
+                    f"Tree file not found\n{method}",
+                    ha="center",
+                    va="center",
+                    transform=axes[i].transAxes,
+                )
         plt.tight_layout()
-        plt.savefig(vis_dir / "all_protein_trees_comparison.png", dpi=300, bbox_inches='tight')
-        plt.savefig(vis_dir / "all_protein_trees_comparison.pdf", bbox_inches='tight')
+        plt.savefig(
+            vis_dir / "all_protein_trees_comparison.png", dpi=300, bbox_inches="tight"
+        )
+        plt.savefig(vis_dir / "all_protein_trees_comparison.pdf", bbox_inches="tight")
         plt.close()
 
         self.logger.info("Visualization completed")
@@ -546,34 +638,58 @@ class ProteinPhylogeneticPipeline:
 
         # call R script to calculate pairwise tree distances if available
         if Path(self.cal_treedist_method_path).exists():
-            cmd = [
-                "Rscript",
-                self.cal_treedist_method_path,
-                str(path_tree_info),
+            r_commands = [
+                ["Rscript", self.cal_treedist_method_path, str(path_tree_info)],
+                [
+                    "R",
+                    "--slave",
+                    "-f",
+                    self.cal_treedist_method_path,
+                    "--args",
+                    str(path_tree_info),
+                ],
             ]
-            self.logger.info(cmd)
 
-            try:
-                proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                        text=True)
-                stdout, stderr = proc.communicate()
-                self.logger.debug("==Stdout of tree distance calculation==")
-                self.logger.debug(stdout)
-                if proc.returncode != 0:
+            tree_distance_completed = False
+            for cmd in r_commands:
+                self.logger.info(cmd)
+
+                try:
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                    stdout, stderr = proc.communicate()
+                    self.logger.debug("==Stdout of tree distance calculation==")
+                    self.logger.debug(stdout)
+                    if proc.returncode == 0:
+                        self.logger.info("Tree distance calculation completed")
+                        tree_distance_completed = True
+                        break
+
                     print("Standard error:")
                     print(stderr)
-                    self.logger.warning("Tree distance calculation failed")
-                else:
-                    self.logger.info("Tree distance calculation completed")
-            except Exception as e:
-                self.logger.warning(f"Tree distance script execution failed: {e}")
+                    self.logger.warning(
+                        f"Tree distance calculation failed with command: {cmd[0]}"
+                    )
+                except Exception as e:
+                    self.logger.warning(
+                        f"Tree distance script execution failed with command {cmd[0]}: {e}"
+                    )
+
+            if not tree_distance_completed:
+                self.logger.warning("Tree distance calculation failed")
         else:
-            self.logger.warning(f"Tree distance R script not found: {self.cal_treedist_method_path}")
+            self.logger.warning(
+                f"Tree distance R script not found: {self.cal_treedist_method_path}"
+            )
 
         summary_file = path_trees_summary / "analysis_summary.txt"
 
-        with open(summary_file, 'w', encoding='utf-8') as f:
+        with open(summary_file, "w", encoding="utf-8") as f:
             f.write("=" * 60 + "\n")
             f.write("          Protein phylogenetic analysis summary\n")
             f.write("=" * 60 + "\n\n")
@@ -598,7 +714,9 @@ class ProteinPhylogeneticPipeline:
                 f.write(f"{method:<40} {status}\n")
                 if tree_file and tree_file.exists():
                     try:
-                        rel_path = tree_file.resolve().relative_to(self.output_dir.resolve())
+                        rel_path = tree_file.resolve().relative_to(
+                            self.output_dir.resolve()
+                        )
                         f.write(f"    Output file: {rel_path}\n")
                     except ValueError:
                         f.write(f"    Output file: {tree_file}\n")
@@ -617,11 +735,19 @@ class ProteinPhylogeneticPipeline:
             f.write("Notes for protein analyses:\n")
             f.write("-" * 40 + "\n")
             f.write("1. All tree files are in Newick format (.nwk)\n")
-            f.write("2. Distance method computes a protein distance matrix using protdist\n")
+            f.write(
+                "2. Distance method computes a protein distance matrix using protdist\n"
+            )
             f.write("3. Parsimony uses protpars (protein parsimony)\n")
-            f.write("4. IQ-TREE will auto-select the best-fitting protein substitution model\n")
-            f.write("5. MrBayes runs with a mixed amino-acid prior for model averaging\n")
-            f.write("6. Use FigTree, iTOL, or other viewers to inspect and edit trees further\n")
+            f.write(
+                "4. IQ-TREE will auto-select the best-fitting protein substitution model\n"
+            )
+            f.write(
+                "5. MrBayes runs with a mixed amino-acid prior for model averaging\n"
+            )
+            f.write(
+                "6. Use FigTree, iTOL, or other viewers to inspect and edit trees further\n"
+            )
 
         self.logger.info(f"Summary saved: {summary_file}")
 
@@ -649,9 +775,13 @@ class ProteinPhylogeneticPipeline:
             self.logger.info(cmd)
 
             try:
-                proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                        text=True)
+                proc = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
                 stdout, stderr = proc.communicate()
                 self.logger.debug("==Stdout of MAD rerooting==")
                 self.logger.debug(stdout)
@@ -669,8 +799,7 @@ class ProteinPhylogeneticPipeline:
 
         return ret_paths
 
-    def ladderize_tree_by_ete4(self, tree_files, make_branch_equal = False) -> List[Path]:
-
+    def ladderize_tree_by_ete4(self, tree_files, make_branch_equal=False) -> List[Path]:
         ret_paths: List[Path] = []
 
         for tree_file in tree_files:
@@ -707,7 +836,9 @@ class ProteinPhylogeneticPipeline:
 
     def run_pipeline(self):
         """Run the full analysis pipeline"""
-        self.logger.info(f"Starting protein phylogenetic pipeline...This is: {Path.cwd()}")
+        self.logger.info(
+            f"Starting protein phylogenetic pipeline...This is: {Path.cwd()}"
+        )
         """
         Statement: Note that fasta sequence IDs are best kept at 10 characters or fewer
         so PHYLIP's strict format can recognize them correctly.
@@ -731,40 +862,47 @@ class ProteinPhylogeneticPipeline:
 
         os.chdir(entry_path)
         tree_files.append(self.distance_method(phylip_file))
-        self.logger.info("====Distance method complete===========================================================")
+        self.logger.info(
+            "====Distance method complete==========================================================="
+        )
 
         os.chdir(entry_path)
         tree_files.append(self.maximum_likelihood_method())
         self.logger.info(
-            "====Maximum likelihood method complete===========================================================")
+            "====Maximum likelihood method complete==========================================================="
+        )
 
         os.chdir(entry_path)
         tree_files.append(self.bayesian_method())
-        self.logger.info("====Bayesian method complete===========================================================")
+        self.logger.info(
+            "====Bayesian method complete==========================================================="
+        )
 
         # Parsimony for proteins does not have branch length information
         os.chdir(entry_path)
         parsimony_tree_file = self.parsimony_method(phylip_file)
-        self.logger.info("====Parsimony method complete===========================================================")
+        self.logger.info(
+            "====Parsimony method complete==========================================================="
+        )
 
         # 5. Rerooting and ladderizing
         # Parsimony trees typically lack branch lengths and may not need rerooting/ladderizing
         os.chdir(entry_path)
         rooted_tree_files = self.reroot_tree_by_MAD(tree_files)
 
-
         os.chdir(entry_path)
         rooted_ladd_tree_files = self.ladderize_tree_by_ete4(rooted_tree_files)
-        rooted_ladd_tree_files.extend( self.ladderize_tree_by_ete4( [parsimony_tree_file] , make_branch_equal = True) )
-
+        rooted_ladd_tree_files.extend(
+            self.ladderize_tree_by_ete4([parsimony_tree_file], make_branch_equal=True)
+        )
 
         result_trees = self.restore_names_in_trees(rooted_ladd_tree_files)
-    # 6. Visualization and summary
+        # 6. Visualization and summary
         os.chdir(entry_path)
 
         methods = ["Distance", "Maximum Likelihood", "Bayesian", "Parsimony"]
 
-        self.visualize_trees(result_trees,methods)
+        self.visualize_trees(result_trees, methods)
 
         os.chdir(entry_path)
         self.generate_summary(result_trees, sequences)
@@ -775,10 +913,18 @@ class ProteinPhylogeneticPipeline:
 
 def main():
     """Main function"""
-    parser = argparse.ArgumentParser(description="Automated protein phylogenetic pipeline")
-    parser.add_argument("input_file", help="Input aligned FASTA file (protein sequences)")
-    parser.add_argument("-o", "--output", default="phylo_results_protein",
-                        help="Output directory (default: phylo_results_protein)")
+    parser = argparse.ArgumentParser(
+        description="Automated protein phylogenetic pipeline"
+    )
+    parser.add_argument(
+        "input_file", help="Input aligned FASTA file (protein sequences)"
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="phylo_results_protein",
+        help="Output directory (default: phylo_results_protein)",
+    )
 
     args = parser.parse_args()
 
