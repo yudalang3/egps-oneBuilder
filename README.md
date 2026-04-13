@@ -4,21 +4,21 @@
 
 Chinese documentation: [`README_zh.md`](README_zh.md)
 
-A Linux-based phylogenetic workflow that combines scriptable CLI wrappers with Java Swing GUIs. It supports protein and DNA/CDS sequence alignment, tree inference, visualization, interactive parameter tuning, and cross-method comparison.
+A Linux-based phylogenetic workflow that combines scriptable CLI wrappers with Java Swing GUIs. The actual alignment and tree-building pipeline is Linux-only. On Windows, the Swing tools are limited to GUI configuration export and standalone tanglegram viewing for existing results.
 
 ## Highlights
 
 - The repository provides one workflow for protein input and one for DNA/CDS input.
 - Supports MAFFT alignment, PHYLIP distance/parsimony methods, IQ-TREE maximum likelihood, and MrBayes Bayesian inference.
-- Adds `onebuilder.launcher`, a Java Swing workflow GUI for interactive parameter setting and in-window execution of the existing pipeline.
+- Adds `onebuilder.launcher`, a Java Swing workflow GUI. On Linux it can run the existing pipeline; on Windows it is a JSON config editor only.
 - Keeps the CLI wrappers for scripted and batch-style runs, so the same workflow can be driven either from the GUI or from shell automation.
 - Lets the GUI pass MAFFT, method enable/disable, maximum-likelihood, and Bayesian settings into the existing shell wrappers and Python pipelines through `--config` runtime JSON.
-- Provides a standalone Java tanglegram viewer for interactive comparison of the four inferred trees across six fixed pair views.
+- Provides a standalone Java tanglegram viewer for interactive comparison of the four inferred trees across six fixed pair views on both Linux and Windows.
 - Generates tree visualizations plus TreeDist / Robinson-Foulds matrices and a combined summary heatmap in `tree_summary/`.
 
 ## New Features
 
-- `onebuilder.launcher` adds an interactive Java Swing workflow GUI for configuring alignment, tree-building methods, and exposed ML / Bayesian parameters before running the pipeline.
+- `onebuilder.launcher` adds an interactive Java Swing workflow GUI for configuring alignment, tree-building methods, and exposed ML / Bayesian parameters.
 - The existing CLI wrappers remain first-class entrypoints, so the same workflow can still be scripted for repeated or batch-style runs.
 - GUI and CLI now work together through a shared `--config` runtime JSON bridge instead of maintaining separate execution logic.
 - `tanglegram.launcher` loads one `tree_summary/` result and renders the four inferred trees as six fixed pairwise comparison tabs.
@@ -98,32 +98,62 @@ The timings below come from real runs of the bundled demo inputs on the current 
 
 The repository now includes two standalone Java Swing entrypoints:
 
-- `onebuilder.launcher`: the full workflow GUI with `Input / Align`, `Tree Build`, and `Tanglegram` tabs
-- `tanglegram.launcher`: the focused pairwise tanglegram viewer for loading an existing `tree_summary/`
+- `onebuilder.launcher`: the full workflow GUI with `Input / Align`, `Tree Build`, and `Tanglegram` tabs. Linux can run the pipeline; Windows only edits and exports JSON config files.
+- `tanglegram.launcher`: the focused pairwise tanglegram viewer for loading an existing `tree_summary/` on Linux or Windows.
 
-Compile from `phylotree_builder_v0.0.1/`:
+Compile from the repository root:
+
+```bash
+javac -cp "phylotree_builder_v0.0.1/lib/*:phylotree_builder_v0.0.1/java_tanglegram" -d phylotree_builder_v0.0.1/java_tanglegram \
+  phylotree_builder_v0.0.1/java_tanglegram/tanglegram/*.java \
+  phylotree_builder_v0.0.1/java_tanglegram/onebuilder/*.java \
+  phylotree_builder_v0.0.1/java_tanglegram/tests/*.java
+```
+
+```powershell
+javac -cp "phylotree_builder_v0.0.1\lib/*;phylotree_builder_v0.0.1\java_tanglegram" -d phylotree_builder_v0.0.1\java_tanglegram `
+  phylotree_builder_v0.0.1\java_tanglegram\tanglegram\*.java `
+  phylotree_builder_v0.0.1\java_tanglegram\onebuilder\*.java `
+  phylotree_builder_v0.0.1\java_tanglegram\tests\*.java
+```
+
+Or first `cd phylotree_builder_v0.0.1/`, then use:
 
 ```bash
 javac -cp "lib/*:java_tanglegram" -d java_tanglegram \
   java_tanglegram/tanglegram/*.java \
-  java_tanglegram/onebuilder/*.java
+  java_tanglegram/onebuilder/*.java \
+  java_tanglegram/tests/*.java
 ```
-
-If you only want to validate the Swing windows on Windows PowerShell, use `;` instead of `:` in the classpath:
 
 ```powershell
 javac -cp "lib/*;java_tanglegram" -d java_tanglegram `
   java_tanglegram/tanglegram/*.java `
-  java_tanglegram/onebuilder/*.java
+  java_tanglegram/onebuilder/*.java `
+  java_tanglegram/tests/*.java
 ```
 
 ### Full Workflow GUI
 
-Launch from a Linux desktop or an X11-forwarded terminal session:
+Linux launch from the repository root:
+
+```bash
+java -cp "phylotree_builder_v0.0.1/java_tanglegram:phylotree_builder_v0.0.1/lib/*" onebuilder.launcher
+```
+
+Linux launch after `cd phylotree_builder_v0.0.1/`:
 
 ```bash
 java -cp "java_tanglegram:lib/*" onebuilder.launcher
 ```
+
+Windows PowerShell launch from the repository root:
+
+```powershell
+java -cp "phylotree_builder_v0.0.1\java_tanglegram;phylotree_builder_v0.0.1\lib/*" onebuilder.launcher
+```
+
+Windows PowerShell launch after `Set-Location phylotree_builder_v0.0.1`:
 
 ```powershell
 java -cp "java_tanglegram;lib/*" onebuilder.launcher
@@ -133,18 +163,32 @@ Usage notes:
 
 - The top-level tabs are fixed to `Input / Align`, `Tree Build`, and `Tanglegram`.
 - `Tree Build` uses a left-side tab set with `Distance`, `ML`, `Bayesian`, and `Parsimony`.
-- Enable `Run alignment first` if the input FASTA is not aligned yet; the GUI forwards MAFFT settings into `s1_quick_align.zsh`.
-- The input page includes `Run` and `Stop`, output directory/prefix fields, MAFFT strategy, `maxiterate`, and sequence reorder control.
+- Actual alignment and tree building are Linux-only. Use a Linux desktop session or X11 forwarding for real runs.
+- On Windows, `onebuilder.launcher` is limited to parameter editing and JSON config export. It does not execute `s1_quick_align.zsh`, `s2_phylo_4prot.zsh`, or `s2_phylo_4dna.zsh`.
+- Enable `Run alignment first` if the input FASTA is not aligned yet; on Linux the GUI forwards MAFFT settings into `s1_quick_align.zsh`.
+- The input page includes output directory/prefix fields, MAFFT strategy, `maxiterate`, sequence reorder control, `Run`, `Stop`, `Export config file when running`, and `Export JSON`.
 - The tree-building page keeps live run status, current stage, aligned-input path, output-root path, and a scrolling stdout/stderr log panel in the same window.
 - The GUI lets you disable individual tree-building methods and tune the exposed ML and Bayesian parameters before starting a run.
-- The GUI writes a temporary runtime JSON config and passes it into `s2_phylo_4prot.zsh` or `s2_phylo_4dna.zsh`.
-- The `Tanglegram` page is current-run only. It unlocks after the current GUI run creates a usable `tree_summary/`.
+- `Export config file when running` is enabled by default. When it stays enabled, Linux runs save `<output_base_dir>/<output_prefix>.onebuilder.json` and pass that file into the wrappers.
+- If `Export config file when running` is disabled, Linux runs still work but use a temporary runtime JSON file for that run only.
+- `Export JSON` always writes the current GUI settings to `<output_base_dir>/<output_prefix>.onebuilder.json`.
+- Inside `onebuilder.launcher`, the `Tanglegram` page is Linux current-run only. On Windows, use the standalone `tanglegram.launcher` to inspect an existing `tree_summary/`.
 - Inside the GUI, the `Tanglegram` page also exposes label-font size, horizontal/vertical padding, auto-fit, and a `Reload from current run` action.
 - The launchers explicitly disable FlatLaf's native library integration with `flatlaf.useNativeLibrary=false`, so JDK 24+ does not print the `--enable-native-access=ALL-UNNAMED` warning.
 
 ### Tanglegram Viewer
 
-Launch without loading data first:
+Launch without loading data first from the repository root:
+
+```bash
+java -cp "phylotree_builder_v0.0.1/java_tanglegram:phylotree_builder_v0.0.1/lib/*" tanglegram.launcher
+```
+
+```powershell
+java -cp "phylotree_builder_v0.0.1\java_tanglegram;phylotree_builder_v0.0.1\lib/*" tanglegram.launcher
+```
+
+After `cd phylotree_builder_v0.0.1/`:
 
 ```bash
 java -cp "java_tanglegram:lib/*" tanglegram.launcher
@@ -157,16 +201,17 @@ java -cp "java_tanglegram;lib/*" tanglegram.launcher
 Launch and immediately load one pipeline result:
 
 ```bash
-java -cp "java_tanglegram:lib/*" tanglegram.launcher -dir /path/to/tree_summary
+java -cp "phylotree_builder_v0.0.1/java_tanglegram:phylotree_builder_v0.0.1/lib/*" tanglegram.launcher -dir test1/tree_summary
 ```
 
 ```powershell
-java -cp "java_tanglegram;lib/*" tanglegram.launcher -dir C:\path\to\tree_summary
+java -cp "phylotree_builder_v0.0.1\java_tanglegram;phylotree_builder_v0.0.1\lib/*" tanglegram.launcher -dir test1\tree_summary
 ```
 
 Usage notes:
 
 - The window title is `Tanglegram`.
+- This is the viewer to use on Windows when you already have pipeline output and want to inspect the six pairwise comparisons.
 - The menu bar contains only `Files > Open`.
 - `Open` expects a `tree_summary/` directory from a pipeline run.
 - The viewer always lays out the available comparisons as fixed pair tabs in this order: `NJ-ML`, `NJ-BI`, `NJ-MP`, `ML-BI`, `ML-MP`, `BI-MP`.

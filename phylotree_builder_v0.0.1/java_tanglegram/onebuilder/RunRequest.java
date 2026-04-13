@@ -7,6 +7,7 @@ public final class RunRequest {
     private final Path inputFile;
     private final Path outputDirectory;
     private final String outputPrefix;
+    private final boolean exportConfigFile;
     private final boolean runAlignmentFirst;
     private final AlignmentOptions alignOptions;
     private final PipelineRuntimeConfig runtimeConfig;
@@ -16,6 +17,7 @@ public final class RunRequest {
         this.inputFile = builder.inputFile;
         this.outputDirectory = builder.outputDirectory;
         this.outputPrefix = builder.outputPrefix;
+        this.exportConfigFile = builder.exportConfigFile;
         this.runAlignmentFirst = builder.runAlignmentFirst;
         this.alignOptions = builder.alignOptions;
         this.runtimeConfig = builder.runtimeConfig;
@@ -41,6 +43,10 @@ public final class RunRequest {
         return outputPrefix;
     }
 
+    public boolean exportConfigFile() {
+        return exportConfigFile;
+    }
+
     public boolean runAlignmentFirst() {
         return runAlignmentFirst;
     }
@@ -53,11 +59,16 @@ public final class RunRequest {
         return runtimeConfig;
     }
 
+    public Path exportConfigPath() {
+        return ConfigExportPaths.defaultJsonPath(outputDirectory, outputPrefix);
+    }
+
     public static final class Builder {
         private InputType inputType;
         private Path inputFile;
         private Path outputDirectory;
         private String outputPrefix;
+        private boolean exportConfigFile;
         private boolean runAlignmentFirst;
         private AlignmentOptions alignOptions = AlignmentOptions.defaults();
         private PipelineRuntimeConfig runtimeConfig;
@@ -79,6 +90,11 @@ public final class RunRequest {
 
         public Builder outputPrefix(String outputPrefix) {
             this.outputPrefix = outputPrefix;
+            return this;
+        }
+
+        public Builder exportConfigFile(boolean exportConfigFile) {
+            this.exportConfigFile = exportConfigFile;
             return this;
         }
 

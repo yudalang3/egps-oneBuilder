@@ -75,10 +75,17 @@ final class PipelineRunner {
 
     private void runRequest(RunRequest request) {
         Path configPath = null;
+        boolean deleteConfigPath = false;
         try {
             Files.createDirectories(request.outputDirectory());
-            configPath = Files.createTempFile("onebuilder-runtime-", ".json");
-            pipelineConfigWriter.write(configPath, request.runtimeConfig());
+            if (request.exportConfigFile()) {
+                configPath = request.exportConfigPath();
+                Files.createDirectories(configPath.getParent());
+            } else {
+                configPath = Files.createTempFile("onebuilder-runtime-", ".json");
+                deleteConfigPath = true;
+            }
+            pipelineConfigWriter.write(configPath, request);
 
             ExecutionPlan executionPlan = new ExecutionPlanBuilder(scriptDirectory).build(request, configPath);
             dispatch(() -> listener.onPlanReady(executionPlan));
@@ -103,7 +110,7 @@ final class PipelineRunner {
             synchronized (this) {
                 workerThread = null;
             }
-            if (configPath != null) {
+            if (deleteConfigPath && configPath != null) {
                 try {
                     Files.deleteIfExists(configPath);
                 } catch (IOException ignored) {

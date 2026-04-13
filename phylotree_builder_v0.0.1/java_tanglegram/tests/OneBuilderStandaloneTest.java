@@ -15,9 +15,11 @@ public final class OneBuilderStandaloneTest {
     public static void main(String[] args) throws Exception {
         run("buildsProteinExecutionPlanWithoutAlignment", OneBuilderStandaloneTest::buildsProteinExecutionPlanWithoutAlignment);
         run("buildsDnaExecutionPlanWithAlignment", OneBuilderStandaloneTest::buildsDnaExecutionPlanWithAlignment);
-        run("serializesPipelineRuntimeConfig", OneBuilderStandaloneTest::serializesPipelineRuntimeConfig);
+        run("serializesPipelineRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesPipelineRuntimeConfigAsJson);
+        run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
         run("tracksWorkflowTabUnlocks", OneBuilderStandaloneTest::tracksWorkflowTabUnlocks);
-        run("buildsWorkflowTabs", OneBuilderStandaloneTest::buildsWorkflowTabs);
+        run("buildsLinuxWorkflowTabs", OneBuilderStandaloneTest::buildsLinuxWorkflowTabs);
+        run("buildsWindowsWorkflowTabs", OneBuilderStandaloneTest::buildsWindowsWorkflowTabs);
         run("loadsCurrentRunTanglegramTabs", OneBuilderStandaloneTest::loadsCurrentRunTanglegramTabs);
         run("detectsCurrentRunTanglegramArtifacts", OneBuilderStandaloneTest::detectsCurrentRunTanglegramArtifacts);
         run("interpretsMethodProgressFromLogs", OneBuilderStandaloneTest::interpretsMethodProgressFromLogs);
@@ -34,6 +36,7 @@ public final class OneBuilderStandaloneTest {
                 .inputFile(inputFile)
                 .outputDirectory(outputDir)
                 .outputPrefix("protein_demo")
+                .exportConfigFile(true)
                 .runAlignmentFirst(false)
                 .alignOptions(AlignmentOptions.defaults())
                 .runtimeConfig(PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN))
@@ -69,6 +72,7 @@ public final class OneBuilderStandaloneTest {
                 .inputFile(inputFile)
                 .outputDirectory(outputDir)
                 .outputPrefix("dna_demo")
+                .exportConfigFile(true)
                 .runAlignmentFirst(true)
                 .alignOptions(new AlignmentOptions("localpair", 2000, false))
                 .runtimeConfig(PipelineRuntimeConfig.defaultsFor(InputType.DNA_CDS))
@@ -104,7 +108,7 @@ public final class OneBuilderStandaloneTest {
                 "unexpected dna build command");
     }
 
-    private static void serializesPipelineRuntimeConfig() throws Exception {
+    private static void serializesPipelineRuntimeConfigAsJson() throws Exception {
         Path tempFile = Files.createTempFile("onebuilder-config-", ".json");
         PipelineRuntimeConfig config = PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN)
                 .withMaximumLikelihood(new MaximumLikelihoodConfig(true, 2000, "MFP", "LG,WAG,JTT"))
@@ -112,13 +116,39 @@ public final class OneBuilderStandaloneTest {
                 .withDistance(new SimpleMethodConfig(false))
                 .withParsimony(new SimpleMethodConfig(true));
 
-        new PipelineConfigWriter().write(tempFile, config);
+        RunRequest request = RunRequest.builder()
+                .inputType(InputType.PROTEIN)
+                .inputFile(Paths.get("/data/input/aligned.fasta"))
+                .outputDirectory(Paths.get("/data/output"))
+                .outputPrefix("protein_demo")
+                .exportConfigFile(true)
+                .runAlignmentFirst(false)
+                .alignOptions(AlignmentOptions.defaults())
+                .runtimeConfig(config)
+                .build();
+
+        new PipelineConfigWriter().write(tempFile, request);
         String json = Files.readString(tempFile, StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"bootstrap_replicates\":2000"), "expected bootstrap count");
-        assertTrue(json.contains("\"model_set\":\"LG,WAG,JTT\""), "expected ML model set");
-        assertTrue(json.contains("\"ngen\":75000"), "expected bayesian ngen");
-        assertTrue(json.contains("\"distance\":{\"enabled\":false}"), "expected distance enabled flag");
+        assertTrue(json.contains("\"run\""), "expected run section");
+        assertTrue(json.contains("\"output_prefix\": \"protein_demo\""), "expected output prefix");
+        assertTrue(json.contains("\"alignment\""), "expected alignment section");
+        assertTrue(json.contains("\"run_alignment_first\": false"), "expected alignment flag");
+        assertTrue(json.contains("\"maximum_likelihood\""), "expected ML section");
+        assertTrue(json.contains("\"bootstrap_replicates\": 2000"), "expected bootstrap count");
+        assertTrue(json.contains("\"model_set\": \"LG,WAG,JTT\""), "expected ML model set");
+        assertTrue(json.contains("\"bayesian\""), "expected bayesian section");
+        assertTrue(json.contains("\"ngen\": 75000"), "expected bayesian ngen");
+        assertTrue(json.contains("\"distance\""), "expected distance section");
+        assertTrue(json.contains("\"enabled\": false"), "expected distance enabled flag");
+    }
+
+    private static void detectsPlatformSupport() {
+        assertEquals(PlatformSupport.LINUX, PlatformSupport.detect("Linux"), "unexpected linux detection");
+        assertEquals(PlatformSupport.WINDOWS, PlatformSupport.detect("Windows 11"), "unexpected windows detection");
+        assertEquals(PlatformSupport.OTHER, PlatformSupport.detect("Mac OS X"), "unexpected fallback detection");
+        assertTrue(PlatformSupport.LINUX.supportsPipelineExecution(), "linux should support pipeline execution");
+        assertTrue(!PlatformSupport.WINDOWS.supportsPipelineExecution(), "windows should not support pipeline execution");
     }
 
     private static void tracksWorkflowTabUnlocks() {
@@ -136,15 +166,19 @@ public final class OneBuilderStandaloneTest {
         assertTrue(state.tanglegramEnabled(), "tanglegram tab should unlock when results are ready");
     }
 
-    private static void buildsWorkflowTabs() throws Exception {
+    private static void buildsLinuxWorkflowTabs() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            OneBuilderWorkspacePanel workspacePanel = new OneBuilderWorkspacePanel(Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"));
+            OneBuilderWorkspacePanel workspacePanel = new OneBuilderWorkspacePanel(
+                    Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"),
+                    PlatformSupport.LINUX);
             assertEquals(3, workspacePanel.workflowTabs().getTabCount(), "unexpected top-level tab count");
             assertEquals("Input / Align", workspacePanel.workflowTabs().getTitleAt(0), "unexpected first tab");
             assertEquals("Tree Build", workspacePanel.workflowTabs().getTitleAt(1), "unexpected second tab");
             assertEquals("Tanglegram", workspacePanel.workflowTabs().getTitleAt(2), "unexpected third tab");
             assertTrue(!workspacePanel.workflowTabs().isEnabledAt(1), "tree build tab should start disabled");
             assertTrue(!workspacePanel.workflowTabs().isEnabledAt(2), "tanglegram tab should start disabled");
+            assertTrue(workspacePanel.inputAlignPanel().isRunSupported(), "linux should support run");
+            assertTrue(workspacePanel.inputAlignPanel().isExportSelected(), "export should default to selected");
             assertEquals(4, workspacePanel.treeBuildPanel().methodTabs().getTabCount(), "unexpected method tab count");
             assertEquals("Distance", workspacePanel.treeBuildPanel().methodTabs().getTitleAt(0), "unexpected distance tab");
             assertEquals("ML", workspacePanel.treeBuildPanel().methodTabs().getTitleAt(1), "unexpected ml tab");
@@ -153,8 +187,19 @@ public final class OneBuilderStandaloneTest {
         });
     }
 
+    private static void buildsWindowsWorkflowTabs() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            OneBuilderWorkspacePanel workspacePanel = new OneBuilderWorkspacePanel(
+                    Paths.get("C:/onebuilder/phylotree_builder_v0.0.1"),
+                    PlatformSupport.WINDOWS);
+            assertTrue(!workspacePanel.inputAlignPanel().isRunSupported(), "windows should disable run");
+            assertTrue(workspacePanel.inputAlignPanel().isExportButtonEnabled(), "windows should allow export");
+            assertTrue(!workspacePanel.workflowTabs().isEnabledAt(2), "windows should keep tanglegram tab disabled");
+        });
+    }
+
     private static void loadsCurrentRunTanglegramTabs() throws Exception {
-        Path repoRoot = Paths.get("").toAbsolutePath().normalize().getParent();
+        Path repoRoot = findRepoRoot();
         Path sampleOutput = repoRoot.resolve("test1");
 
         SwingUtilities.invokeAndWait(() -> {
@@ -171,7 +216,7 @@ public final class OneBuilderStandaloneTest {
     }
 
     private static void detectsCurrentRunTanglegramArtifacts() {
-        Path repoRoot = Paths.get("").toAbsolutePath().normalize().getParent();
+        Path repoRoot = findRepoRoot();
         Path sampleOutput = repoRoot.resolve("test1");
 
         assertTrue(CurrentRunArtifacts.hasRenderableTanglegram(sampleOutput), "expected sample output to be renderable");
@@ -216,6 +261,18 @@ public final class OneBuilderStandaloneTest {
         if (!condition) {
             throw new AssertionError(message);
         }
+    }
+
+    private static Path findRepoRoot() {
+        Path current = Paths.get("").toAbsolutePath().normalize();
+        Path cursor = current;
+        while (cursor != null) {
+            if (Files.isDirectory(cursor.resolve("test1"))) {
+                return cursor;
+            }
+            cursor = cursor.getParent();
+        }
+        throw new IllegalStateException("Could not locate repo root from " + current);
     }
 
     @FunctionalInterface

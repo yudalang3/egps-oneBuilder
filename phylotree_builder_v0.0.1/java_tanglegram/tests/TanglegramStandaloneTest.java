@@ -114,7 +114,7 @@ public final class TanglegramStandaloneTest {
     }
 
     private static Path copySampleOutput() throws Exception {
-        Path repoRoot = Paths.get("").toAbsolutePath().normalize().getParent();
+        Path repoRoot = findRepoRoot();
         Path source = repoRoot.resolve("test1");
         if (!Files.isDirectory(source)) {
             throw new IllegalStateException("Missing sample output directory: " + source);
@@ -175,6 +175,18 @@ public final class TanglegramStandaloneTest {
         if (!condition) {
             throw new AssertionError(message);
         }
+    }
+
+    private static Path findRepoRoot() {
+        Path current = Paths.get("").toAbsolutePath().normalize();
+        Path cursor = current;
+        while (cursor != null) {
+            if (Files.isDirectory(cursor.resolve("test1"))) {
+                return cursor;
+            }
+            cursor = cursor.getParent();
+        }
+        throw new IllegalStateException("Could not locate repo root from " + current);
     }
 
     @FunctionalInterface

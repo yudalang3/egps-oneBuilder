@@ -4,16 +4,16 @@
 
 English documentation: [`README.md`](README.md)
 
-一个运行在 Linux 下的系统发育树构建工作流，结合了可脚本化的 CLI wrapper 和 Java Swing GUI。它支持蛋白质序列和 DNA/CDS 序列的比对、建树、可视化、交互式参数设置，以及不同方法结果的对比。
+一个运行在 Linux 下的系统发育树构建工作流，结合了可脚本化的 CLI wrapper 和 Java Swing GUI。真正的比对和建树只支持 Linux。Windows 下的 Swing 工具仅用于导出 GUI 配置文件，以及查看已有结果的纠缠图。
 
 ## 项目特点
 
 - 按输入类型分别提供蛋白质流程和 DNA/CDS 流程。
 - 支持 MAFFT 比对、PHYLIP 距离法/简约法、IQ-TREE 极大似然、MrBayes 贝叶斯分析。
-- 新增 `onebuilder.launcher` Java Swing 全流程 GUI，可在界面里交互式设置参数并直接运行现有管线。
+- 新增 `onebuilder.launcher` Java Swing 全流程 GUI。Linux 下可直接运行现有管线；Windows 下只作为 JSON 配置编辑器使用。
 - 保留 CLI wrapper，方便脚本化和批量式运行，因此同一套流程既能走 GUI，也能走命令行自动化。
 - GUI 可以通过 `--config` 运行时 JSON，把 MAFFT、方法启停、极大似然参数和贝叶斯参数传入现有 shell wrapper 与 Python 管线。
-- 提供独立的 Java 纠缠树（Tanglegram）查看器，可把四种方法生成的树固定组合成 6 个两两配对视图进行交互比较。
+- 提供独立的 Java 纠缠树（Tanglegram）查看器，可在 Linux 或 Windows 下把四种方法生成的树固定组合成 6 个两两配对视图进行交互比较。
 - 在 `tree_summary/` 中输出树图可视化、TreeDist / Robinson-Foulds 距离矩阵，以及合并热图。
 
 ## 新特性
@@ -98,32 +98,62 @@ zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 
 仓库现在提供两个独立的 Java Swing 入口：
 
-- `onebuilder.launcher`：全流程 GUI，包含 `Input / Align`、`Tree Build`、`Tanglegram` 三个固定标签页
-- `tanglegram.launcher`：专门用于加载已有 `tree_summary/` 的纠缠树查看器
+- `onebuilder.launcher`：全流程 GUI，包含 `Input / Align`、`Tree Build`、`Tanglegram` 三个固定标签页。Linux 下可运行管线；Windows 下仅编辑并导出 JSON 配置。
+- `tanglegram.launcher`：专门用于加载已有 `tree_summary/` 的纠缠树查看器，Linux 和 Windows 都可用。
 
-在 `phylotree_builder_v0.0.1/` 目录下编译：
+从仓库根目录编译：
+
+```bash
+javac -cp "phylotree_builder_v0.0.1/lib/*:phylotree_builder_v0.0.1/java_tanglegram" -d phylotree_builder_v0.0.1/java_tanglegram \
+  phylotree_builder_v0.0.1/java_tanglegram/tanglegram/*.java \
+  phylotree_builder_v0.0.1/java_tanglegram/onebuilder/*.java \
+  phylotree_builder_v0.0.1/java_tanglegram/tests/*.java
+```
+
+```powershell
+javac -cp "phylotree_builder_v0.0.1\lib/*;phylotree_builder_v0.0.1\java_tanglegram" -d phylotree_builder_v0.0.1\java_tanglegram `
+  phylotree_builder_v0.0.1\java_tanglegram\tanglegram\*.java `
+  phylotree_builder_v0.0.1\java_tanglegram\onebuilder\*.java `
+  phylotree_builder_v0.0.1\java_tanglegram\tests\*.java
+```
+
+或者先进入 `phylotree_builder_v0.0.1/` 目录，再使用：
 
 ```bash
 javac -cp "lib/*:java_tanglegram" -d java_tanglegram \
   java_tanglegram/tanglegram/*.java \
-  java_tanglegram/onebuilder/*.java
+  java_tanglegram/onebuilder/*.java \
+  java_tanglegram/tests/*.java
 ```
-
-如果你只是想在 Windows PowerShell 里验证 Swing 窗口能否启动，需要把 classpath 分隔符从 `:` 改成 `;`：
 
 ```powershell
 javac -cp "lib/*;java_tanglegram" -d java_tanglegram `
   java_tanglegram/tanglegram/*.java `
-  java_tanglegram/onebuilder/*.java
+  java_tanglegram/onebuilder/*.java `
+  java_tanglegram/tests/*.java
 ```
 
 ### 全流程 GUI
 
-在 Linux 图形桌面，或带 X11 转发的终端里启动：
+从仓库根目录在 Linux 图形桌面，或带 X11 转发的终端里启动：
+
+```bash
+java -cp "phylotree_builder_v0.0.1/java_tanglegram:phylotree_builder_v0.0.1/lib/*" onebuilder.launcher
+```
+
+先进入 `phylotree_builder_v0.0.1/` 后再启动：
 
 ```bash
 java -cp "java_tanglegram:lib/*" onebuilder.launcher
 ```
+
+从仓库根目录在 Windows PowerShell 里启动：
+
+```powershell
+java -cp "phylotree_builder_v0.0.1\java_tanglegram;phylotree_builder_v0.0.1\lib/*" onebuilder.launcher
+```
+
+先执行 `Set-Location phylotree_builder_v0.0.1` 后再启动：
 
 ```powershell
 java -cp "java_tanglegram;lib/*" onebuilder.launcher
@@ -133,18 +163,32 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 
 - 顶层标签固定为 `Input / Align`、`Tree Build`、`Tanglegram`。
 - `Tree Build` 内部使用左侧标签页，固定显示 `Distance`、`ML`、`Bayesian`、`Parsimony`。
-- 如果输入 FASTA 还没有完成多序列比对，就勾选 `Run alignment first`；GUI 会把参数转发给 `s1_quick_align.zsh`。
-- 输入页还包含 `Run` / `Stop`、输出目录和输出前缀、MAFFT strategy、`maxiterate` 以及 sequence reorder 控制。
+- 真正的比对和建树只支持 Linux。请在 Linux 图形桌面或 X11 转发环境里执行真实 run。
+- Windows 下的 `onebuilder.launcher` 只负责参数编辑和 JSON 配置导出，不会执行 `s1_quick_align.zsh`、`s2_phylo_4prot.zsh` 或 `s2_phylo_4dna.zsh`。
+- 如果输入 FASTA 还没有完成多序列比对，就勾选 `Run alignment first`；在 Linux 下 GUI 会把参数转发给 `s1_quick_align.zsh`。
+- 输入页包含输出目录和输出前缀、MAFFT strategy、`maxiterate`、sequence reorder 控制、`Run`、`Stop`、`Export config file when running` 以及 `Export JSON`。
 - 建树页会在同一个窗口里持续显示运行状态、当前阶段、对齐后输入路径、输出根目录，以及滚动更新的 stdout/stderr 日志。
 - GUI 支持在启动 run 之前，按方法开启/关闭四种建树步骤，并调整公开出来的 ML 与贝叶斯参数。
-- GUI 会生成一个临时运行时 JSON 配置，并把它传给 `s2_phylo_4prot.zsh` 或 `s2_phylo_4dna.zsh`。
-- `Tanglegram` 页面只显示当前这次 GUI run 的结果，只有在当前 run 产出了可用的 `tree_summary/` 之后才会解锁。
+- `Export config file when running` 默认勾选。勾选状态下，Linux run 会把配置保存为 `<output_base_dir>/<output_prefix>.onebuilder.json`，然后把这个 JSON 文件传给 wrapper。
+- 如果取消勾选，Linux run 仍然可以执行，但只会生成本次运行使用的临时 JSON 配置。
+- `Export JSON` 按钮总是会把当前 GUI 参数写入 `<output_base_dir>/<output_prefix>.onebuilder.json`。
+- `onebuilder.launcher` 里的 `Tanglegram` 页面只显示 Linux 当前这次 GUI run 的结果。Windows 下请使用独立的 `tanglegram.launcher` 查看已有 `tree_summary/`。
 - GUI 内部的 `Tanglegram` 页面还提供 label font size、水平/垂直 padding、auto-fit，以及 `Reload from current run` 按钮。
 - 两个 launcher 都会显式设置 `flatlaf.useNativeLibrary=false`，所以在 JDK 24+ 下不会再打印 `--enable-native-access=ALL-UNNAMED` 的警告。
 
 ### Tanglegram 查看器
 
-不预加载任何结果，直接启动：
+从仓库根目录直接启动，不预加载任何结果：
+
+```bash
+java -cp "phylotree_builder_v0.0.1/java_tanglegram:phylotree_builder_v0.0.1/lib/*" tanglegram.launcher
+```
+
+```powershell
+java -cp "phylotree_builder_v0.0.1\java_tanglegram;phylotree_builder_v0.0.1\lib/*" tanglegram.launcher
+```
+
+先进入 `phylotree_builder_v0.0.1/` 目录后也可以：
 
 ```bash
 java -cp "java_tanglegram:lib/*" tanglegram.launcher
@@ -157,16 +201,17 @@ java -cp "java_tanglegram;lib/*" tanglegram.launcher
 启动时直接加载一个流程输出的 `tree_summary/`：
 
 ```bash
-java -cp "java_tanglegram:lib/*" tanglegram.launcher -dir /path/to/tree_summary
+java -cp "phylotree_builder_v0.0.1/java_tanglegram:phylotree_builder_v0.0.1/lib/*" tanglegram.launcher -dir test1/tree_summary
 ```
 
 ```powershell
-java -cp "java_tanglegram;lib/*" tanglegram.launcher -dir C:\path\to\tree_summary
+java -cp "phylotree_builder_v0.0.1\java_tanglegram;phylotree_builder_v0.0.1\lib/*" tanglegram.launcher -dir test1\tree_summary
 ```
 
 使用说明：
 
 - 主窗口标题固定为 `Tanglegram`。
+- Windows 下如果你已经有流程输出，应该用这个独立查看器来看 6 个两两比较结果。
 - 菜单栏只有 `Files > Open`。
 - `Open` 需要选择一次流程输出里的 `tree_summary/` 目录。
 - 查看器会把可用的两两配对固定排成这 6 个标签顺序：`NJ-ML`、`NJ-BI`、`NJ-MP`、`ML-BI`、`ML-MP`、`BI-MP`。

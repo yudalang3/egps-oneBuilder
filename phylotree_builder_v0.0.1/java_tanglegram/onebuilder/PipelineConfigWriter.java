@@ -7,11 +7,14 @@ import java.nio.file.Path;
 import org.json.JSONObject;
 
 public final class PipelineConfigWriter {
-    public void write(Path outputFile, PipelineRuntimeConfig config) throws IOException {
+    public void write(Path outputFile, RunRequest request) throws IOException {
         JSONObject root = new JSONObject();
+        root.put("run", buildRunSection(request));
+        root.put("alignment", buildAlignmentSection(request));
         JSONObject methods = new JSONObject();
         root.put("methods", methods);
 
+        PipelineRuntimeConfig config = request.runtimeConfig();
         methods.put("distance", new JSONObject().put("enabled", config.distance().enabled()));
         methods.put("parsimony", new JSONObject().put("enabled", config.parsimony().enabled()));
 
@@ -39,6 +42,22 @@ public final class PipelineConfigWriter {
         }
         methods.put("bayesian", bayesian);
 
-        Files.write(outputFile, root.toString().getBytes(StandardCharsets.UTF_8));
+        Files.write(outputFile, root.toString(2).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static JSONObject buildRunSection(RunRequest request) {
+        return new JSONObject()
+                .put("input_type", request.inputType().toString())
+                .put("input_file", request.inputFile().toString())
+                .put("output_base_dir", request.outputDirectory().toString())
+                .put("output_prefix", request.outputPrefix());
+    }
+
+    private static JSONObject buildAlignmentSection(RunRequest request) {
+        return new JSONObject()
+                .put("run_alignment_first", request.runAlignmentFirst())
+                .put("strategy", request.alignOptions().strategy())
+                .put("maxiterate", request.alignOptions().maxiterate())
+                .put("reorder", request.alignOptions().reorder());
     }
 }

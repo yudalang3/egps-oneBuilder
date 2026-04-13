@@ -13,20 +13,30 @@ final class OneBuilderWorkspacePanel extends JPanel {
     private final TreeBuildPanel treeBuildPanel;
     private final CurrentRunTanglegramPanel currentRunTanglegramPanel;
     private final PipelineRunner pipelineRunner;
+    private final PipelineConfigWriter pipelineConfigWriter;
+    private final PlatformSupport platformSupport;
     private WorkflowTabsState workflowTabsState;
     private InputType selectedInputType;
 
     OneBuilderWorkspacePanel(Path scriptDirectory) {
+        this(scriptDirectory, PlatformSupport.current());
+    }
+
+    OneBuilderWorkspacePanel(Path scriptDirectory, PlatformSupport platformSupport) {
         super(new BorderLayout());
+        this.platformSupport = platformSupport;
         this.workflowTabsState = WorkflowTabsState.initial();
         this.selectedInputType = InputType.PROTEIN;
 
         treeBuildPanel = new TreeBuildPanel(selectedInputType);
         currentRunTanglegramPanel = new CurrentRunTanglegramPanel();
         pipelineRunner = new PipelineRunner(scriptDirectory, new RunnerListener());
+        pipelineConfigWriter = new PipelineConfigWriter();
         inputAlignPanel = new InputAlignPanel(
+                platformSupport,
                 this::handleInputChanged,
                 this::handleRunRequested,
+                this::handleExportRequested,
                 this::handleStopRequested,
                 treeBuildPanel::runtimeConfig);
 
@@ -51,6 +61,10 @@ final class OneBuilderWorkspacePanel extends JPanel {
         return treeBuildPanel;
     }
 
+    InputAlignPanel inputAlignPanel() {
+        return inputAlignPanel;
+    }
+
     private void handleInputChanged() {
         InputType newInputType = inputAlignPanel.selectedInputType();
         if (newInputType != selectedInputType) {
@@ -64,6 +78,14 @@ final class OneBuilderWorkspacePanel extends JPanel {
     }
 
     private void handleRunRequested(RunRequest request) {
+        if (!platformSupport.supportsPipelineExecution()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Actual alignment and tree building are Linux-only. On Windows, export a JSON config here and run the pipeline on Linux.",
+                    "eGPS oneBuilder",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
         if (pipelineRunner.isRunning()) {
             return;
         }
@@ -93,6 +115,24 @@ final class OneBuilderWorkspacePanel extends JPanel {
         }
     }
 
+    private void handleExportRequested(RunRequest request) {
+        try {
+            Files.createDirectories(request.outputDirectory());
+            pipelineConfigWriter.write(request.exportConfigPath(), request);
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Config exported to: " + request.exportConfigPath(),
+                    "eGPS oneBuilder",
+                    JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Failed to export config: " + exception.getMessage(),
+                    "eGPS oneBuilder",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
     private void handleStopRequested() {
         pipelineRunner.stop();
     }
@@ -100,7 +140,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
     private void syncWorkflowTabs() {
         workflowTabs.setEnabledAt(0, workflowTabsState.inputEnabled());
         workflowTabs.setEnabledAt(1, workflowTabsState.treeBuildEnabled());
-        workflowTabs.setEnabledAt(2, workflowTabsState.tanglegramEnabled());
+        workflowTabs.setEnabledAt(2, platformSupport.supportsPipelineExecution() && workflowTabsState.tanglegramEnabled());
     }
 
     private final class RunnerListener implements PipelineRunner.Listener {
