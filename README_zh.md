@@ -4,15 +4,25 @@
 
 English documentation: [`README.md`](README.md)
 
-一个运行在 Linux 下的系统发育树构建管线。它支持蛋白质序列和 DNA/CDS 序列的比对、建树、可视化，以及不同方法结果的对比。
+一个运行在 Linux 下的系统发育树构建工作流，结合了可脚本化的 CLI wrapper 和 Java Swing GUI。它支持蛋白质序列和 DNA/CDS 序列的比对、建树、可视化、交互式参数设置，以及不同方法结果的对比。
 
 ## 项目特点
 
 - 按输入类型分别提供蛋白质流程和 DNA/CDS 流程。
 - 支持 MAFFT 比对、PHYLIP 距离法/简约法、IQ-TREE 极大似然、MrBayes 贝叶斯分析。
-- 提供树图可视化，以及 TreeDist / Robinson-Foulds 距离统计。
-- 保留 DNA 管线，并提供一个独立的 Java 纠缠树（Tanglegram）查看器，用来交互式比较四种方法得到的系统发育树。
-- 另外还提供一个适合 Linux/X11 桌面或 MobaXTerm X11 转发场景的 Java Swing 全流程 GUI。
+- 新增 `onebuilder.launcher` Java Swing 全流程 GUI，可在界面里交互式设置参数并直接运行现有管线。
+- 保留 CLI wrapper，方便脚本化和批量式运行，因此同一套流程既能走 GUI，也能走命令行自动化。
+- GUI 可以通过 `--config` 运行时 JSON，把 MAFFT、方法启停、极大似然参数和贝叶斯参数传入现有 shell wrapper 与 Python 管线。
+- 提供独立的 Java 纠缠树（Tanglegram）查看器，可把四种方法生成的树固定组合成 6 个两两配对视图进行交互比较。
+- 在 `tree_summary/` 中输出树图可视化、TreeDist / Robinson-Foulds 距离矩阵，以及合并热图。
+
+## 新特性
+
+- `onebuilder.launcher` 新增了交互式 Java Swing 全流程 GUI，可在运行前配置比对、建树方法启停，以及公开出来的 ML / 贝叶斯参数。
+- 现有 CLI wrapper 继续保留为一等入口，因此同一套流程仍然可以用于脚本化、重复性和批量式运行。
+- GUI 与 CLI 现在通过共享的 `--config` 运行时 JSON 串联起来，而不是各自维护独立执行逻辑。
+- `tanglegram.launcher` 可以直接加载一次流程输出的 `tree_summary/`，并把四棵树固定渲染成 6 个两两比较标签页。
+- `tree_summary/` 现在除了原始距离矩阵，还会输出一张合并的 TreeDist + Robinson-Foulds 热图。
 
 ## 输入与输出
 
@@ -53,6 +63,16 @@ zsh phylotree_builder_v0.0.1/s2_phylo_4dna.zsh \
 ```bash
 zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 ```
+
+### 包装脚本参数
+
+现在这几个包装脚本已经把 GUI 会用到的参数接口公开出来了：
+
+- `s1_quick_align.zsh [--strategy localpair|auto|globalpair] [--maxiterate N] [--reorder|--no-reorder] <input.fasta>`
+- `s2_phylo_4prot.zsh [--config runtime.json] <input.fasta> [output_prefix]`
+- `s2_phylo_4dna.zsh [--config runtime.json] <input.fasta> [output_prefix]`
+
+其中可选的 `--config` JSON 主要是给 `onebuilder.launcher` 使用的，用来把方法启用状态、ML 参数和贝叶斯参数从 GUI 传进现有 shell wrapper 和 Python 管线。
 
 ## 运行耗时预期
 
@@ -114,8 +134,12 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 - 顶层标签固定为 `Input / Align`、`Tree Build`、`Tanglegram`。
 - `Tree Build` 内部使用左侧标签页，固定显示 `Distance`、`ML`、`Bayesian`、`Parsimony`。
 - 如果输入 FASTA 还没有完成多序列比对，就勾选 `Run alignment first`；GUI 会把参数转发给 `s1_quick_align.zsh`。
+- 输入页还包含 `Run` / `Stop`、输出目录和输出前缀、MAFFT strategy、`maxiterate` 以及 sequence reorder 控制。
+- 建树页会在同一个窗口里持续显示运行状态、当前阶段、对齐后输入路径、输出根目录，以及滚动更新的 stdout/stderr 日志。
+- GUI 支持在启动 run 之前，按方法开启/关闭四种建树步骤，并调整公开出来的 ML 与贝叶斯参数。
 - GUI 会生成一个临时运行时 JSON 配置，并把它传给 `s2_phylo_4prot.zsh` 或 `s2_phylo_4dna.zsh`。
 - `Tanglegram` 页面只显示当前这次 GUI run 的结果，只有在当前 run 产出了可用的 `tree_summary/` 之后才会解锁。
+- GUI 内部的 `Tanglegram` 页面还提供 label font size、水平/垂直 padding、auto-fit，以及 `Reload from current run` 按钮。
 - 两个 launcher 都会显式设置 `flatlaf.useNativeLibrary=false`，所以在 JDK 24+ 下不会再打印 `--enable-native-access=ALL-UNNAMED` 的警告。
 
 ### Tanglegram 查看器
@@ -145,6 +169,8 @@ java -cp "java_tanglegram;lib/*" tanglegram.launcher -dir C:\path\to\tree_summar
 - 主窗口标题固定为 `Tanglegram`。
 - 菜单栏只有 `Files > Open`。
 - `Open` 需要选择一次流程输出里的 `tree_summary/` 目录。
+- 查看器会把可用的两两配对固定排成这 6 个标签顺序：`NJ-ML`、`NJ-BI`、`NJ-MP`、`ML-BI`、`ML-MP`、`BI-MP`。
+- 如果某一种方法缺失，但仍然能解析出至少两棵树，查看器会只加载有效的配对标签，而不是整窗失败。
 - 如果 `tree_meta_data.tsv` 里写的是失效路径或某台机器上的绝对路径，程序会自动回退到标准输出目录 `distance_method/`、`maximum_likelihood/`、`bayesian_method/`、`parsimony_method/` 里查找对应树文件。
 - 如果启动时不带 `-dir` 参数，界面会先保持空白，等待用户点击菜单导入 `tree_summary/`。
 

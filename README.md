@@ -4,15 +4,25 @@
 
 Chinese documentation: [`README_zh.md`](README_zh.md)
 
-A Linux-based phylogenetic tree pipeline. It supports protein and DNA/CDS sequence alignment, tree inference, visualization, and comparison across multiple methods.
+A Linux-based phylogenetic workflow that combines scriptable CLI wrappers with Java Swing GUIs. It supports protein and DNA/CDS sequence alignment, tree inference, visualization, interactive parameter tuning, and cross-method comparison.
 
 ## Highlights
 
 - The repository provides one workflow for protein input and one for DNA/CDS input.
 - Supports MAFFT alignment, PHYLIP distance/parsimony methods, IQ-TREE maximum likelihood, and MrBayes Bayesian inference.
-- Generates tree visualizations plus TreeDist and Robinson-Foulds distance statistics.
-- Keeps the DNA pipeline and provides a standalone Java tanglegram viewer for interactive comparison of the four inferred trees.
-- Also provides a standalone Java Swing workflow GUI for Linux/X11 sessions such as MobaXTerm with X11 forwarding.
+- Adds `onebuilder.launcher`, a Java Swing workflow GUI for interactive parameter setting and in-window execution of the existing pipeline.
+- Keeps the CLI wrappers for scripted and batch-style runs, so the same workflow can be driven either from the GUI or from shell automation.
+- Lets the GUI pass MAFFT, method enable/disable, maximum-likelihood, and Bayesian settings into the existing shell wrappers and Python pipelines through `--config` runtime JSON.
+- Provides a standalone Java tanglegram viewer for interactive comparison of the four inferred trees across six fixed pair views.
+- Generates tree visualizations plus TreeDist / Robinson-Foulds matrices and a combined summary heatmap in `tree_summary/`.
+
+## New Features
+
+- `onebuilder.launcher` adds an interactive Java Swing workflow GUI for configuring alignment, tree-building methods, and exposed ML / Bayesian parameters before running the pipeline.
+- The existing CLI wrappers remain first-class entrypoints, so the same workflow can still be scripted for repeated or batch-style runs.
+- GUI and CLI now work together through a shared `--config` runtime JSON bridge instead of maintaining separate execution logic.
+- `tanglegram.launcher` loads one `tree_summary/` result and renders the four inferred trees as six fixed pairwise comparison tabs.
+- `tree_summary/` now includes a combined TreeDist + Robinson-Foulds heatmap figure in addition to the raw distance matrices.
 
 ## Input and Output
 
@@ -53,6 +63,16 @@ If your input FASTA is not aligned yet, run MAFFT first:
 ```bash
 zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 ```
+
+### Wrapper Options
+
+The wrappers now expose the options that the GUI uses internally:
+
+- `s1_quick_align.zsh [--strategy localpair|auto|globalpair] [--maxiterate N] [--reorder|--no-reorder] <input.fasta>`
+- `s2_phylo_4prot.zsh [--config runtime.json] <input.fasta> [output_prefix]`
+- `s2_phylo_4dna.zsh [--config runtime.json] <input.fasta> [output_prefix]`
+
+The optional `--config` JSON file is mainly intended for `onebuilder.launcher`. It lets the GUI pass method enable/disable state plus ML and Bayesian parameters into the existing shell wrappers and Python pipelines.
 
 ## Runtime Expectations
 
@@ -114,8 +134,12 @@ Usage notes:
 - The top-level tabs are fixed to `Input / Align`, `Tree Build`, and `Tanglegram`.
 - `Tree Build` uses a left-side tab set with `Distance`, `ML`, `Bayesian`, and `Parsimony`.
 - Enable `Run alignment first` if the input FASTA is not aligned yet; the GUI forwards MAFFT settings into `s1_quick_align.zsh`.
+- The input page includes `Run` and `Stop`, output directory/prefix fields, MAFFT strategy, `maxiterate`, and sequence reorder control.
+- The tree-building page keeps live run status, current stage, aligned-input path, output-root path, and a scrolling stdout/stderr log panel in the same window.
+- The GUI lets you disable individual tree-building methods and tune the exposed ML and Bayesian parameters before starting a run.
 - The GUI writes a temporary runtime JSON config and passes it into `s2_phylo_4prot.zsh` or `s2_phylo_4dna.zsh`.
 - The `Tanglegram` page is current-run only. It unlocks after the current GUI run creates a usable `tree_summary/`.
+- Inside the GUI, the `Tanglegram` page also exposes label-font size, horizontal/vertical padding, auto-fit, and a `Reload from current run` action.
 - The launchers explicitly disable FlatLaf's native library integration with `flatlaf.useNativeLibrary=false`, so JDK 24+ does not print the `--enable-native-access=ALL-UNNAMED` warning.
 
 ### Tanglegram Viewer
@@ -145,6 +169,8 @@ Usage notes:
 - The window title is `Tanglegram`.
 - The menu bar contains only `Files > Open`.
 - `Open` expects a `tree_summary/` directory from a pipeline run.
+- The viewer always lays out the available comparisons as fixed pair tabs in this order: `NJ-ML`, `NJ-BI`, `NJ-MP`, `ML-BI`, `ML-MP`, `BI-MP`.
+- If one method is missing but at least two trees can still be resolved, the viewer loads only the valid pair tabs instead of failing the whole window.
 - If `tree_meta_data.tsv` contains stale or machine-specific paths, the viewer falls back to the standard sibling folders `distance_method/`, `maximum_likelihood/`, `bayesian_method/`, and `parsimony_method/`.
 - If no `-dir` argument is provided, the app starts empty and waits for the user to import a `tree_summary/` directory from the menu.
 
