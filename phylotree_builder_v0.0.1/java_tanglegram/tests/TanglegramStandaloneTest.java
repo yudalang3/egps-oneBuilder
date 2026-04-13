@@ -21,6 +21,7 @@ public final class TanglegramStandaloneTest {
         run("parsesEmptyArguments", TanglegramStandaloneTest::parsesEmptyArguments);
         run("parsesDirectoryArgument", TanglegramStandaloneTest::parsesDirectoryArgument);
         run("rejectsMissingDirectoryValue", TanglegramStandaloneTest::rejectsMissingDirectoryValue);
+        run("disablesFlatlafNativeLibraryByDefault", TanglegramStandaloneTest::disablesFlatlafNativeLibraryByDefault);
         run("resolvesMovedSampleTreesFromFallbackLayout", TanglegramStandaloneTest::resolvesMovedSampleTreesFromFallbackLayout);
         run("buildsFixedPairOrderForAllMethods", TanglegramStandaloneTest::buildsFixedPairOrderForAllMethods);
         run("loadsOnlyAvailablePairsWhenOneMethodIsMissing", TanglegramStandaloneTest::loadsOnlyAvailablePairsWhenOneMethodIsMissing);
@@ -48,6 +49,13 @@ public final class TanglegramStandaloneTest {
         assertTrue(options.treeSummaryDir().isEmpty(), "directory should be absent");
         assertTrue(options.startupError() != null && options.startupError().contains("-dir"),
                 "expected missing -dir value error");
+    }
+
+    private static void disablesFlatlafNativeLibraryByDefault() {
+        System.clearProperty(FlatLafBootstrap.USE_NATIVE_LIBRARY_PROPERTY);
+        FlatLafBootstrap.prepareSystemProperties();
+        assertEquals("false", System.getProperty(FlatLafBootstrap.USE_NATIVE_LIBRARY_PROPERTY),
+                "expected FlatLaf native library to be disabled");
     }
 
     private static void resolvesMovedSampleTreesFromFallbackLayout() throws Exception {

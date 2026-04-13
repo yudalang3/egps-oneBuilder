@@ -10,16 +10,25 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
-final class ResizableTanglegramView extends JScrollPane {
+public final class ResizableTanglegramView extends JScrollPane {
     private static final int RENDER_DELAY_MS = 120;
 
     private final TreePairSpec pairSpec;
     private final TanglegramPanelFactory panelFactory;
+    private final TanglegramRenderOptions renderOptions;
     private final Timer renderTimer;
 
-    ResizableTanglegramView(TreePairSpec pairSpec, TanglegramPanelFactory panelFactory) {
+    public ResizableTanglegramView(TreePairSpec pairSpec, TanglegramPanelFactory panelFactory) {
+        this(pairSpec, panelFactory, TanglegramRenderOptions.defaults());
+    }
+
+    public ResizableTanglegramView(
+            TreePairSpec pairSpec,
+            TanglegramPanelFactory panelFactory,
+            TanglegramRenderOptions renderOptions) {
         this.pairSpec = pairSpec;
         this.panelFactory = panelFactory;
+        this.renderOptions = renderOptions == null ? TanglegramRenderOptions.defaults() : renderOptions;
         this.renderTimer = new Timer(RENDER_DELAY_MS, event -> renderToViewport());
         this.renderTimer.setRepeats(false);
         setBorder(null);
@@ -33,7 +42,7 @@ final class ResizableTanglegramView extends JScrollPane {
         SwingUtilities.invokeLater(this::scheduleRender);
     }
 
-    void renderNowForTest(Dimension dimension) throws Exception {
+    public void renderNowForTest(Dimension dimension) throws Exception {
         setViewportView(panelFactory.createPanel(pairSpec, dimension));
     }
 
@@ -50,6 +59,9 @@ final class ResizableTanglegramView extends JScrollPane {
     }
 
     private Dimension getViewportSize() {
+        if (!renderOptions.autoFit()) {
+            return new Dimension(1200, 800);
+        }
         Dimension extentSize = getViewport().getExtentSize();
         if (extentSize.width <= 0 || extentSize.height <= 0) {
             return new Dimension(1200, 800);

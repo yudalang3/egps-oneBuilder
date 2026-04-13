@@ -6,7 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-enum TreeMethod {
+public enum TreeMethod {
     NJ_PHYLIP(
             "NJ_phylip",
             "NJ",
@@ -42,7 +42,7 @@ enum TreeMethod {
                     "parsimony_method/parsimony_tree.nwk.ladderize",
                     "parsimony_method/parsimony_tree.nwk"));
 
-    static final List<TreeMethod> DISPLAY_ORDER = Collections.unmodifiableList(
+    public static final List<TreeMethod> DISPLAY_ORDER = Collections.unmodifiableList(
             Arrays.asList(NJ_PHYLIP, ML_IQTREE, BI_MRBAYES, MP_PHYLIP));
 
     private final String metadataKey;
@@ -55,15 +55,15 @@ enum TreeMethod {
         this.fallbackCandidates = fallbackCandidates;
     }
 
-    String metadataKey() {
+    public String metadataKey() {
         return metadataKey;
     }
 
-    String shortLabel() {
+    public String shortLabel() {
         return shortLabel;
     }
 
-    List<Path> fallbackCandidates(Path outputRootDir) {
+    public List<Path> fallbackCandidates(Path outputRootDir) {
         List<Path> resolvedCandidates = new ArrayList<>();
         for (String fallbackCandidate : fallbackCandidates) {
             resolvedCandidates.add(outputRootDir.resolve(fallbackCandidate).normalize());
@@ -71,7 +71,7 @@ enum TreeMethod {
         return resolvedCandidates;
     }
 
-    static TreeMethod fromMetadataKey(String metadataKey) {
+    public static TreeMethod fromMetadataKey(String metadataKey) {
         for (TreeMethod method : values()) {
             if (method.metadataKey.equals(metadataKey)) {
                 return method;

@@ -12,6 +12,7 @@ English documentation: [`README.md`](README.md)
 - 支持 MAFFT 比对、PHYLIP 距离法/简约法、IQ-TREE 极大似然、MrBayes 贝叶斯分析。
 - 提供树图可视化，以及 TreeDist / Robinson-Foulds 距离统计。
 - 保留 DNA 管线，并提供一个独立的 Java 纠缠树（Tanglegram）查看器，用来交互式比较四种方法得到的系统发育树。
+- 另外还提供一个适合 Linux/X11 桌面或 MobaXTerm X11 转发场景的 Java Swing 全流程 GUI。
 
 ## 输入与输出
 
@@ -73,15 +74,51 @@ zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 5. 生成树图、总结报告和树距离统计。
 6. 如需进一步比较不同结果，可使用 Java 纠缠树（Tanglegram）模块。
 
-## Tanglegram 查看器
+## Java GUI 工具
 
-仓库现在提供了一个独立的 Java Swing Tanglegram 查看器，用来把四种建树方法的结果按两两配对方式进行可视化比较。
+仓库现在提供两个独立的 Java Swing 入口：
+
+- `onebuilder.launcher`：全流程 GUI，包含 `Input / Align`、`Tree Build`、`Tanglegram` 三个固定标签页
+- `tanglegram.launcher`：专门用于加载已有 `tree_summary/` 的纠缠树查看器
 
 在 `phylotree_builder_v0.0.1/` 目录下编译：
 
 ```bash
-javac -cp "lib/*:java_tanglegram" -d java_tanglegram java_tanglegram/tanglegram/*.java
+javac -cp "lib/*:java_tanglegram" -d java_tanglegram \
+  java_tanglegram/tanglegram/*.java \
+  java_tanglegram/onebuilder/*.java
 ```
+
+如果你只是想在 Windows PowerShell 里验证 Swing 窗口能否启动，需要把 classpath 分隔符从 `:` 改成 `;`：
+
+```powershell
+javac -cp "lib/*;java_tanglegram" -d java_tanglegram `
+  java_tanglegram/tanglegram/*.java `
+  java_tanglegram/onebuilder/*.java
+```
+
+### 全流程 GUI
+
+在 Linux 图形桌面，或带 X11 转发的终端里启动：
+
+```bash
+java -cp "java_tanglegram:lib/*" onebuilder.launcher
+```
+
+```powershell
+java -cp "java_tanglegram;lib/*" onebuilder.launcher
+```
+
+使用说明：
+
+- 顶层标签固定为 `Input / Align`、`Tree Build`、`Tanglegram`。
+- `Tree Build` 内部使用左侧标签页，固定显示 `Distance`、`ML`、`Bayesian`、`Parsimony`。
+- 如果输入 FASTA 还没有完成多序列比对，就勾选 `Run alignment first`；GUI 会把参数转发给 `s1_quick_align.zsh`。
+- GUI 会生成一个临时运行时 JSON 配置，并把它传给 `s2_phylo_4prot.zsh` 或 `s2_phylo_4dna.zsh`。
+- `Tanglegram` 页面只显示当前这次 GUI run 的结果，只有在当前 run 产出了可用的 `tree_summary/` 之后才会解锁。
+- 两个 launcher 都会显式设置 `flatlaf.useNativeLibrary=false`，所以在 JDK 24+ 下不会再打印 `--enable-native-access=ALL-UNNAMED` 的警告。
+
+### Tanglegram 查看器
 
 不预加载任何结果，直接启动：
 
@@ -89,10 +126,18 @@ javac -cp "lib/*:java_tanglegram" -d java_tanglegram java_tanglegram/tanglegram/
 java -cp "java_tanglegram:lib/*" tanglegram.launcher
 ```
 
+```powershell
+java -cp "java_tanglegram;lib/*" tanglegram.launcher
+```
+
 启动时直接加载一个流程输出的 `tree_summary/`：
 
 ```bash
 java -cp "java_tanglegram:lib/*" tanglegram.launcher -dir /path/to/tree_summary
+```
+
+```powershell
+java -cp "java_tanglegram;lib/*" tanglegram.launcher -dir C:\path\to\tree_summary
 ```
 
 使用说明：

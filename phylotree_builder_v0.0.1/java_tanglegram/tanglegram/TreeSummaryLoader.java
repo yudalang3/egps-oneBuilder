@@ -10,11 +10,11 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-final class TreeSummaryLoader {
+public final class TreeSummaryLoader {
     private TreeSummaryLoader() {
     }
 
-    static TreeSummaryLoadResult load(Path treeSummaryDir) throws IOException {
+    public static TreeSummaryLoadResult load(Path treeSummaryDir) throws IOException {
         Path normalizedTreeSummaryDir = treeSummaryDir.toAbsolutePath().normalize();
         if (!Files.isDirectory(normalizedTreeSummaryDir)) {
             throw new IOException("Directory does not exist: " + normalizedTreeSummaryDir);

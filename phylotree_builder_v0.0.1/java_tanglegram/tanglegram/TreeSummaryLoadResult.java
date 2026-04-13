@@ -7,14 +7,14 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-final class TreeSummaryLoadResult {
+public final class TreeSummaryLoadResult {
     private final Path treeSummaryDir;
     private final Path outputRootDir;
     private final Map<TreeMethod, Path> resolvedTrees;
     private final List<TreeMethod> missingMethods;
     private final List<String> warnings;
 
-    TreeSummaryLoadResult(
+    public TreeSummaryLoadResult(
             Path treeSummaryDir,
             Path outputRootDir,
             Map<TreeMethod, Path> resolvedTrees,
@@ -29,27 +29,27 @@ final class TreeSummaryLoadResult {
         this.warnings = Collections.unmodifiableList(new ArrayList<>(warnings));
     }
 
-    Path treeSummaryDir() {
+    public Path treeSummaryDir() {
         return treeSummaryDir;
     }
 
-    Path outputRootDir() {
+    public Path outputRootDir() {
         return outputRootDir;
     }
 
-    Map<TreeMethod, Path> resolvedTrees() {
+    public Map<TreeMethod, Path> resolvedTrees() {
         return resolvedTrees;
     }
 
-    List<TreeMethod> missingMethods() {
+    public List<TreeMethod> missingMethods() {
         return missingMethods;
     }
 
-    List<String> warnings() {
+    public List<String> warnings() {
         return warnings;
     }
 
-    List<TreePairSpec> availablePairs() {
+    public List<TreePairSpec> availablePairs() {
         List<TreePairSpec> pairs = new ArrayList<>();
         for (int leftIndex = 0; leftIndex < TreeMethod.DISPLAY_ORDER.size(); leftIndex++) {
             TreeMethod leftMethod = TreeMethod.DISPLAY_ORDER.get(leftIndex);

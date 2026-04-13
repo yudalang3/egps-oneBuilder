@@ -21,6 +21,7 @@ import argparse
 from Bio import SeqIO, Phylo
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from onebuilder_runtime_config import load_runtime_config, protein_runtime_settings
 from tree_summary_plot import create_tree_distance_heatmaps
 
 mpl.set_loglevel("warning")  # or "error"
@@ -32,7 +33,7 @@ warnings.filterwarnings("ignore")
 
 
 class ProteinPhylogeneticPipeline:
-    def __init__(self, input_file, output_dir="phylo_results_protein"):
+    def __init__(self, input_file, output_dir="phylo_results_protein", runtime_config=None):
         """
         Initialize the protein phylogenetic tree construction pipeline
 
@@ -45,6 +46,7 @@ class ProteinPhylogeneticPipeline:
         self.new_name2ori_name_dict: Dict[str, str] = None
         self.output_dir = Path(output_dir).resolve()
         self.script_dir = Path(__file__).parent.resolve()
+        self.runtime_settings = protein_runtime_settings(runtime_config)
 
         # initialize logging and output directories
         self.setup_logging()
@@ -363,6 +365,7 @@ class ProteinPhylogeneticPipeline:
 
         work_dir = self.output_dir / "maximum_likelihood"
         input_file = self.input_file
+        ml_settings = self.runtime_settings["maximum_likelihood"]
 
         os.chdir(work_dir)
         self.logger.info(f"Changed to work_dir: {os.getcwd()}")
@@ -373,16 +376,16 @@ class ProteinPhylogeneticPipeline:
                 "-s",
                 str(input_file),
                 "-m",
-                "MFP",  # automatically select best protein model
-                "-mset",
-                "WAG,LG,JTT,Dayhoff,DCMut,rtREV,cpREV,VT,Blosum62,mtMam,mtArt,HIVb,HIVw",  # restrict protein model set
+                str(ml_settings["model_strategy"]),
                 "-bb",
-                "1000",  # ultrafast bootstrap 1000 replicates
+                str(ml_settings["bootstrap_replicates"]),
                 "-pre",
                 "ml_tree",  # output prefix
                 "--quiet",
                 "-redo",  # rerun if necessary
             ]
+            if str(ml_settings.get("model_set", "")).strip():
+                cmd[5:5] = ["-mset", str(ml_settings["model_set"])]
             self.logger.info(cmd)
 
             proc = subprocess.Popen(
@@ -423,6 +426,7 @@ class ProteinPhylogeneticPipeline:
 
         work_dir = self.output_dir / "bayesian_method"
         work_dir.mkdir(parents=True, exist_ok=True)
+        bayesian_settings = self.runtime_settings["bayesian"]
 
         self.logger.info(f"Changed to work_dir: {os.getcwd()}")
 
@@ -436,14 +440,20 @@ class ProteinPhylogeneticPipeline:
             mb_input = list()
             mb_input.append("set autoclose=yes nowarn=yes;\n")
             mb_input.append(f"execute {nexus_file.name}\n")
-            # protein model settings
-            mb_input.append("prset aamodelpr=mixed;\n")  # use mixed amino-acid models
+            protein_model_prior = str(
+                bayesian_settings.get("protein_model_prior", "mixed")
+            ).strip()
+            if protein_model_prior:
+                mb_input.append(f"prset aamodelpr={protein_model_prior};\n")
+            mb_input.append(f"lset rates={bayesian_settings['rates']};\n")
             mb_input.append(
-                "lset rates=invgamma;\n"
-            )  # allow proportion of invariant sites + gamma-distributed rates
-            mb_input.append(
-                "mcmcp ngen=50000 samplefreq=100 printfreq=1000 diagnfreq=5000;\n"
-            )  # longer MCMC suitable for protein data
+                "mcmcp ngen={ngen} samplefreq={samplefreq} printfreq={printfreq} diagnfreq={diagnfreq};\n".format(
+                    ngen=bayesian_settings["ngen"],
+                    samplefreq=bayesian_settings["samplefreq"],
+                    printfreq=bayesian_settings["printfreq"],
+                    diagnfreq=bayesian_settings["diagnfreq"],
+                )
+            )
             mb_input.append("mcmc;\n")
             mb_input.append("sumt;\n")
             mb_input.append("quit;\n")
@@ -534,6 +544,7 @@ class ProteinPhylogeneticPipeline:
             if tree_file is None or not tree_file.exists():
                 ret_paths.append(None)
                 self.logger.warning(f"Tree file not found, skipping: {tree_file}")
+                continue
 
             # Ensure it's a Path
             tree_file = Path(tree_file)
@@ -886,44 +897,56 @@ class ProteinPhylogeneticPipeline:
         phylip_file = self.convert_to_phylip()
 
         # 4. Build trees using four methods
-        tree_files = []
+        tree_files = [None, None, None, None]
 
         entry_path = Path.cwd()
 
-        os.chdir(entry_path)
-        tree_files.append(self.distance_method(phylip_file))
-        self.logger.info(
-            "====Distance method complete==========================================================="
-        )
+        if self.runtime_settings["distance"]["enabled"]:
+            os.chdir(entry_path)
+            tree_files[0] = self.distance_method(phylip_file)
+            self.logger.info(
+                "====Distance method complete==========================================================="
+            )
+        else:
+            self.logger.info("====Distance method skipped by runtime config====")
 
-        os.chdir(entry_path)
-        tree_files.append(self.maximum_likelihood_method())
-        self.logger.info(
-            "====Maximum likelihood method complete==========================================================="
-        )
+        if self.runtime_settings["maximum_likelihood"]["enabled"]:
+            os.chdir(entry_path)
+            tree_files[1] = self.maximum_likelihood_method()
+            self.logger.info(
+                "====Maximum likelihood method complete==========================================================="
+            )
+        else:
+            self.logger.info("====Maximum likelihood method skipped by runtime config====")
 
-        os.chdir(entry_path)
-        tree_files.append(self.bayesian_method())
-        self.logger.info(
-            "====Bayesian method complete==========================================================="
-        )
+        if self.runtime_settings["bayesian"]["enabled"]:
+            os.chdir(entry_path)
+            tree_files[2] = self.bayesian_method()
+            self.logger.info(
+                "====Bayesian method complete==========================================================="
+            )
+        else:
+            self.logger.info("====Bayesian method skipped by runtime config====")
 
         # Parsimony for proteins does not have branch length information
-        os.chdir(entry_path)
-        parsimony_tree_file = self.parsimony_method(phylip_file)
-        self.logger.info(
-            "====Parsimony method complete==========================================================="
-        )
+        if self.runtime_settings["parsimony"]["enabled"]:
+            os.chdir(entry_path)
+            tree_files[3] = self.parsimony_method(phylip_file)
+            self.logger.info(
+                "====Parsimony method complete==========================================================="
+            )
+        else:
+            self.logger.info("====Parsimony method skipped by runtime config====")
 
         # 5. Rerooting and ladderizing
         # Parsimony trees typically lack branch lengths and may not need rerooting/ladderizing
         os.chdir(entry_path)
-        rooted_tree_files = self.reroot_tree_by_MAD(tree_files)
+        rooted_tree_files = self.reroot_tree_by_MAD(tree_files[:3])
 
         os.chdir(entry_path)
         rooted_ladd_tree_files = self.ladderize_tree_by_ete4(rooted_tree_files)
         rooted_ladd_tree_files.extend(
-            self.ladderize_tree_by_ete4([parsimony_tree_file], make_branch_equal=True)
+            self.ladderize_tree_by_ete4([tree_files[3]], make_branch_equal=True)
         )
 
         result_trees = self.restore_names_in_trees(rooted_ladd_tree_files)
@@ -955,11 +978,16 @@ def main():
         default="phylo_results_protein",
         help="Output directory (default: phylo_results_protein)",
     )
+    parser.add_argument(
+        "--config",
+        help="Optional runtime JSON config generated by the oneBuilder GUI",
+    )
 
     args = parser.parse_args()
+    runtime_config = load_runtime_config(args.config)
 
     # Create and run the pipeline
-    pipeline = ProteinPhylogeneticPipeline(args.input_file, args.output)
+    pipeline = ProteinPhylogeneticPipeline(args.input_file, args.output, runtime_config=runtime_config)
     pipeline.run_pipeline()
 
 

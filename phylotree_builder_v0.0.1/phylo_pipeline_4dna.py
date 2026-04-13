@@ -21,6 +21,7 @@ from Bio import SeqIO, Phylo
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from ete4 import Tree
+from onebuilder_runtime_config import dna_runtime_settings, load_runtime_config
 from tree_summary_plot import create_tree_distance_heatmaps
 
 mpl.set_loglevel("warning")  # 或 "error"
@@ -31,7 +32,7 @@ warnings.filterwarnings("ignore")
 
 
 class PhylogeneticPipeline:
-    def __init__(self, input_file, output_dir="phylo_results"):
+    def __init__(self, input_file, output_dir="phylo_results", runtime_config=None):
         """
         初始化进化树构建管道
 
@@ -44,6 +45,7 @@ class PhylogeneticPipeline:
         self.new_name2ori_name_dict: Dict[str, str] = None
         self.output_dir = Path(output_dir).resolve()
         self.script_dir = Path(__file__).parent.resolve()
+        self.runtime_settings = dna_runtime_settings(runtime_config)
         self.setup_logging()
         self.create_directories()
 
@@ -319,6 +321,7 @@ class PhylogeneticPipeline:
         work_dir = self.output_dir / "maximum_likelihood"
         # input_file = work_dir / "alignment.fasta"
         input_file = self.input_file
+        ml_settings = self.runtime_settings["maximum_likelihood"]
 
         os.chdir(work_dir)
         self.logger.info(f"当前所在目录： {os.getcwd()}")
@@ -329,14 +332,16 @@ class PhylogeneticPipeline:
                 "-s",
                 str(input_file),
                 "-m",
-                "MFP",  # 自动选择最佳模型
+                str(ml_settings["model_strategy"]),
                 "-bb",
-                "1000",  # Ultra-fast bootstrap 1000次
+                str(ml_settings["bootstrap_replicates"]),
                 "-pre",
                 "ml_tree",  # 重新运行
                 "--quiet",
                 "-redo",
             ]
+            if str(ml_settings.get("model_set", "")).strip():
+                cmd[5:5] = ["-mset", str(ml_settings["model_set"])]
             self.logger.info(cmd)
 
             proc = subprocess.Popen(
@@ -376,6 +381,7 @@ class PhylogeneticPipeline:
 
         work_dir = self.output_dir / "bayesian_method"
         work_dir.mkdir(parents=True, exist_ok=True)  # FIX: 确保目录存在
+        bayesian_settings = self.runtime_settings["bayesian"]
 
         self.logger.info(f"当前所在目录： {os.getcwd()}")
 
@@ -389,12 +395,17 @@ class PhylogeneticPipeline:
             mb_input = list()
             mb_input.append("set autoclose=yes nowarn=yes;\n")  # FIX: 避免交互停顿
             mb_input.append(f"execute {nexus_file.name}\n")
-            mb_input.append("lset nst=6 rates=invgamma\n")  # 保留你的 GTR+I+G
-            # 原本你把 ngen 放在 mcmcp，这里更稳妥拆分：mcmcp 设置频率，mcmc 设置代数
             mb_input.append(
-                "mcmcp samplefreq=100 printfreq=100 diagnfreq=1000\n"
-            )  # FIX: 仅配置
-            mb_input.append("mcmc ngen=10000\n")  # FIX: 真正运行代数
+                f"lset nst={bayesian_settings['nst']} rates={bayesian_settings['rates']}\n"
+            )
+            mb_input.append(
+                "mcmcp samplefreq={samplefreq} printfreq={printfreq} diagnfreq={diagnfreq}\n".format(
+                    samplefreq=bayesian_settings["samplefreq"],
+                    printfreq=bayesian_settings["printfreq"],
+                    diagnfreq=bayesian_settings["diagnfreq"],
+                )
+            )
+            mb_input.append(f"mcmc ngen={bayesian_settings['ngen']}\n")
             mb_input.append("sumt\n")
             mb_input.append("quit\n")
 
@@ -468,7 +479,7 @@ class PhylogeneticPipeline:
 
         vis_dir = self.output_dir / "visualizations"
         vis_dir.mkdir(parents=True, exist_ok=True)
-        methods = ["Distance", "Parsimony", "Maximum Likelihood", "Bayesian"]
+        methods = ["Distance", "Maximum Likelihood", "Bayesian", "Parsimony"]
 
         # 设置中文字体（如果可用）
         try:
@@ -523,10 +534,10 @@ class PhylogeneticPipeline:
 
         path_tree_info = path_trees_summary / "tree_meta_data.tsv"
         with open(path_tree_info, "w") as f:
-            f.write(f"NJ_phylip\t{tree_files[0]}\n")
-            f.write(f"MP_phylip\t{tree_files[1]}\n")
-            f.write(f"ML_iqtree\t{tree_files[2]}\n")
-            f.write(f"BI_mrbayes\t{tree_files[3]}\n")
+            f.write(f"NJ_phylip\t{tree_files[0] if tree_files[0] else 'NULL'}\n")
+            f.write(f"ML_iqtree\t{tree_files[1] if tree_files[1] else 'NULL'}\n")
+            f.write(f"BI_mrbayes\t{tree_files[2] if tree_files[2] else 'NULL'}\n")
+            f.write(f"MP_phylip\t{tree_files[3] if tree_files[3] else 'NULL'}\n")
 
         heatmap_paths = []
         r_commands = [
@@ -759,6 +770,10 @@ class PhylogeneticPipeline:
 
         ret_paths: List[Path] = []
         for tree_file in tree_files:
+            if tree_file is None or not Path(tree_file).exists():
+                ret_paths.append(tree_file)
+                continue
+
             # 保证是 Path
             tree_file = Path(tree_file)
             # 输出路径：原文件名后面加 .ladderize
@@ -796,33 +811,45 @@ class PhylogeneticPipeline:
         phylip_file = self.convert_to_phylip()
 
         # 4. 四种方法建树
-        tree_files = []
+        tree_files = [None, None, None, None]
 
         entry_path = Path.cwd()
 
-        os.chdir(entry_path)
-        tree_files.append(self.distance_method(phylip_file))
-        self.logger.info(
-            "====Distance method complete==========================================================="
-        )
+        if self.runtime_settings["distance"]["enabled"]:
+            os.chdir(entry_path)
+            tree_files[0] = self.distance_method(phylip_file)
+            self.logger.info(
+                "====Distance method complete==========================================================="
+            )
+        else:
+            self.logger.info("====Distance method skipped by runtime config====")
 
-        os.chdir(entry_path)
-        tree_files.append(self.parsimony_method(phylip_file))
-        self.logger.info(
-            "====Parsimony method complete==========================================================="
-        )
+        if self.runtime_settings["maximum_likelihood"]["enabled"]:
+            os.chdir(entry_path)
+            tree_files[1] = self.maximum_likelihood_method()
+            self.logger.info(
+                "====Maximum likelihood method complete==========================================================="
+            )
+        else:
+            self.logger.info("====Maximum likelihood method skipped by runtime config====")
 
-        os.chdir(entry_path)
-        tree_files.append(self.maximum_likelihood_method())
-        self.logger.info(
-            "====Maximum likelihood method complete==========================================================="
-        )
+        if self.runtime_settings["bayesian"]["enabled"]:
+            os.chdir(entry_path)
+            tree_files[2] = self.bayesian_method()
+            self.logger.info(
+                "====Bayesian method complete==========================================================="
+            )
+        else:
+            self.logger.info("====Bayesian method skipped by runtime config====")
 
-        os.chdir(entry_path)
-        tree_files.append(self.bayesian_method())
-        self.logger.info(
-            "====Bayesian method complete==========================================================="
-        )
+        if self.runtime_settings["parsimony"]["enabled"]:
+            os.chdir(entry_path)
+            tree_files[3] = self.parsimony_method(phylip_file)
+            self.logger.info(
+                "====Parsimony method complete==========================================================="
+            )
+        else:
+            self.logger.info("====Parsimony method skipped by runtime config====")
 
         os.chdir(entry_path)
         rooted_tree_files = self.reroot_tree_by_MAD(tree_files)
@@ -847,11 +874,16 @@ def main():
     parser.add_argument(
         "-o", "--output", default="phylo_results", help="输出目录 (默认: phylo_results)"
     )
+    parser.add_argument(
+        "--config",
+        help="由 oneBuilder GUI 生成的可选运行时 JSON 配置文件",
+    )
 
     args = parser.parse_args()
+    runtime_config = load_runtime_config(args.config)
 
     # 创建并运行管道
-    pipeline = PhylogeneticPipeline(args.input_file, args.output)
+    pipeline = PhylogeneticPipeline(args.input_file, args.output, runtime_config=runtime_config)
     pipeline.run_pipeline()
 
 

@@ -5,6 +5,7 @@ import evoltree.struct.TreeDecoder;
 import evoltree.swingvis.OneNodeDrawer;
 import evoltree.tanglegram.QuickPairwiseTreeComparator;
 import evoltree.txtdisplay.ReflectGraphicNode;
+import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -13,33 +14,54 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import javax.swing.BorderFactory;
 import javax.swing.JPanel;
 import javax.swing.UIManager;
 
-final class TanglegramPanelFactory {
+public final class TanglegramPanelFactory {
     private static final Dimension DEFAULT_DIMENSION = new Dimension(1200, 800);
     private static final int MIN_WIDTH = 640;
     private static final int MIN_HEIGHT = 480;
 
+    private final TanglegramRenderOptions renderOptions;
     private final OneNodeDrawer<EvolNode> leftDrawer = (graphics2d, node) -> drawRightFacingLeafLabels(graphics2d, node);
     private final OneNodeDrawer<EvolNode> rightDrawer = (graphics2d, node) -> drawLeftFacingLeafLabels(graphics2d, node);
 
-    JPanel createPanel(TreePairSpec pairSpec, Dimension requestedSize) throws Exception {
-        Dimension effectiveSize = sanitizeSize(requestedSize);
+    public TanglegramPanelFactory() {
+        this(TanglegramRenderOptions.defaults());
+    }
+
+    public TanglegramPanelFactory(TanglegramRenderOptions renderOptions) {
+        this.renderOptions = renderOptions == null ? TanglegramRenderOptions.defaults() : renderOptions;
+    }
+
+    public JPanel createPanel(TreePairSpec pairSpec, Dimension requestedSize) throws Exception {
+        Dimension effectiveSize = renderOptions.autoFit() ? sanitizeSize(requestedSize) : new Dimension(DEFAULT_DIMENSION);
         Font labelFont = resolveLabelFont();
         TreeDecoder decoder = new TreeDecoder();
 
         EvolNode leftTree = decoder.decode(readTree(pairSpec.leftTree()));
         EvolNode rightTree = decoder.decode(readTree(pairSpec.rightTree()));
 
-        JPanel panel = QuickPairwiseTreeComparator.plotTree(
+        JPanel innerPanel = QuickPairwiseTreeComparator.plotTree(
                 leftTree,
                 rightTree,
                 labelFont,
                 effectiveSize,
                 leftDrawer,
                 rightDrawer);
-        panel.setPreferredSize(effectiveSize);
+        innerPanel.setPreferredSize(effectiveSize);
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(
+                renderOptions.verticalPadding(),
+                renderOptions.horizontalPadding(),
+                renderOptions.verticalPadding(),
+                renderOptions.horizontalPadding()));
+        panel.add(innerPanel, BorderLayout.CENTER);
+        panel.setPreferredSize(new Dimension(
+                effectiveSize.width + (renderOptions.horizontalPadding() * 2),
+                effectiveSize.height + (renderOptions.verticalPadding() * 2)));
         return panel;
     }
 
@@ -47,12 +69,12 @@ final class TanglegramPanelFactory {
         return new String(Files.readAllBytes(treeFile), StandardCharsets.UTF_8).trim();
     }
 
-    private static Font resolveLabelFont() {
+    private Font resolveLabelFont() {
         Font uiFont = UIManager.getFont("Label.font");
         if (uiFont != null) {
-            return uiFont;
+            return uiFont.deriveFont((float) renderOptions.labelFontSize());
         }
-        return new Font(Font.SANS_SERIF, Font.PLAIN, 12);
+        return new Font(Font.SANS_SERIF, Font.PLAIN, renderOptions.labelFontSize());
     }
 
     private static Dimension sanitizeSize(Dimension requestedSize) {

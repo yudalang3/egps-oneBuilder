@@ -2,14 +2,60 @@
 
 set -euo pipefail
 
-# 检查是否提供了输入文件
-if [[ $# -ne 1 ]]; then
-    echo "用法: zsh $0 <input.fasta>"
+usage() {
+    echo "用法: zsh $0 [--strategy localpair|auto|globalpair] [--maxiterate N] [--reorder|--no-reorder] <input.fasta>"
+}
+
+strategy="localpair"
+maxiterate="1000"
+reorder_enabled=1
+input=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --strategy)
+            [[ $# -ge 2 ]] || { usage; exit 1; }
+            strategy="$2"
+            shift 2
+            ;;
+        --maxiterate)
+            [[ $# -ge 2 ]] || { usage; exit 1; }
+            maxiterate="$2"
+            shift 2
+            ;;
+        --reorder)
+            reorder_enabled=1
+            shift
+            ;;
+        --no-reorder)
+            reorder_enabled=0
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo "错误: 未知参数 '$1'"
+            usage
+            exit 1
+            ;;
+        *)
+            if [[ -n "$input" ]]; then
+                echo "错误: 只能提供一个输入文件。"
+                usage
+                exit 1
+            fi
+            input="$1"
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$input" ]]; then
+    usage
     exit 1
 fi
-
-# 获取输入文件路径
-input="$1"
 
 # 检查输入文件是否存在
 if [[ ! -f "$input" ]]; then
@@ -38,6 +84,12 @@ if [[ ! -x "$pixi_exe" ]]; then
     exit 1
 fi
 
-"$pixi_exe" run --manifest-path "$script_dir" mafft --reorder --localpair --maxiterate 1000 "$input" > "$output"
+mafft_cmd=("$pixi_exe" run --manifest-path "$script_dir" mafft)
+if [[ "$reorder_enabled" -eq 1 ]]; then
+    mafft_cmd+=(--reorder)
+fi
+mafft_cmd+=("--$strategy" --maxiterate "$maxiterate" "$input")
+
+"${mafft_cmd[@]}" > "$output"
 
 echo "比对完成！输出文件: $output"

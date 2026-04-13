@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-Chinese documentation: [`Readme_zh.md`](Readme_zh.md)
+Chinese documentation: [`README_zh.md`](README_zh.md)
 
 A Linux-based phylogenetic tree pipeline. It supports protein and DNA/CDS sequence alignment, tree inference, visualization, and comparison across multiple methods.
 
@@ -12,6 +12,7 @@ A Linux-based phylogenetic tree pipeline. It supports protein and DNA/CDS sequen
 - Supports MAFFT alignment, PHYLIP distance/parsimony methods, IQ-TREE maximum likelihood, and MrBayes Bayesian inference.
 - Generates tree visualizations plus TreeDist and Robinson-Foulds distance statistics.
 - Keeps the DNA pipeline and provides a standalone Java tanglegram viewer for interactive comparison of the four inferred trees.
+- Also provides a standalone Java Swing workflow GUI for Linux/X11 sessions such as MobaXTerm with X11 forwarding.
 
 ## Input and Output
 
@@ -73,15 +74,51 @@ The timings below come from real runs of the bundled demo inputs on the current 
 5. Generate plots, summary reports, and tree distance statistics.
 6. Use the Java tanglegram module if you want to compare results interactively.
 
-## Tanglegram Viewer
+## Java GUI Tools
 
-The repository now includes a standalone Java Swing viewer for pairwise tanglegram comparison across the four tree-building methods.
+The repository now includes two standalone Java Swing entrypoints:
+
+- `onebuilder.launcher`: the full workflow GUI with `Input / Align`, `Tree Build`, and `Tanglegram` tabs
+- `tanglegram.launcher`: the focused pairwise tanglegram viewer for loading an existing `tree_summary/`
 
 Compile from `phylotree_builder_v0.0.1/`:
 
 ```bash
-javac -cp "lib/*:java_tanglegram" -d java_tanglegram java_tanglegram/tanglegram/*.java
+javac -cp "lib/*:java_tanglegram" -d java_tanglegram \
+  java_tanglegram/tanglegram/*.java \
+  java_tanglegram/onebuilder/*.java
 ```
+
+If you only want to validate the Swing windows on Windows PowerShell, use `;` instead of `:` in the classpath:
+
+```powershell
+javac -cp "lib/*;java_tanglegram" -d java_tanglegram `
+  java_tanglegram/tanglegram/*.java `
+  java_tanglegram/onebuilder/*.java
+```
+
+### Full Workflow GUI
+
+Launch from a Linux desktop or an X11-forwarded terminal session:
+
+```bash
+java -cp "java_tanglegram:lib/*" onebuilder.launcher
+```
+
+```powershell
+java -cp "java_tanglegram;lib/*" onebuilder.launcher
+```
+
+Usage notes:
+
+- The top-level tabs are fixed to `Input / Align`, `Tree Build`, and `Tanglegram`.
+- `Tree Build` uses a left-side tab set with `Distance`, `ML`, `Bayesian`, and `Parsimony`.
+- Enable `Run alignment first` if the input FASTA is not aligned yet; the GUI forwards MAFFT settings into `s1_quick_align.zsh`.
+- The GUI writes a temporary runtime JSON config and passes it into `s2_phylo_4prot.zsh` or `s2_phylo_4dna.zsh`.
+- The `Tanglegram` page is current-run only. It unlocks after the current GUI run creates a usable `tree_summary/`.
+- The launchers explicitly disable FlatLaf's native library integration with `flatlaf.useNativeLibrary=false`, so JDK 24+ does not print the `--enable-native-access=ALL-UNNAMED` warning.
+
+### Tanglegram Viewer
 
 Launch without loading data first:
 
@@ -89,10 +126,18 @@ Launch without loading data first:
 java -cp "java_tanglegram:lib/*" tanglegram.launcher
 ```
 
+```powershell
+java -cp "java_tanglegram;lib/*" tanglegram.launcher
+```
+
 Launch and immediately load one pipeline result:
 
 ```bash
 java -cp "java_tanglegram:lib/*" tanglegram.launcher -dir /path/to/tree_summary
+```
+
+```powershell
+java -cp "java_tanglegram;lib/*" tanglegram.launcher -dir C:\path\to\tree_summary
 ```
 
 Usage notes:
