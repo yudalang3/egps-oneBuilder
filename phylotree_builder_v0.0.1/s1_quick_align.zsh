@@ -3,32 +3,46 @@
 set -euo pipefail
 
 usage() {
-    echo "用法: zsh $0 [--strategy localpair|auto|globalpair] [--maxiterate N] [--reorder|--no-reorder] <input.fasta>"
+    echo "用法: zsh $0 [--config runtime.json] [--strategy localpair|auto|globalpair] [--maxiterate N] [--reorder|--no-reorder] <input.fasta>"
 }
 
 strategy="localpair"
 maxiterate="1000"
 reorder_enabled=1
+config_path=""
+strategy_from_cli=0
+maxiterate_from_cli=0
+reorder_from_cli=0
+mafft_extra_args=()
 input=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --config)
+            [[ $# -ge 2 ]] || { usage; exit 1; }
+            config_path="$2"
+            shift 2
+            ;;
         --strategy)
             [[ $# -ge 2 ]] || { usage; exit 1; }
             strategy="$2"
+            strategy_from_cli=1
             shift 2
             ;;
         --maxiterate)
             [[ $# -ge 2 ]] || { usage; exit 1; }
             maxiterate="$2"
+            maxiterate_from_cli=1
             shift 2
             ;;
         --reorder)
             reorder_enabled=1
+            reorder_from_cli=1
             shift
             ;;
         --no-reorder)
             reorder_enabled=0
+            reorder_from_cli=1
             shift
             ;;
         -h|--help)
@@ -55,6 +69,49 @@ done
 if [[ -z "$input" ]]; then
     usage
     exit 1
+fi
+
+if [[ -n "$config_path" ]]; then
+    if [[ ! -f "$config_path" ]]; then
+        echo "错误: 配置文件 '$config_path' 不存在。"
+        exit 1
+    fi
+
+    config_values=("${(@f)$(
+        python3.13 -c '
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as handle:
+    payload = json.load(handle)
+alignment = payload.get("alignment", {})
+mafft = alignment.get("mafft", {}) if isinstance(alignment, dict) else {}
+common = mafft.get("common", {}) if isinstance(mafft, dict) else {}
+extra_args = mafft.get("extra_args", []) if isinstance(mafft, dict) else []
+strategy = common.get("strategy", alignment.get("strategy", "localpair"))
+maxiterate = common.get("maxiterate", alignment.get("maxiterate", 1000))
+reorder = common.get("reorder", alignment.get("reorder", True))
+print(strategy)
+print(maxiterate)
+print("1" if reorder else "0")
+for arg in extra_args:
+    print(arg)
+' "$config_path"
+    )}")
+
+    if [[ "$strategy_from_cli" -eq 0 && "${#config_values[@]}" -ge 1 && -n "${config_values[1]}" ]]; then
+        strategy="${config_values[1]}"
+    fi
+    if [[ "$maxiterate_from_cli" -eq 0 && "${#config_values[@]}" -ge 2 && -n "${config_values[2]}" ]]; then
+        maxiterate="${config_values[2]}"
+    fi
+    if [[ "$reorder_from_cli" -eq 0 && "${#config_values[@]}" -ge 3 && -n "${config_values[3]}" ]]; then
+        reorder_enabled="${config_values[3]}"
+    fi
+    if [[ "${#config_values[@]}" -gt 3 ]]; then
+        mafft_extra_args=()
+        for ((i = 4; i <= ${#config_values[@]}; i++)); do
+            mafft_extra_args+=("${config_values[$i]}")
+        done
+    fi
 fi
 
 # 检查输入文件是否存在
@@ -88,7 +145,11 @@ mafft_cmd=("$pixi_exe" run --manifest-path "$script_dir" mafft)
 if [[ "$reorder_enabled" -eq 1 ]]; then
     mafft_cmd+=(--reorder)
 fi
-mafft_cmd+=("--$strategy" --maxiterate "$maxiterate" "$input")
+mafft_cmd+=("--$strategy" --maxiterate "$maxiterate")
+if [[ "${#mafft_extra_args[@]}" -gt 0 ]]; then
+    mafft_cmd+=("${mafft_extra_args[@]}")
+fi
+mafft_cmd+=("$input")
 
 "${mafft_cmd[@]}" > "$output"
 

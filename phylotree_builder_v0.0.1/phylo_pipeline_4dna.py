@@ -31,6 +31,101 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
+def _normalize_phylip_menu_input(menu_overrides, default_input):
+    if not menu_overrides:
+        return default_input
+    lines = [str(item).strip() for item in menu_overrides if str(item).strip()]
+    if not lines:
+        return default_input
+    if lines[-1].upper() != "Y":
+        lines.append("Y")
+    return "\n".join(lines) + "\n"
+
+
+def _append_iqtree_args(cmd, settings):
+    option_pairs = [
+        ("sequence_type", "-st"),
+        ("outgroup", "-o"),
+        ("threads", "-nt"),
+        ("threads_max", "-ntmax"),
+        ("seed", "-seed"),
+        ("memory_limit", "-mem"),
+        ("alrt", "-alrt"),
+    ]
+    for setting_key, cli_flag in option_pairs:
+        value = settings.get(setting_key)
+        if value is not None and str(value).strip():
+            cmd.extend([cli_flag, str(value)])
+
+    if settings.get("safe"):
+        cmd.append("-safe")
+    if settings.get("keep_ident"):
+        cmd.append("-keep-ident")
+    if settings.get("abayes"):
+        cmd.append("-abayes")
+    if settings.get("verbose") and not settings.get("quiet", True):
+        cmd.append("-v")
+    if settings.get("quiet", True):
+        cmd.append("--quiet")
+    if settings.get("redo", True):
+        cmd.append("-redo")
+    for extra_arg in settings.get("extra_args", []):
+        cmd.append(str(extra_arg))
+
+
+def _normalize_mrbayes_lines(command_block):
+    lines = []
+    for raw_line in command_block or []:
+        text = str(raw_line).strip()
+        if not text:
+            continue
+        if not text.endswith(";"):
+            text += ";"
+        lines.append(text + "\n")
+    return lines
+
+
+def _build_sumt_command(settings):
+    options = []
+    if settings.get("burnin") is not None:
+        options.append(f"burnin={settings['burnin']}")
+    if settings.get("burninfrac") is not None:
+        options.append(f"burninfrac={settings['burninfrac']}")
+    if settings.get("relburnin") is not None:
+        options.append(f"relburnin={'yes' if settings['relburnin'] else 'no'}")
+    if options:
+        return "sumt " + " ".join(options) + ";\n"
+    return "sumt;\n"
+
+
+def _build_dna_mrbayes_commands(nexus_file_name, settings):
+    custom_block = _normalize_mrbayes_lines(settings.get("command_block"))
+    commands = ["set autoclose=yes nowarn=yes;\n", f"execute {nexus_file_name}\n"]
+    if custom_block:
+        commands.extend(custom_block)
+        if not custom_block[-1].strip().lower().startswith("quit"):
+            commands.append("quit;\n")
+        return commands
+
+    commands.append(f"lset nst={settings['nst']} rates={settings['rates']};\n")
+
+    mcmcp_options = [
+        f"ngen={settings['ngen']}",
+        f"samplefreq={settings['samplefreq']}",
+        f"printfreq={settings['printfreq']}",
+        f"diagnfreq={settings['diagnfreq']}",
+    ]
+    for option_key in ("nruns", "nchains", "temp", "stoprule", "stopval"):
+        option_value = settings.get(option_key)
+        if option_value is not None:
+            mcmcp_options.append(f"{option_key}={option_value}")
+    commands.append("mcmcp " + " ".join(mcmcp_options) + ";\n")
+    commands.append("mcmc;\n")
+    commands.append(_build_sumt_command(settings))
+    commands.append("quit;\n")
+    return commands
+
+
 class PhylogeneticPipeline:
     def __init__(self, input_file, output_dir="phylo_results", runtime_config=None):
         """
@@ -214,7 +309,10 @@ class PhylogeneticPipeline:
 
         try:
             # 1. 计算距离矩阵 (dnadist)
-            dnadist_input = "Y\n"  # 使用默认参数
+            dnadist_input = _normalize_phylip_menu_input(
+                self.runtime_settings["distance"].get("dnadist_menu_overrides"),
+                "Y\n",
+            )
             proc = subprocess.Popen(
                 [self.phylip_commands["dnadist"]],
                 stdin=subprocess.PIPE,
@@ -235,7 +333,10 @@ class PhylogeneticPipeline:
                 shutil.copy2("outfile", "distance_matrix.txt")
                 shutil.move("outfile", "infile")
 
-            neighbor_input = "Y\n"  # 使用默认参数
+            neighbor_input = _normalize_phylip_menu_input(
+                self.runtime_settings["distance"].get("neighbor_menu_overrides"),
+                "Y\n",
+            )
             proc = subprocess.Popen(
                 [self.phylip_commands["neighbor"]],
                 stdin=subprocess.PIPE,
@@ -279,7 +380,10 @@ class PhylogeneticPipeline:
 
         try:
             # 使用dnapars进行简约法分析
-            dnapars_input = "Y\n"  # 使用默认参数
+            dnapars_input = _normalize_phylip_menu_input(
+                self.runtime_settings["parsimony"].get("dnapars_menu_overrides"),
+                "Y\n",
+            )
             proc = subprocess.Popen(
                 [self.phylip_commands["dnapars"]],
                 stdin=subprocess.PIPE,
@@ -337,11 +441,10 @@ class PhylogeneticPipeline:
                 str(ml_settings["bootstrap_replicates"]),
                 "-pre",
                 "ml_tree",  # 重新运行
-                "--quiet",
-                "-redo",
             ]
             if str(ml_settings.get("model_set", "")).strip():
                 cmd[5:5] = ["-mset", str(ml_settings["model_set"])]
+            _append_iqtree_args(cmd, ml_settings)
             self.logger.info(cmd)
 
             proc = subprocess.Popen(
@@ -392,22 +495,7 @@ class PhylogeneticPipeline:
 
             # 创建MrBayes命令文件
             mb_script = work_dir / "mb_commands.txt"
-            mb_input = list()
-            mb_input.append("set autoclose=yes nowarn=yes;\n")  # FIX: 避免交互停顿
-            mb_input.append(f"execute {nexus_file.name}\n")
-            mb_input.append(
-                f"lset nst={bayesian_settings['nst']} rates={bayesian_settings['rates']}\n"
-            )
-            mb_input.append(
-                "mcmcp samplefreq={samplefreq} printfreq={printfreq} diagnfreq={diagnfreq}\n".format(
-                    samplefreq=bayesian_settings["samplefreq"],
-                    printfreq=bayesian_settings["printfreq"],
-                    diagnfreq=bayesian_settings["diagnfreq"],
-                )
-            )
-            mb_input.append(f"mcmc ngen={bayesian_settings['ngen']}\n")
-            mb_input.append("sumt\n")
-            mb_input.append("quit\n")
+            mb_input = _build_dna_mrbayes_commands(nexus_file.name, bayesian_settings)
 
             # 写入脚本文件（便于复现/调试）
             mb_input_str = "".join(mb_input)  # FIX: communicate 需要字符串

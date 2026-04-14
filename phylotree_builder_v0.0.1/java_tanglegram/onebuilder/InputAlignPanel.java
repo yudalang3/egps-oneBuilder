@@ -17,6 +17,7 @@ import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -34,6 +35,7 @@ final class InputAlignPanel extends JPanel {
     private final JComboBox<String> alignStrategyCombo;
     private final JSpinner maxiterateSpinner;
     private final JCheckBox reorderCheckBox;
+    private final JTextArea alignExtraArgsArea;
     private final JLabel alignedPreviewValue;
     private final JButton runButton;
     private final JButton stopButton;
@@ -86,6 +88,7 @@ final class InputAlignPanel extends JPanel {
         alignStrategyCombo = new JComboBox<>(new String[] {"localpair", "auto", "globalpair"});
         maxiterateSpinner = new JSpinner(new SpinnerNumberModel(1000, 0, 1000000, 100));
         reorderCheckBox = new JCheckBox("Reorder sequences", true);
+        alignExtraArgsArea = new JTextArea(5, 28);
         alignedPreviewValue = new JLabel("-");
         runButton = new JButton("Run");
         stopButton = new JButton("Stop");
@@ -174,6 +177,18 @@ final class InputAlignPanel extends JPanel {
 
         constraints.gridx = 0;
         constraints.gridy = 8;
+        constraints.anchor = GridBagConstraints.NORTHWEST;
+        constraints.weightx = 0.0;
+        formPanel.add(new JLabel("Advanced MAFFT"), constraints);
+        constraints.gridx = 1;
+        constraints.gridwidth = 2;
+        constraints.weightx = 1.0;
+        formPanel.add(buildAdvancedAlignmentPanel(), constraints);
+        constraints.gridwidth = 1;
+        constraints.anchor = GridBagConstraints.WEST;
+
+        constraints.gridx = 0;
+        constraints.gridy = 9;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Config export"), constraints);
         constraints.gridx = 1;
@@ -183,7 +198,7 @@ final class InputAlignPanel extends JPanel {
         constraints.gridwidth = 1;
 
         constraints.gridx = 0;
-        constraints.gridy = 9;
+        constraints.gridy = 10;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Expected aligned file"), constraints);
         constraints.gridx = 1;
@@ -226,6 +241,7 @@ final class InputAlignPanel extends JPanel {
         alignStrategyCombo.addActionListener(event -> notifyInputChanged());
         maxiterateSpinner.addChangeListener(event -> notifyInputChanged());
         reorderCheckBox.addActionListener(event -> notifyInputChanged());
+        alignExtraArgsArea.getDocument().addDocumentListener(documentListener);
         exportConfigCheckBox.addActionListener(event -> notifyInputChanged());
 
         runButton.addActionListener(event -> submitRunRequest());
@@ -342,7 +358,8 @@ final class InputAlignPanel extends JPanel {
                 .alignOptions(new AlignmentOptions(
                         String.valueOf(alignStrategyCombo.getSelectedItem()),
                         ((Integer) maxiterateSpinner.getValue()).intValue(),
-                        reorderCheckBox.isSelected()))
+                        reorderCheckBox.isSelected(),
+                        TextListCodec.splitLines(alignExtraArgsArea.getText())))
                 .runtimeConfig(runtimeConfigSupplier.get())
                 .build();
         setAlignedPreview(request.runAlignmentFirst()
@@ -376,6 +393,7 @@ final class InputAlignPanel extends JPanel {
         alignStrategyCombo.setEnabled(alignmentEnabled && !running);
         maxiterateSpinner.setEnabled(alignmentEnabled && !running);
         reorderCheckBox.setEnabled(alignmentEnabled && !running);
+        alignExtraArgsArea.setEnabled(alignmentEnabled && !running);
     }
 
     boolean isRunSupported() {
@@ -395,5 +413,20 @@ final class InputAlignPanel extends JPanel {
             return "Provide one MSA input. On Linux, oneBuilder can run the existing MAFFT wrapper and the four-tree pipeline directly. The same page can also export a reusable JSON config file.";
         }
         return "Provide one MSA input and export a reusable JSON config file. Actual alignment and tree construction are Linux-only. On Windows, use the standalone tanglegram viewer to inspect an existing tree_summary result.";
+    }
+
+    private JPanel buildAdvancedAlignmentPanel() {
+        JTextArea note = new JTextArea(
+                "Advanced MAFFT flags. Enter one token per line, for example --thread then 8 on the next line. These values are appended after the common alignment controls.");
+        note.setEditable(false);
+        note.setLineWrap(true);
+        note.setWrapStyleWord(true);
+        note.setOpaque(false);
+        note.setBorder(null);
+
+        JPanel content = new JPanel(new BorderLayout(0, 8));
+        content.add(new JScrollPane(alignExtraArgsArea), BorderLayout.CENTER);
+        content.add(note, BorderLayout.SOUTH);
+        return new CollapsibleSectionPanel("Advanced Parameters", content, true);
     }
 }

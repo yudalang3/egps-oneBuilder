@@ -16,10 +16,10 @@ import javax.swing.JTextArea;
 
 final class TreeBuildPanel extends JPanel {
     private final JideTabbedPane methodTabs;
-    private final SimpleMethodPanel distancePanel;
+    private final DistanceMethodPanel distancePanel;
     private final MaximumLikelihoodPanel maximumLikelihoodPanel;
     private final BayesianPanel bayesianPanel;
-    private final SimpleMethodPanel parsimonyPanel;
+    private final ParsimonyMethodPanel parsimonyPanel;
     private JLabel runStatusValue;
     private JLabel currentStageValue;
     private JLabel alignedOutputValue;
@@ -33,14 +33,10 @@ final class TreeBuildPanel extends JPanel {
         this.inputType = inputType;
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
-        distancePanel = new SimpleMethodPanel(
-                "Distance",
-                "Runs the existing PHYLIP distance method. v1 keeps this method lightweight: enable/disable, live status, and resolved output path.");
+        distancePanel = new DistanceMethodPanel(inputType);
         maximumLikelihoodPanel = new MaximumLikelihoodPanel();
         bayesianPanel = new BayesianPanel();
-        parsimonyPanel = new SimpleMethodPanel(
-                "Parsimony",
-                "Runs the existing PHYLIP parsimony method. v1 exposes the enable switch and tracks status/output from the live run.");
+        parsimonyPanel = new ParsimonyMethodPanel(inputType);
 
         methodTabs = new JideTabbedPane(JideTabbedPane.LEFT);
         methodTabs.setTabLayoutPolicy(JideTabbedPane.SCROLL_TAB_LAYOUT);
@@ -132,8 +128,10 @@ final class TreeBuildPanel extends JPanel {
 
     void setInputType(InputType inputType) {
         this.inputType = inputType;
+        distancePanel.setInputType(inputType);
         maximumLikelihoodPanel.setInputType(inputType);
         bayesianPanel.setInputType(inputType);
+        parsimonyPanel.setInputType(inputType);
     }
 
     void applyRuntimeConfig(PipelineRuntimeConfig runtimeConfig) {

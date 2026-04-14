@@ -1,6 +1,9 @@
 package tanglegram;
 
 import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +15,9 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JTabbedPane;
 
-final class TanglegramFrame extends JFrame {
+final class TanglegramFrame extends JFrame implements PreferenceAware {
+    private static final String WINDOW_KEY = "tanglegram";
+    private static final Dimension DEFAULT_WINDOW_SIZE = new Dimension(1400, 900);
     private final TanglegramPanelFactory panelFactory;
     private final JTabbedPane tabs;
     private Path lastOpenedTreeSummaryDir;
@@ -26,8 +31,14 @@ final class TanglegramFrame extends JFrame {
         setLayout(new BorderLayout());
         setJMenuBar(createMenuBar());
         add(tabs, BorderLayout.CENTER);
-        setSize(1400, 900);
+        setSize(UiPreferenceStore.resolveWindowSize(WINDOW_KEY, DEFAULT_WINDOW_SIZE));
         setLocationRelativeTo(null);
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent event) {
+                UiPreferenceStore.saveWindowSize(WINDOW_KEY, getSize());
+            }
+        });
     }
 
     void handleStartup(LauncherOptions options) {
@@ -73,7 +84,12 @@ final class TanglegramFrame extends JFrame {
         JMenuItem openItem = new JMenuItem("Open");
         openItem.addActionListener(event -> openTreeSummaryDirectory());
         filesMenu.add(openItem);
+        JMenu preferenceMenu = new JMenu("Preference");
+        JMenuItem settingsItem = new JMenuItem("Settings...");
+        settingsItem.addActionListener(event -> PreferenceDialog.showDialog(this));
+        preferenceMenu.add(settingsItem);
         menuBar.add(filesMenu);
+        menuBar.add(preferenceMenu);
         return menuBar;
     }
 
@@ -101,5 +117,15 @@ final class TanglegramFrame extends JFrame {
             labels.add(method.shortLabel());
         }
         return labels.toString();
+    }
+
+    @Override
+    public void applyPreferences(UiPreferences preferences) {
+        if (preferences.restoreLastWindowSize()) {
+            UiPreferenceStore.saveWindowSize(WINDOW_KEY, getSize());
+        }
+        if (lastOpenedTreeSummaryDir != null) {
+            loadTreeSummary(lastOpenedTreeSummaryDir);
+        }
     }
 }

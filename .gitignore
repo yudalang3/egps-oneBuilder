@@ -7,6 +7,7 @@
 /test1/
 /test2/
 /launch.md
+/docs/
 *.fasta
 *.log
 *.class

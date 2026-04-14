@@ -5,6 +5,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import javax.swing.SwingUtilities;
 import tanglegram.FlatLafBootstrap;
+import tanglegram.GlobalUiPreferenceController;
+import tanglegram.UiPreferenceStore;
 
 public final class launcher {
     private launcher() {
@@ -14,6 +16,8 @@ public final class launcher {
         Path scriptDirectory = resolveScriptDirectory();
         SwingUtilities.invokeLater(() -> {
             FlatLafBootstrap.setupFlatLaf();
+            UiPreferenceStore.captureLookAndFeelDefaults();
+            GlobalUiPreferenceController.applyStoredPreferencesToLookAndFeel();
             OneBuilderFrame frame = new OneBuilderFrame(scriptDirectory);
             frame.setVisible(true);
         });

@@ -14,7 +14,7 @@ public final class TanglegramRenderOptions {
     }
 
     public static TanglegramRenderOptions defaults() {
-        return new TanglegramRenderOptions(12, 24, 16, true);
+        return new TanglegramRenderOptions(UiPreferenceStore.load().defaultTanglegramLabelFontSize(), 24, 16, true);
     }
 
     public int labelFontSize() {

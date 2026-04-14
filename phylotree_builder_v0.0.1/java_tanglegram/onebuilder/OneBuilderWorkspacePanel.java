@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import tanglegram.UiPreferences;
 
 final class OneBuilderWorkspacePanel extends JPanel {
     private final JideTabbedPane workflowTabs;
@@ -63,6 +64,10 @@ final class OneBuilderWorkspacePanel extends JPanel {
 
     InputAlignPanel inputAlignPanel() {
         return inputAlignPanel;
+    }
+
+    void applyPreferences(UiPreferences preferences) {
+        currentRunTanglegramPanel.applyPreferences(preferences);
     }
 
     private void handleInputChanged() {

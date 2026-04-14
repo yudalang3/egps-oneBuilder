@@ -10,6 +10,8 @@ public final class launcher {
         LauncherOptions options = LauncherOptions.parse(args);
         SwingUtilities.invokeLater(() -> {
             FlatLafBootstrap.setupFlatLaf();
+            UiPreferenceStore.captureLookAndFeelDefaults();
+            GlobalUiPreferenceController.applyStoredPreferencesToLookAndFeel();
             TanglegramFrame frame = new TanglegramFrame();
             frame.setVisible(true);
             frame.handleStartup(options);

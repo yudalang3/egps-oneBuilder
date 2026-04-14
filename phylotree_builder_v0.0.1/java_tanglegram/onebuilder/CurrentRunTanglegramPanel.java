@@ -18,6 +18,8 @@ import tanglegram.TanglegramRenderOptions;
 import tanglegram.TreePairSpec;
 import tanglegram.TreeSummaryLoadResult;
 import tanglegram.TreeSummaryLoader;
+import tanglegram.UiPreferenceStore;
+import tanglegram.UiPreferences;
 
 final class CurrentRunTanglegramPanel extends JPanel {
     private JSpinner labelFontSizeSpinner;
@@ -57,7 +59,7 @@ final class CurrentRunTanglegramPanel extends JPanel {
         panel.add(new JLabel("Label font"), constraints);
 
         constraints.gridx = 1;
-        labelFontSizeSpinner = new JSpinner(new SpinnerNumberModel(12, 8, 48, 1));
+        labelFontSizeSpinner = new JSpinner(new SpinnerNumberModel(UiPreferenceStore.load().defaultTanglegramLabelFontSize(), 8, 48, 1));
         panel.add(labelFontSizeSpinner, constraints);
 
         constraints.gridx = 2;
@@ -100,6 +102,17 @@ final class CurrentRunTanglegramPanel extends JPanel {
 
     JideTabbedPane comparisonTabs() {
         return comparisonTabs;
+    }
+
+    int labelFontSizeValueForTest() {
+        return ((Integer) labelFontSizeSpinner.getValue()).intValue();
+    }
+
+    void applyPreferences(UiPreferences preferences) {
+        labelFontSizeSpinner.setValue(Integer.valueOf(preferences.defaultTanglegramLabelFontSize()));
+        if (currentOutputDirectory != null) {
+            loadRunResults(currentOutputDirectory);
+        }
     }
 
     void loadRunResults(Path outputDirectory) {

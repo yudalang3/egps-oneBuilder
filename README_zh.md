@@ -68,11 +68,16 @@ zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 
 现在这几个包装脚本已经把 GUI 会用到的参数接口公开出来了：
 
-- `s1_quick_align.zsh [--strategy localpair|auto|globalpair] [--maxiterate N] [--reorder|--no-reorder] <input.fasta>`
+- `s1_quick_align.zsh [--config runtime.json] [--strategy localpair|auto|globalpair] [--maxiterate N] [--reorder|--no-reorder] <input.fasta>`
 - `s2_phylo_4prot.zsh [--config runtime.json] <input.fasta> [output_prefix]`
 - `s2_phylo_4dna.zsh [--config runtime.json] <input.fasta> [output_prefix]`
 
-其中可选的 `--config` JSON 主要是给 `onebuilder.launcher` 使用的，用来把方法启用状态、ML 参数和贝叶斯参数从 GUI 传进现有 shell wrapper 和 Python 管线。
+其中可选的 `--config` JSON 主要是给 `onebuilder.launcher` 使用的，用来把比对参数、方法启用状态、ML 参数、贝叶斯参数以及原生透传块从 GUI 传进现有 shell wrapper 和 Python 管线。
+
+详细参数说明：
+
+- 中文参数参考：[`tree_build_pipeline_parameter_reference_zh.md`](tree_build_pipeline_parameter_reference_zh.md)
+- 完整 JSON 模板：[`tree_build_full_config_template.json`](tree_build_full_config_template.json)
 
 ## 运行耗时预期
 
@@ -167,8 +172,11 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 - Windows 下的 `onebuilder.launcher` 只负责参数编辑和 JSON 配置导出，不会执行 `s1_quick_align.zsh`、`s2_phylo_4prot.zsh` 或 `s2_phylo_4dna.zsh`。
 - 如果输入 FASTA 还没有完成多序列比对，就勾选 `Run alignment first`；在 Linux 下 GUI 会把参数转发给 `s1_quick_align.zsh`。
 - 输入页包含输出目录和输出前缀、MAFFT strategy、`maxiterate`、sequence reorder 控制、`Run`、`Stop`、`Export config file when running` 以及 `Export JSON`。
+- 高级参数区域默认通过 SwingX 的 `JXCollapsiblePane` 折叠，只有需要时再展开。
 - 建树页会在同一个窗口里持续显示运行状态、当前阶段、对齐后输入路径、输出根目录，以及滚动更新的 stdout/stderr 日志。
 - GUI 支持在启动 run 之前，按方法开启/关闭四种建树步骤，并调整公开出来的 ML 与贝叶斯参数。
+- 窗口菜单中还提供 `Preference > Settings...`，可设置共享的全局字体族、全局字号、窗口大小恢复，以及默认的 tanglegram 标签字号。
+- 这些 Preference 修改后会立即作用到当前已打开的 Java 窗口，并在下次启动时继续沿用。
 - `Export config file when running` 默认勾选。勾选状态下，Linux run 会把配置保存为 `<output_base_dir>/<output_prefix>.onebuilder.json`，然后把这个 JSON 文件传给 wrapper。
 - 如果取消勾选，Linux run 仍然可以执行，但只会生成本次运行使用的临时 JSON 配置。
 - `Export JSON` 按钮总是会把当前 GUI 参数写入 `<output_base_dir>/<output_prefix>.onebuilder.json`。
@@ -212,7 +220,8 @@ java -cp "phylotree_builder_v0.0.1\java_tanglegram;phylotree_builder_v0.0.1\lib/
 
 - 主窗口标题固定为 `Tanglegram`。
 - Windows 下如果你已经有流程输出，应该用这个独立查看器来看 6 个两两比较结果。
-- 菜单栏只有 `Files > Open`。
+- 菜单栏提供 `Files > Open` 和 `Preference > Settings...`。
+- `Preference` 与 `onebuilder.launcher` 共享同一套全局 UI 设置，包括全局字体和默认 tanglegram 标签字号。
 - `Open` 需要选择一次流程输出里的 `tree_summary/` 目录。
 - 查看器会把可用的两两配对固定排成这 6 个标签顺序：`NJ-ML`、`NJ-BI`、`NJ-MP`、`ML-BI`、`ML-MP`、`BI-MP`。
 - 如果某一种方法缺失，但仍然能解析出至少两棵树，查看器会只加载有效的配对标签，而不是整窗失败。

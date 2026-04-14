@@ -22,6 +22,9 @@ public final class TanglegramStandaloneTest {
         run("parsesDirectoryArgument", TanglegramStandaloneTest::parsesDirectoryArgument);
         run("rejectsMissingDirectoryValue", TanglegramStandaloneTest::rejectsMissingDirectoryValue);
         run("disablesFlatlafNativeLibraryByDefault", TanglegramStandaloneTest::disablesFlatlafNativeLibraryByDefault);
+        run("roundTripsUiPreferences", TanglegramStandaloneTest::roundTripsUiPreferences);
+        run("resolvesStoredWindowSizes", TanglegramStandaloneTest::resolvesStoredWindowSizes);
+        run("usesPreferenceBackedTanglegramDefaults", TanglegramStandaloneTest::usesPreferenceBackedTanglegramDefaults);
         run("resolvesMovedSampleTreesFromFallbackLayout", TanglegramStandaloneTest::resolvesMovedSampleTreesFromFallbackLayout);
         run("buildsFixedPairOrderForAllMethods", TanglegramStandaloneTest::buildsFixedPairOrderForAllMethods);
         run("loadsOnlyAvailablePairsWhenOneMethodIsMissing", TanglegramStandaloneTest::loadsOnlyAvailablePairsWhenOneMethodIsMissing);
@@ -56,6 +59,53 @@ public final class TanglegramStandaloneTest {
         FlatLafBootstrap.prepareSystemProperties();
         assertEquals("false", System.getProperty(FlatLafBootstrap.USE_NATIVE_LIBRARY_PROPERTY),
                 "expected FlatLaf native library to be disabled");
+    }
+
+    private static void roundTripsUiPreferences() {
+        UiPreferenceStore.useTestNode("/egps-onebuilder/tests/tanglegram/preferences");
+        UiPreferenceStore.clearNodeForTests();
+        UiPreferenceStore.captureLookAndFeelDefaults();
+
+        UiPreferences preferences = new UiPreferences("Dialog", 18, true, 21);
+        UiPreferenceStore.save(preferences);
+        UiPreferences loaded = UiPreferenceStore.load();
+
+        assertEquals("Dialog", loaded.uiFontFamily(), "unexpected font family");
+        assertEquals(Integer.valueOf(18), Integer.valueOf(loaded.uiFontSize()), "unexpected font size");
+        assertTrue(loaded.restoreLastWindowSize(), "expected restore window size to be enabled");
+        assertEquals(Integer.valueOf(21), Integer.valueOf(loaded.defaultTanglegramLabelFontSize()),
+                "unexpected default tanglegram label size");
+
+        UiPreferenceStore.resetNodeForTests();
+    }
+
+    private static void resolvesStoredWindowSizes() {
+        UiPreferenceStore.useTestNode("/egps-onebuilder/tests/tanglegram/window-size");
+        UiPreferenceStore.clearNodeForTests();
+        UiPreferenceStore.captureLookAndFeelDefaults();
+        UiPreferenceStore.save(new UiPreferences("Dialog", 14, true, 12));
+        UiPreferenceStore.saveWindowSize("tanglegram", new Dimension(1600, 1000));
+
+        assertEquals(new Dimension(1600, 1000), UiPreferenceStore.resolveWindowSize("tanglegram", new Dimension(1400, 900)),
+                "expected stored size to be used");
+
+        UiPreferenceStore.save(new UiPreferences("Dialog", 14, false, 12));
+        assertEquals(new Dimension(1400, 900), UiPreferenceStore.resolveWindowSize("tanglegram", new Dimension(1400, 900)),
+                "expected fallback size when restore is disabled");
+
+        UiPreferenceStore.resetNodeForTests();
+    }
+
+    private static void usesPreferenceBackedTanglegramDefaults() {
+        UiPreferenceStore.useTestNode("/egps-onebuilder/tests/tanglegram/render-defaults");
+        UiPreferenceStore.clearNodeForTests();
+        UiPreferenceStore.captureLookAndFeelDefaults();
+        UiPreferenceStore.save(new UiPreferences("Dialog", 14, true, 26));
+
+        TanglegramRenderOptions defaults = TanglegramRenderOptions.defaults();
+        assertEquals(Integer.valueOf(26), Integer.valueOf(defaults.labelFontSize()), "expected label size from preferences");
+
+        UiPreferenceStore.resetNodeForTests();
     }
 
     private static void resolvesMovedSampleTreesFromFallbackLayout() throws Exception {

@@ -22,11 +22,8 @@ public final class ExecutionPlanBuilder {
             alignCommand = new ArrayList<>();
             alignCommand.add("/bin/zsh");
             alignCommand.add(scriptDir.resolve("s1_quick_align.zsh").toString());
-            alignCommand.add("--strategy");
-            alignCommand.add(request.alignOptions().strategy());
-            alignCommand.add("--maxiterate");
-            alignCommand.add(String.valueOf(request.alignOptions().maxiterate()));
-            alignCommand.add(request.alignOptions().reorder() ? "--reorder" : "--no-reorder");
+            alignCommand.add("--config");
+            alignCommand.add(configPath.toString());
             alignCommand.add(request.inputFile().toString());
         }
 
