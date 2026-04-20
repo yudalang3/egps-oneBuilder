@@ -47,3 +47,78 @@
 ## Java Module
 
 - `phylotree_builder_v0.0.1/java_tanglegram/` is not a standalone Java app in this repo. It is packaged as `egps2.module.treetanglegram` and imports `egps2.*` / `egps3.*` classes from the larger eGPS codebase. No local Java build file is present.
+- Do not delete locally generated `.class` files under `phylotree_builder_v0.0.1/java_tanglegram/`; the user may need them to launch the GUI directly. Keep them locally, but do not add or commit them because `.gitignore` already excludes `*.class`.
+
+
+
+Threading and Event Dispatch Thread (EDT) Best Practices
+
+**CRITICAL RULE: Never perform time-consuming operations on the EDT thread.**
+
+The Event Dispatch Thread (EDT) is responsible for handling all GUI events and rendering. Blocking the EDT causes the UI to freeze and creates a poor user experience.
+
+**What must run on EDT:**
+
+- All GUI component creation and modification (setText, setEnabled, addComponent, etc.)
+- Showing dialogs (JOptionPane, JDialog, etc.)
+- Updating table models, list models, or any Swing model
+- Repainting and revalidating components
+- Any Swing component method calls
+
+**What must NOT run on EDT:**
+
+- File I/O operations (reading/writing files)
+- Network operations (HTTP requests, socket operations)
+- Database queries
+- Complex computations or data processing
+- Module scanning, class loading, or reflection operations
+- Any operation that takes more than ~100ms
+
+**Correct pattern for time-consuming operations:**
+
+```java
+// WRONG - Blocks EDT
+button.addActionListener(e -> {
+    heavyComputation();     // BAD: Freezes UI
+    updateTable();          // BAD: Mixed threading
+});
+
+// CORRECT - Background thread + EDT for GUI updates
+button.addActionListener(e -> {
+    // Disable button on EDT
+    button.setEnabled(false);
+
+    // Run heavy work in background thread
+    new Thread(() -> {
+        try {
+            // TIME-CONSUMING OPERATIONS - NOT ON EDT
+            Object result = heavyComputation();
+            Object data = loadFromDatabase();
+
+            // GUI UPDATES - DISPATCH TO EDT
+            SwingUtilities.invokeLater(() -> {
+                updateTable(result, data);
+                button.setEnabled(true);
+            });
+        } catch (Exception ex) {
+            // Error handling also needs EDT
+            SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(parent, "Error: " + ex.getMessage());
+                button.setEnabled(true);
+            });
+        }
+    }, "BackgroundWorkerThread").start();
+});
+```
+
+**Checking if you're on EDT:**
+
+```java
+if (SwingUtilities.isEventDispatchThread()) {
+    // Safe to update GUI directly
+    label.setText("Updated");
+} else {
+    // Must dispatch to EDT
+    SwingUtilities.invokeLater(() -> label.setText("Updated"));
+}
+```

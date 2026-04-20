@@ -19,6 +19,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.border.Border;
 import javax.swing.border.CompoundBorder;
@@ -36,6 +37,7 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
     private final JTabbedPane tabs;
     private final JLabel summaryLabel;
     private Path lastOpenedTreeSummaryDir;
+    private volatile long loadSequence;
 
     TanglegramFrame() {
         super("Tanglegram");
@@ -68,25 +70,45 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
     }
 
     void loadTreeSummary(Path treeSummaryDir) {
-        try {
-            TreeSummaryLoadResult loadResult = TreeSummaryLoader.load(treeSummaryDir);
-            if (loadResult.resolvedTrees().size() < 2) {
-                showError("At least two tree methods must be readable from " + treeSummaryDir);
-                return;
+        final long requestId = ++loadSequence;
+        summaryLabel.setText("Loading tree summary: " + treeSummaryDir + " ...");
+        Thread loadThread = new Thread(() -> {
+            try {
+                TreeSummaryLoadResult loadResult = TreeSummaryLoader.load(treeSummaryDir);
+                SwingUtilities.invokeLater(() -> applyLoadResult(requestId, treeSummaryDir, loadResult));
+            } catch (Exception exception) {
+                SwingUtilities.invokeLater(() -> applyLoadFailure(requestId, exception));
             }
+        }, "tanglegram-summary-loader");
+        loadThread.setDaemon(true);
+        loadThread.start();
+    }
 
-            replaceTabs(loadResult.availablePairs());
-            lastOpenedTreeSummaryDir = loadResult.treeSummaryDir();
-            summaryLabel.setText("Loaded " + loadResult.availablePairs().size() + " comparisons from " + loadResult.treeSummaryDir());
-
-            if (!loadResult.missingMethods().isEmpty()) {
-                summaryLabel.setText("Loaded partial result from " + loadResult.treeSummaryDir()
-                        + ". Missing: " + formatMethods(loadResult.missingMethods()));
-                showWarning("Skipped methods: " + formatMethods(loadResult.missingMethods()));
-            }
-        } catch (Exception exception) {
-            showError(exception.getMessage());
+    private void applyLoadResult(long requestId, Path requestedDir, TreeSummaryLoadResult loadResult) {
+        if (requestId != loadSequence) {
+            return;
         }
+        if (loadResult.resolvedTrees().size() < 2) {
+            showError("At least two tree methods must be readable from " + requestedDir);
+            return;
+        }
+
+        replaceTabs(loadResult.availablePairs());
+        lastOpenedTreeSummaryDir = loadResult.treeSummaryDir();
+        summaryLabel.setText("Loaded " + loadResult.availablePairs().size() + " comparisons from " + loadResult.treeSummaryDir());
+
+        if (!loadResult.missingMethods().isEmpty()) {
+            summaryLabel.setText("Loaded partial result from " + loadResult.treeSummaryDir()
+                    + ". Missing: " + formatMethods(loadResult.missingMethods()));
+            showWarning("Skipped methods: " + formatMethods(loadResult.missingMethods()));
+        }
+    }
+
+    private void applyLoadFailure(long requestId, Exception exception) {
+        if (requestId != loadSequence) {
+            return;
+        }
+        showError(exception.getMessage());
     }
 
     private void replaceTabs(List<TreePairSpec> pairSpecs) {

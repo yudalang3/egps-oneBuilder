@@ -11,13 +11,20 @@ import java.util.List;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.Timer;
 
 final class TreeBuildPanel extends JPanel {
+    private static final int EXPANDED_LOG_FLUSH_MS = 60;
+    private static final int COLLAPSED_LOG_FLUSH_MS = 400;
+    private static final int FORCE_FLUSH_BUFFER_CHARS = 8192;
+
     private final DistanceMethodPanel distancePanel;
     private final MaximumLikelihoodPanel maximumLikelihoodPanel;
     private final BayesianPanel bayesianPanel;
     private final ParsimonyMethodPanel parsimonyPanel;
     private final LogDrawerPanel logDrawerPanel;
+    private final StringBuilder pendingLogBuffer;
+    private final Timer logFlushTimer;
     private JLabel runStatusValue;
     private JLabel currentStageValue;
     private JLabel alignedOutputValue;
@@ -34,6 +41,14 @@ final class TreeBuildPanel extends JPanel {
         bayesianPanel = new BayesianPanel();
         parsimonyPanel = new ParsimonyMethodPanel(inputType);
         logDrawerPanel = new LogDrawerPanel();
+        pendingLogBuffer = new StringBuilder();
+        logFlushTimer = new Timer(EXPANDED_LOG_FLUSH_MS, event -> flushBufferedLog());
+        logFlushTimer.setRepeats(false);
+        logDrawerPanel.setCollapseStateListener(collapsed -> {
+            if (!collapsed.booleanValue()) {
+                flushBufferedLog();
+            }
+        });
 
         add(buildSummaryCard(), BorderLayout.NORTH);
         add(buildMethodGrid(), BorderLayout.CENTER);
@@ -180,6 +195,8 @@ final class TreeBuildPanel extends JPanel {
     }
 
     void resetForRun(ExecutionPlan executionPlan) {
+        logFlushTimer.stop();
+        pendingLogBuffer.setLength(0);
         logDrawerPanel.logArea().setText("");
         setOverallStatus("Running");
         setCurrentStage("Preparing");
@@ -202,8 +219,28 @@ final class TreeBuildPanel extends JPanel {
         if (line == null) {
             return;
         }
-        logDrawerPanel.logArea().append(line);
-        logDrawerPanel.logArea().append(System.lineSeparator());
+        pendingLogBuffer.append(line);
+        if (!line.endsWith("\n") && !line.endsWith("\r")) {
+            pendingLogBuffer.append(System.lineSeparator());
+        }
+        if (pendingLogBuffer.length() >= FORCE_FLUSH_BUFFER_CHARS) {
+            flushBufferedLog();
+            return;
+        }
+        scheduleLogFlush();
+    }
+
+    private void scheduleLogFlush() {
+        logFlushTimer.setInitialDelay(logDrawerPanel.isCollapsed() ? COLLAPSED_LOG_FLUSH_MS : EXPANDED_LOG_FLUSH_MS);
+        logFlushTimer.restart();
+    }
+
+    private void flushBufferedLog() {
+        if (pendingLogBuffer.length() == 0) {
+            return;
+        }
+        logDrawerPanel.logArea().append(pendingLogBuffer.toString());
+        pendingLogBuffer.setLength(0);
         logDrawerPanel.logArea().setCaretPosition(logDrawerPanel.logArea().getDocument().getLength());
     }
 
@@ -263,6 +300,7 @@ final class TreeBuildPanel extends JPanel {
     }
 
     void finishRun(String finalStatus) {
+        flushBufferedLog();
         setOverallStatus(finalStatus);
         logDrawerPanel.setProgressRunning(false);
         logDrawerPanel.setProgressText(finalStatus == null ? "Idle" : finalStatus);

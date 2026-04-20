@@ -3,6 +3,7 @@ package tanglegram;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Insets;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -17,6 +18,7 @@ public final class ResizableTanglegramView extends JScrollPane {
     private final TanglegramPanelFactory panelFactory;
     private final TanglegramRenderOptions renderOptions;
     private final Timer renderTimer;
+    private final AtomicLong renderSequence;
 
     public ResizableTanglegramView(TreePairSpec pairSpec, TanglegramPanelFactory panelFactory) {
         this(pairSpec, panelFactory, TanglegramRenderOptions.defaults());
@@ -30,6 +32,7 @@ public final class ResizableTanglegramView extends JScrollPane {
         this.panelFactory = panelFactory;
         this.renderOptions = renderOptions == null ? TanglegramRenderOptions.defaults() : renderOptions;
         this.renderTimer = new Timer(RENDER_DELAY_MS, event -> renderToViewport());
+        this.renderSequence = new AtomicLong();
         this.renderTimer.setRepeats(false);
         setBorder(null);
         getViewport().addComponentListener(new java.awt.event.ComponentAdapter() {
@@ -51,11 +54,32 @@ public final class ResizableTanglegramView extends JScrollPane {
     }
 
     private void renderToViewport() {
-        try {
-            setViewportView(panelFactory.createPanel(pairSpec, getViewportSize()));
-        } catch (Exception exception) {
-            setViewportView(errorPanel(exception.getMessage()));
-        }
+        final long renderId = renderSequence.incrementAndGet();
+        final Dimension viewportSize = getViewportSize();
+        setViewportView(loadingPanel());
+        Thread renderThread = new Thread(() -> {
+            try {
+                TanglegramPanelFactory.PreparedPair preparedPair = panelFactory.preparePair(pairSpec);
+                SwingUtilities.invokeLater(() -> {
+                    if (renderId != renderSequence.get()) {
+                        return;
+                    }
+                    try {
+                        setViewportView(panelFactory.createPanel(preparedPair, viewportSize));
+                    } catch (Exception exception) {
+                        setViewportView(errorPanel(exception.getMessage()));
+                    }
+                });
+            } catch (Exception exception) {
+                SwingUtilities.invokeLater(() -> {
+                    if (renderId == renderSequence.get()) {
+                        setViewportView(errorPanel(exception.getMessage()));
+                    }
+                });
+            }
+        }, "tanglegram-renderer");
+        renderThread.setDaemon(true);
+        renderThread.start();
     }
 
     private Dimension getViewportSize() {
@@ -76,6 +100,12 @@ public final class ResizableTanglegramView extends JScrollPane {
         JPanel panel = new JPanel(new BorderLayout());
         panel.add(new JLabel(message == null ? "Failed to render tanglegram." : message, SwingConstants.CENTER),
                 BorderLayout.CENTER);
+        return panel;
+    }
+
+    private static JPanel loadingPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(new JLabel("Loading tanglegram...", SwingConstants.CENTER), BorderLayout.CENTER);
         return panel;
     }
 }

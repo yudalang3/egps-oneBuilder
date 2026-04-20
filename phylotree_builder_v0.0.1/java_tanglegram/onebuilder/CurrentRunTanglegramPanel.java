@@ -12,6 +12,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
 import tanglegram.ResizableTanglegramView;
 import tanglegram.TanglegramPanelFactory;
 import tanglegram.TanglegramRenderOptions;
@@ -29,6 +30,7 @@ final class CurrentRunTanglegramPanel extends JPanel {
     private final JLabel summaryLabel;
     private final JideTabbedPane comparisonTabs;
     private Path currentOutputDirectory;
+    private volatile long loadSequence;
 
     CurrentRunTanglegramPanel() {
         super(new BorderLayout(12, 12));
@@ -124,29 +126,51 @@ final class CurrentRunTanglegramPanel extends JPanel {
         }
 
         Path treeSummaryDir = CurrentRunArtifacts.resolveTreeSummaryDir(currentOutputDirectory);
-        try {
-            TreeSummaryLoadResult loadResult = TreeSummaryLoader.load(treeSummaryDir);
-            if (loadResult.resolvedTrees().size() < 2) {
-                summaryLabel.setText("Current run does not contain at least two readable trees: " + treeSummaryDir);
-                return;
+        final long requestId = ++loadSequence;
+        summaryLabel.setText("Loading current run tanglegrams from " + treeSummaryDir + " ...");
+        Thread loadThread = new Thread(() -> {
+            try {
+                TreeSummaryLoadResult loadResult = TreeSummaryLoader.load(treeSummaryDir);
+                SwingUtilities.invokeLater(() -> applyLoadResult(requestId, treeSummaryDir, loadResult));
+            } catch (Exception exception) {
+                SwingUtilities.invokeLater(() -> applyLoadFailure(requestId, exception));
             }
+        }, "onebuilder-current-run-tanglegram-loader");
+        loadThread.setDaemon(true);
+        loadThread.start();
+    }
 
-            TanglegramRenderOptions renderOptions = new TanglegramRenderOptions(
-                    ((Integer) labelFontSizeSpinner.getValue()).intValue(),
-                    ((Integer) horizontalPaddingSpinner.getValue()).intValue(),
-                    ((Integer) verticalPaddingSpinner.getValue()).intValue(),
-                    autoFitCheckBox.isSelected());
-            TanglegramPanelFactory panelFactory = new TanglegramPanelFactory(renderOptions);
-            for (TreePairSpec pairSpec : loadResult.availablePairs()) {
-                comparisonTabs.addTab(pairSpec.tabName(), new ResizableTanglegramView(pairSpec, panelFactory, renderOptions));
-            }
-
-            String warningSuffix = loadResult.missingMethods().isEmpty()
-                    ? ""
-                    : " Missing methods: " + loadResult.missingMethods();
-            summaryLabel.setText("Loaded " + loadResult.availablePairs().size() + " pair tabs from " + treeSummaryDir + "." + warningSuffix);
-        } catch (Exception exception) {
-            summaryLabel.setText("Failed to load current run tanglegrams: " + exception.getMessage());
+    private void applyLoadResult(long requestId, Path treeSummaryDir, TreeSummaryLoadResult loadResult) {
+        if (requestId != loadSequence) {
+            return;
         }
+        comparisonTabs.removeAll();
+        if (loadResult.resolvedTrees().size() < 2) {
+            summaryLabel.setText("Current run does not contain at least two readable trees: " + treeSummaryDir);
+            return;
+        }
+
+        TanglegramRenderOptions renderOptions = new TanglegramRenderOptions(
+                ((Integer) labelFontSizeSpinner.getValue()).intValue(),
+                ((Integer) horizontalPaddingSpinner.getValue()).intValue(),
+                ((Integer) verticalPaddingSpinner.getValue()).intValue(),
+                autoFitCheckBox.isSelected());
+        TanglegramPanelFactory panelFactory = new TanglegramPanelFactory(renderOptions);
+        for (TreePairSpec pairSpec : loadResult.availablePairs()) {
+            comparisonTabs.addTab(pairSpec.tabName(), new ResizableTanglegramView(pairSpec, panelFactory, renderOptions));
+        }
+
+        String warningSuffix = loadResult.missingMethods().isEmpty()
+                ? ""
+                : " Missing methods: " + loadResult.missingMethods();
+        summaryLabel.setText("Loaded " + loadResult.availablePairs().size() + " pair tabs from " + treeSummaryDir + "." + warningSuffix);
+    }
+
+    private void applyLoadFailure(long requestId, Exception exception) {
+        if (requestId != loadSequence) {
+            return;
+        }
+        comparisonTabs.removeAll();
+        summaryLabel.setText("Failed to load current run tanglegrams: " + exception.getMessage());
     }
 }

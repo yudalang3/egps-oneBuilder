@@ -2,6 +2,7 @@ package onebuilder;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.util.function.Consumer;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -17,6 +18,7 @@ final class LogDrawerPanel extends JPanel {
     private final JXCollapsiblePane collapsiblePane;
     private final JTextArea logArea;
     private final JProgressBar progressBar;
+    private Consumer<Boolean> collapseStateListener;
 
     LogDrawerPanel() {
         super(new BorderLayout(0, 10));
@@ -94,5 +96,12 @@ final class LogDrawerPanel extends JPanel {
     void setCollapsed(boolean collapsed) {
         collapsiblePane.setCollapsed(collapsed);
         toggleButton.setText(collapsed ? "Show log" : "Hide log");
+        if (collapseStateListener != null) {
+            collapseStateListener.accept(Boolean.valueOf(collapsed));
+        }
+    }
+
+    void setCollapseStateListener(Consumer<Boolean> collapseStateListener) {
+        this.collapseStateListener = collapseStateListener;
     }
 }

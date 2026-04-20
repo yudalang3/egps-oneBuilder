@@ -36,16 +36,22 @@ public final class TanglegramPanelFactory {
     }
 
     public JPanel createPanel(TreePairSpec pairSpec, Dimension requestedSize) throws Exception {
-        Dimension effectiveSize = renderOptions.autoFit() ? sanitizeSize(requestedSize) : new Dimension(DEFAULT_DIMENSION);
-        Font labelFont = resolveLabelFont();
-        TreeDecoder decoder = new TreeDecoder();
+        return createPanel(preparePair(pairSpec), requestedSize);
+    }
 
+    public PreparedPair preparePair(TreePairSpec pairSpec) throws Exception {
+        TreeDecoder decoder = new TreeDecoder();
         EvolNode leftTree = decoder.decode(readTree(pairSpec.leftTree()));
         EvolNode rightTree = decoder.decode(readTree(pairSpec.rightTree()));
+        return new PreparedPair(leftTree, rightTree);
+    }
 
+    public JPanel createPanel(PreparedPair preparedPair, Dimension requestedSize) {
+        Dimension effectiveSize = renderOptions.autoFit() ? sanitizeSize(requestedSize) : new Dimension(DEFAULT_DIMENSION);
+        Font labelFont = resolveLabelFont();
         JPanel innerPanel = QuickPairwiseTreeComparator.plotTree(
-                leftTree,
-                rightTree,
+                preparedPair.leftTree(),
+                preparedPair.rightTree(),
                 labelFont,
                 effectiveSize,
                 leftDrawer,
@@ -67,6 +73,9 @@ public final class TanglegramPanelFactory {
 
     private static String readTree(Path treeFile) throws IOException {
         return new String(Files.readAllBytes(treeFile), StandardCharsets.UTF_8).trim();
+    }
+
+    public record PreparedPair(EvolNode leftTree, EvolNode rightTree) {
     }
 
     private Font resolveLabelFont() {

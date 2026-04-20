@@ -9,6 +9,7 @@ import java.util.List;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import tanglegram.UiPreferences;
 
 final class OneBuilderWorkspacePanel extends JPanel {
@@ -182,19 +183,6 @@ final class OneBuilderWorkspacePanel extends JPanel {
             return;
         }
 
-        if (!Files.isDirectory(request.outputDirectory())) {
-            try {
-                Files.createDirectories(request.outputDirectory());
-            } catch (Exception exception) {
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Failed to create output directory: " + exception.getMessage(),
-                        "eGPS oneBuilder",
-                        JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-        }
-
         workflowTabsState = workflowTabsState.markInputConfigured().markRunStarted();
         syncWorkflowTabs();
         inputAlignPanel.setRunning(true);
@@ -208,21 +196,32 @@ final class OneBuilderWorkspacePanel extends JPanel {
     }
 
     private void handleExportRequested(RunRequest request) {
-        try {
-            Files.createDirectories(request.outputDirectory());
-            pipelineConfigWriter.write(request.exportConfigPath(), request);
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Config exported to: " + request.exportConfigPath(),
-                    "eGPS oneBuilder",
-                    JOptionPane.INFORMATION_MESSAGE);
-        } catch (Exception exception) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Failed to export config: " + exception.getMessage(),
-                    "eGPS oneBuilder",
-                    JOptionPane.ERROR_MESSAGE);
-        }
+        inputAlignPanel.setRunning(true);
+        Thread exportThread = new Thread(() -> {
+            try {
+                Files.createDirectories(request.outputDirectory());
+                pipelineConfigWriter.write(request.exportConfigPath(), request);
+                SwingUtilities.invokeLater(() -> {
+                    inputAlignPanel.setRunning(false);
+                    JOptionPane.showMessageDialog(
+                            OneBuilderWorkspacePanel.this,
+                            "Config exported to: " + request.exportConfigPath(),
+                            "eGPS oneBuilder",
+                            JOptionPane.INFORMATION_MESSAGE);
+                });
+            } catch (Exception exception) {
+                SwingUtilities.invokeLater(() -> {
+                    inputAlignPanel.setRunning(false);
+                    JOptionPane.showMessageDialog(
+                            OneBuilderWorkspacePanel.this,
+                            "Failed to export config: " + exception.getMessage(),
+                            "eGPS oneBuilder",
+                            JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        }, "onebuilder-config-export");
+        exportThread.setDaemon(true);
+        exportThread.start();
     }
 
     private void handleStopRequested() {

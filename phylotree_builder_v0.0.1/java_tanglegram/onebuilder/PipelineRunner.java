@@ -10,6 +10,9 @@ import java.util.List;
 import javax.swing.SwingUtilities;
 
 final class PipelineRunner {
+    private static final int OUTPUT_BATCH_LINES = 20;
+    private static final long OUTPUT_BATCH_NANOS = 50_000_000L;
+
     interface Listener {
         void onPlanReady(ExecutionPlan executionPlan);
 
@@ -131,13 +134,22 @@ final class PipelineRunner {
 
         Process process = processBuilder.start();
         currentProcess = process;
+        StringBuilder pendingOutput = new StringBuilder();
+        int pendingLineCount = 0;
+        long lastOutputDispatch = System.nanoTime();
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                String capturedLine = line;
-                dispatch(() -> listener.onProcessOutput(capturedLine));
-                MethodProgressEvent event = progressInterpreter.interpret(inputType, capturedLine);
+                pendingOutput.append(line).append(System.lineSeparator());
+                pendingLineCount++;
+                long now = System.nanoTime();
+                if (pendingLineCount >= OUTPUT_BATCH_LINES || now - lastOutputDispatch >= OUTPUT_BATCH_NANOS) {
+                    flushPendingOutput(pendingOutput);
+                    pendingLineCount = 0;
+                    lastOutputDispatch = now;
+                }
+                MethodProgressEvent event = progressInterpreter.interpret(inputType, line);
                 if (event != null) {
                     dispatch(() -> listener.onMethodProgress(event));
                 }
@@ -147,6 +159,8 @@ final class PipelineRunner {
             }
         }
 
+        flushPendingOutput(pendingOutput);
+
         int exitCode = process.waitFor();
         currentProcess = null;
         if (stopRequested) {
@@ -155,6 +169,15 @@ final class PipelineRunner {
         if (exitCode != 0) {
             throw new IOException(stageName + " failed with exit code " + exitCode);
         }
+    }
+
+    private void flushPendingOutput(StringBuilder pendingOutput) {
+        if (pendingOutput.length() == 0) {
+            return;
+        }
+        String capturedOutput = pendingOutput.toString();
+        pendingOutput.setLength(0);
+        dispatch(() -> listener.onProcessOutput(capturedOutput));
     }
 
     private static void dispatch(Runnable runnable) {
