@@ -1,15 +1,24 @@
 package onebuilder;
 
-import com.jidesoft.swing.JideTabbedPane;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.FlowLayout;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import tanglegram.UiPreferences;
 
 final class OneBuilderWorkspacePanel extends JPanel {
-    private final JideTabbedPane workflowTabs;
+    private final NavigationRailPanel navigationRail;
+    private final JPanel headerPanel;
+    private final JLabel headerStatusChip;
+    private final JLabel headerContextLabel;
+    private final JPanel headerRightPanel;
+    private final JPanel contentPanel;
+    private final CardLayout contentLayout;
     private final InputAlignPanel inputAlignPanel;
     private final TreeBuildPanel treeBuildPanel;
     private final CurrentRunTanglegramPanel currentRunTanglegramPanel;
@@ -18,6 +27,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
     private final PlatformSupport platformSupport;
     private WorkflowTabsState workflowTabsState;
     private InputType selectedInputType;
+    private WorkspaceSection selectedSection;
 
     OneBuilderWorkspacePanel(Path scriptDirectory) {
         this(scriptDirectory, PlatformSupport.current());
@@ -28,6 +38,9 @@ final class OneBuilderWorkspacePanel extends JPanel {
         this.platformSupport = platformSupport;
         this.workflowTabsState = WorkflowTabsState.initial();
         this.selectedInputType = InputType.PROTEIN;
+        this.selectedSection = WorkspaceSection.INPUT_ALIGN;
+
+        WorkbenchStyles.applyCanvas(this);
 
         treeBuildPanel = new TreeBuildPanel(selectedInputType);
         currentRunTanglegramPanel = new CurrentRunTanglegramPanel();
@@ -41,21 +54,48 @@ final class OneBuilderWorkspacePanel extends JPanel {
                 this::handleStopRequested,
                 treeBuildPanel::runtimeConfig);
 
-        workflowTabs = new JideTabbedPane(JideTabbedPane.TOP);
-        workflowTabs.setTabLayoutPolicy(JideTabbedPane.SCROLL_TAB_LAYOUT);
-        workflowTabs.setShowCloseButton(false);
-        workflowTabs.setShowCloseButtonOnTab(false);
-        workflowTabs.addTab("Input / Align", inputAlignPanel);
-        workflowTabs.addTab("Tree Build", treeBuildPanel);
-        workflowTabs.addTab("Tanglegram", currentRunTanglegramPanel);
-        add(workflowTabs, BorderLayout.CENTER);
+        headerContextLabel = WorkbenchStyles.createSubtitleLabel(
+                "Prepare one alignment, tune the four tree methods, then inspect the tanglegram.");
+        headerStatusChip = WorkbenchStyles.createStatusChip("Setup");
+        navigationRail = new NavigationRailPanel(this::selectSection);
+        headerPanel = buildHeaderPanel();
+        headerRightPanel = (JPanel) headerPanel.getComponent(1);
+        headerRightPanel.add(headerStatusChip);
+
+        contentLayout = new CardLayout();
+        contentPanel = new JPanel(contentLayout);
+        WorkbenchStyles.applyCanvas(contentPanel);
+        contentPanel.add(inputAlignPanel, WorkspaceSection.INPUT_ALIGN.name());
+        contentPanel.add(treeBuildPanel, WorkspaceSection.TREE_BUILD.name());
+        contentPanel.add(currentRunTanglegramPanel, WorkspaceSection.TANGLEGRAM.name());
+
+        JPanel centerPanel = WorkbenchStyles.createCanvasPanel(new BorderLayout(0, 16));
+        centerPanel.setBorder(WorkbenchStyles.PAGE_PADDING);
+        centerPanel.add(headerPanel, BorderLayout.NORTH);
+        centerPanel.add(contentPanel, BorderLayout.CENTER);
+
+        add(navigationRail, BorderLayout.WEST);
+        add(centerPanel, BorderLayout.CENTER);
 
         handleInputChanged();
         syncWorkflowTabs();
+        selectSection(WorkspaceSection.INPUT_ALIGN);
     }
 
-    JideTabbedPane workflowTabs() {
-        return workflowTabs;
+    List<String> navigationLabels() {
+        return navigationRail.labels();
+    }
+
+    String selectedSectionLabel() {
+        return selectedSection.label();
+    }
+
+    boolean isSectionEnabled(String label) {
+        return navigationRail.isSectionEnabled(label);
+    }
+
+    boolean hasHeaderPanel() {
+        return headerPanel != null;
     }
 
     TreeBuildPanel treeBuildPanel() {
@@ -68,6 +108,53 @@ final class OneBuilderWorkspacePanel extends JPanel {
 
     void applyPreferences(UiPreferences preferences) {
         currentRunTanglegramPanel.applyPreferences(preferences);
+        treeBuildPanel.applyPreferences();
+        revalidate();
+        repaint();
+    }
+
+    private JPanel buildHeaderPanel() {
+        JPanel panel = WorkbenchStyles.createSurfacePanel(new BorderLayout(16, 0));
+
+        JPanel textBlock = new JPanel(new BorderLayout(0, 4));
+        textBlock.setOpaque(false);
+        textBlock.add(WorkbenchStyles.createPageTitle("Galaxy-style oneBuilder Workbench"), BorderLayout.NORTH);
+        textBlock.add(headerContextLabel, BorderLayout.CENTER);
+
+        JPanel rightBlock = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        rightBlock.setOpaque(false);
+
+        panel.add(textBlock, BorderLayout.CENTER);
+        panel.add(rightBlock, BorderLayout.EAST);
+        return panel;
+    }
+
+    private void selectSection(WorkspaceSection section) {
+        if (!isSectionEnabled(section.label())) {
+            return;
+        }
+        selectedSection = section;
+        navigationRail.select(section);
+        contentLayout.show(contentPanel, section.name());
+        updateHeaderForSection(section);
+    }
+
+    private void updateHeaderForSection(WorkspaceSection section) {
+        switch (section) {
+            case INPUT_ALIGN:
+                headerContextLabel.setText(platformSupport.supportsPipelineExecution()
+                        ? "Set input, output, and alignment behavior before running the Linux-only pipeline."
+                        : "Edit pipeline settings and export JSON on Windows. Execution remains Linux-only.");
+                break;
+            case TREE_BUILD:
+                headerContextLabel.setText("Tune the four inference methods in parallel cards and open the log drawer only when needed.");
+                break;
+            case TANGLEGRAM:
+                headerContextLabel.setText("Inspect the current run using the same six fixed tree-pair comparisons as the standalone viewer.");
+                break;
+            default:
+                throw new IllegalStateException("Unexpected section: " + section);
+        }
     }
 
     private void handleInputChanged() {
@@ -143,9 +230,11 @@ final class OneBuilderWorkspacePanel extends JPanel {
     }
 
     private void syncWorkflowTabs() {
-        workflowTabs.setEnabledAt(0, workflowTabsState.inputEnabled());
-        workflowTabs.setEnabledAt(1, workflowTabsState.treeBuildEnabled());
-        workflowTabs.setEnabledAt(2, platformSupport.supportsPipelineExecution() && workflowTabsState.tanglegramEnabled());
+        navigationRail.setSectionEnabled(WorkspaceSection.INPUT_ALIGN, workflowTabsState.inputEnabled());
+        navigationRail.setSectionEnabled(WorkspaceSection.TREE_BUILD, workflowTabsState.treeBuildEnabled());
+        navigationRail.setSectionEnabled(
+                WorkspaceSection.TANGLEGRAM,
+                platformSupport.supportsPipelineExecution() && workflowTabsState.tanglegramEnabled());
     }
 
     private final class RunnerListener implements PipelineRunner.Listener {
@@ -153,13 +242,15 @@ final class OneBuilderWorkspacePanel extends JPanel {
         public void onPlanReady(ExecutionPlan executionPlan) {
             treeBuildPanel.resetForRun(executionPlan);
             inputAlignPanel.setAlignedPreview(executionPlan.effectiveInputFile());
-            workflowTabs.setSelectedIndex(1);
+            WorkbenchStyles.updateStatusChip(headerStatusChip, "Running");
+            selectSection(WorkspaceSection.TREE_BUILD);
         }
 
         @Override
         public void onStageStarted(String stageName, java.util.List<String> command) {
             treeBuildPanel.setCurrentStage(stageName);
             treeBuildPanel.appendLog("$ " + String.join(" ", command));
+            WorkbenchStyles.updateStatusChip(headerStatusChip, stageName);
         }
 
         @Override
@@ -196,7 +287,8 @@ final class OneBuilderWorkspacePanel extends JPanel {
                 treeBuildPanel.setMethodOutput(methodKey, Files.exists(outputPath) ? outputPath : null);
             }
             currentRunTanglegramPanel.loadRunResults(outputDirectory);
-            workflowTabs.setSelectedIndex(2);
+            WorkbenchStyles.updateStatusChip(headerStatusChip, "Completed");
+            selectSection(WorkspaceSection.TANGLEGRAM);
         }
 
         @Override
@@ -204,6 +296,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
             inputAlignPanel.setRunning(false);
             treeBuildPanel.finishRun("Failed");
             treeBuildPanel.setCurrentStage("Failed");
+            WorkbenchStyles.updateStatusChip(headerStatusChip, "Failed");
             JOptionPane.showMessageDialog(
                     OneBuilderWorkspacePanel.this,
                     message,
@@ -216,6 +309,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
             inputAlignPanel.setRunning(false);
             treeBuildPanel.finishRun("Interrupted");
             treeBuildPanel.setCurrentStage("Stopped");
+            WorkbenchStyles.updateStatusChip(headerStatusChip, "Interrupted");
         }
     }
 }

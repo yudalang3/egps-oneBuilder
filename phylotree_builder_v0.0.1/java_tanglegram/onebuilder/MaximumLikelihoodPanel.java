@@ -1,12 +1,10 @@
 package onebuilder;
 
 import java.awt.BorderLayout;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.nio.file.Path;
-import javax.swing.BorderFactory;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -42,15 +40,15 @@ final class MaximumLikelihoodPanel extends JPanel {
 
     MaximumLikelihoodPanel() {
         super(new BorderLayout(12, 12));
-        setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        setOpaque(false);
 
-        JLabel titleLabel = new JLabel("Maximum Likelihood");
-        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, titleLabel.getFont().getSize2D() + 1f));
-        enabledCheckBox = new JCheckBox("Enable", true);
-
-        JPanel header = new JPanel(new BorderLayout());
-        header.add(titleLabel, BorderLayout.WEST);
-        header.add(enabledCheckBox, BorderLayout.EAST);
+        enabledCheckBox = new JCheckBox("Enable maximum likelihood", true);
+        JPanel header = new JPanel(new BorderLayout(8, 0));
+        header.setOpaque(false);
+        header.add(enabledCheckBox, BorderLayout.WEST);
+        header.add(
+                WorkbenchStyles.createSubtitleLabel("Keep the common IQ-TREE workflow visible and tuck deep search/runtime flags into the advanced drawer."),
+                BorderLayout.CENTER);
         add(header, BorderLayout.NORTH);
 
         bootstrapSpinner = new JSpinner(new SpinnerNumberModel(1000, 0, 1000000, 100));
@@ -73,20 +71,14 @@ final class MaximumLikelihoodPanel extends JPanel {
         extraArgsArea = new JTextArea(5, 28);
 
         JPanel commonForm = new JPanel(new GridBagLayout());
+        commonForm.setOpaque(false);
         GridBagConstraints constraints = baseConstraints();
         addRow(commonForm, constraints, 0, "Model strategy", modelStrategyCombo);
         addRow(commonForm, constraints, 1, "Bootstrap", bootstrapSpinner);
         addRow(commonForm, constraints, 2, modelSetLabel, modelSetField);
 
-        JTextArea note = new JTextArea(
-                "Common ML settings cover the usual IQ-TREE workflow. Protein mode can restrict the candidate model set; DNA/CDS keeps this field disabled.");
-        note.setEditable(false);
-        note.setLineWrap(true);
-        note.setWrapStyleWord(true);
-        note.setOpaque(false);
-        note.setBorder(null);
-
         JPanel advancedForm = new JPanel(new GridBagLayout());
+        advancedForm.setOpaque(false);
         GridBagConstraints advancedConstraints = baseConstraints();
         addRow(advancedForm, advancedConstraints, 0, "Threads (-nt)", threadsField);
         addRow(advancedForm, advancedConstraints, 1, "Thread cap (-ntmax)", threadsMaxSpinner);
@@ -125,25 +117,23 @@ final class MaximumLikelihoodPanel extends JPanel {
         advancedConstraints.fill = GridBagConstraints.BOTH;
         advancedForm.add(new JScrollPane(extraArgsArea), advancedConstraints);
 
-        JTextArea advancedNote = new JTextArea(
-                "Advanced fields map directly to IQ-TREE flags. For extra_args, enter one token per line.");
-        advancedNote.setEditable(false);
-        advancedNote.setLineWrap(true);
-        advancedNote.setWrapStyleWord(true);
-        advancedNote.setOpaque(false);
-        advancedNote.setBorder(null);
-
         JPanel advancedContent = new JPanel(new BorderLayout(0, 8));
+        advancedContent.setOpaque(false);
         advancedContent.add(advancedForm, BorderLayout.NORTH);
-        advancedContent.add(advancedNote, BorderLayout.CENTER);
+        advancedContent.add(
+                WorkbenchStyles.createNoteArea("Advanced fields map directly to IQ-TREE flags. For extra_args, enter one token per line."),
+                BorderLayout.CENTER);
 
         JPanel centerPanel = new JPanel(new BorderLayout(0, 8));
+        centerPanel.setOpaque(false);
         centerPanel.add(commonForm, BorderLayout.NORTH);
-        centerPanel.add(note, BorderLayout.CENTER);
-        centerPanel.add(new CollapsibleSectionPanel("Advanced Parameters", advancedContent, true), BorderLayout.SOUTH);
+        centerPanel.add(
+                WorkbenchStyles.createNoteArea("Common ML settings cover the usual IQ-TREE workflow. Protein mode can restrict the candidate model set; DNA/CDS keeps this field disabled."),
+                BorderLayout.CENTER);
+        centerPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), BorderLayout.SOUTH);
         add(centerPanel, BorderLayout.CENTER);
-
         add(buildStatusPanel(), BorderLayout.SOUTH);
+        WorkbenchStyles.applyPanelTreeBackground(this);
     }
 
     void apply(MaximumLikelihoodConfig config, InputType inputType) {
@@ -197,7 +187,7 @@ final class MaximumLikelihoodPanel extends JPanel {
     }
 
     void setStatusText(String statusText) {
-        statusValue.setText(statusText == null ? "-" : statusText);
+        WorkbenchStyles.updateStatusChip(statusValue, statusText);
     }
 
     void setOutputPath(Path outputPath) {
@@ -229,6 +219,7 @@ final class MaximumLikelihoodPanel extends JPanel {
 
     private JPanel buildStatusPanel() {
         JPanel statusPanel = new JPanel(new GridBagLayout());
+        statusPanel.setOpaque(false);
         GridBagConstraints statusConstraints = new GridBagConstraints();
         statusConstraints.gridx = 0;
         statusConstraints.gridy = 0;
@@ -239,7 +230,7 @@ final class MaximumLikelihoodPanel extends JPanel {
         statusConstraints.gridx = 1;
         statusConstraints.weightx = 1.0;
         statusConstraints.fill = GridBagConstraints.HORIZONTAL;
-        statusValue = new JLabel("Idle");
+        statusValue = WorkbenchStyles.createStatusChip("Idle");
         statusPanel.add(statusValue, statusConstraints);
 
         statusConstraints.gridx = 0;

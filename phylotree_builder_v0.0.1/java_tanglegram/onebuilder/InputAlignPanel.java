@@ -62,18 +62,13 @@ final class InputAlignPanel extends JPanel {
         this.exportRequestedCallback = exportRequestedCallback;
         this.stopRequestedCallback = stopRequestedCallback;
         this.runtimeConfigSupplier = runtimeConfigSupplier;
-        setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        WorkbenchStyles.applyCanvas(this);
 
-        JTextArea intro = new JTextArea(
-                buildIntroText(platformSupport));
-        intro.setEditable(false);
-        intro.setLineWrap(true);
-        intro.setWrapStyleWord(true);
-        intro.setOpaque(false);
-        intro.setBorder(null);
-        add(intro, BorderLayout.NORTH);
+        JPanel introCard = WorkbenchStyles.createSurfacePanel(new BorderLayout());
+        introCard.add(WorkbenchStyles.createNoteArea(buildIntroText(platformSupport)), BorderLayout.CENTER);
+        add(introCard, BorderLayout.NORTH);
 
-        JPanel formPanel = new JPanel(new GridBagLayout());
+        JPanel formPanel = WorkbenchStyles.createSurfacePanel(new GridBagLayout());
         GridBagConstraints constraints = new GridBagConstraints();
         constraints.insets = new Insets(0, 0, 8, 8);
         constraints.anchor = GridBagConstraints.WEST;
@@ -209,8 +204,9 @@ final class InputAlignPanel extends JPanel {
 
         add(formPanel, BorderLayout.CENTER);
 
-        JPanel actions = new JPanel(new BorderLayout());
+        JPanel actions = WorkbenchStyles.createSurfacePanel(new BorderLayout());
         JPanel leftActions = new JPanel();
+        leftActions.setOpaque(false);
         leftActions.add(runButton);
         leftActions.add(stopButton);
         leftActions.add(exportButton);
@@ -253,6 +249,7 @@ final class InputAlignPanel extends JPanel {
             stopButton.setEnabled(false);
         }
         toggleAlignmentControls();
+        WorkbenchStyles.applyPanelTreeBackground(this);
     }
 
     InputType selectedInputType() {
@@ -416,17 +413,13 @@ final class InputAlignPanel extends JPanel {
     }
 
     private JPanel buildAdvancedAlignmentPanel() {
-        JTextArea note = new JTextArea(
+        JTextArea note = WorkbenchStyles.createNoteArea(
                 "Advanced MAFFT flags. Enter one token per line, for example --thread then 8 on the next line. These values are appended after the common alignment controls.");
-        note.setEditable(false);
-        note.setLineWrap(true);
-        note.setWrapStyleWord(true);
-        note.setOpaque(false);
-        note.setBorder(null);
 
         JPanel content = new JPanel(new BorderLayout(0, 8));
+        content.setOpaque(false);
         content.add(new JScrollPane(alignExtraArgsArea), BorderLayout.CENTER);
         content.add(note, BorderLayout.SOUTH);
-        return new CollapsibleSectionPanel("Advanced Parameters", content, true);
+        return TaskPaneFactory.createBlueTaskPane("Advanced Parameters", content, true);
     }
 }

@@ -1,12 +1,10 @@
 package onebuilder;
 
 import java.awt.BorderLayout;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.nio.file.Path;
-import javax.swing.BorderFactory;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -25,30 +23,27 @@ final class DistanceMethodPanel extends JPanel {
     DistanceMethodPanel(InputType inputType) {
         super(new BorderLayout(12, 12));
         this.inputType = inputType;
-        setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        setOpaque(false);
 
-        JLabel titleLabel = new JLabel("Distance");
-        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, titleLabel.getFont().getSize2D() + 1f));
-        enabledCheckBox = new JCheckBox("Enable", true);
+        enabledCheckBox = new JCheckBox("Enable distance method", true);
 
-        JPanel header = new JPanel(new BorderLayout());
-        header.add(titleLabel, BorderLayout.WEST);
-        header.add(enabledCheckBox, BorderLayout.EAST);
+        JPanel header = new JPanel(new BorderLayout(8, 0));
+        header.setOpaque(false);
+        header.add(enabledCheckBox, BorderLayout.WEST);
+        header.add(
+                WorkbenchStyles.createSubtitleLabel("Default use is usually just enable/disable plus optional raw PHYLIP menu responses."),
+                BorderLayout.CENTER);
         add(header, BorderLayout.NORTH);
 
-        JTextArea descriptionArea = new JTextArea(
-                "Distance mode runs the existing PHYLIP distance workflow. Common usage is usually just enable or disable the method. Advanced users can provide raw PHYLIP menu responses below.");
-        descriptionArea.setEditable(false);
-        descriptionArea.setLineWrap(true);
-        descriptionArea.setWrapStyleWord(true);
-        descriptionArea.setOpaque(false);
-        descriptionArea.setBorder(null);
+        JTextArea descriptionArea = WorkbenchStyles.createNoteArea(
+                "Distance mode runs the existing PHYLIP distance workflow. Advanced users can override protdist/dnadist and neighbor menus directly.");
 
         methodOverrideLabel = new JLabel();
         methodOverrideArea = new JTextArea(5, 28);
         neighborOverrideArea = new JTextArea(4, 28);
 
         JPanel advancedForm = new JPanel(new GridBagLayout());
+        advancedForm.setOpaque(false);
         GridBagConstraints constraints = new GridBagConstraints();
         constraints.gridx = 0;
         constraints.gridy = 0;
@@ -70,26 +65,21 @@ final class DistanceMethodPanel extends JPanel {
         constraints.weightx = 1.0;
         advancedForm.add(new JScrollPane(neighborOverrideArea), constraints);
 
-        JTextArea advancedNote = new JTextArea(
-                "One menu response per line. These values are sent directly to PHYLIP. If the last line is not Y, the pipeline appends Y automatically.");
-        advancedNote.setEditable(false);
-        advancedNote.setLineWrap(true);
-        advancedNote.setWrapStyleWord(true);
-        advancedNote.setOpaque(false);
-        advancedNote.setBorder(null);
-
         JPanel advancedContent = new JPanel(new BorderLayout(0, 8));
+        advancedContent.setOpaque(false);
         advancedContent.add(advancedForm, BorderLayout.NORTH);
-        advancedContent.add(advancedNote, BorderLayout.CENTER);
+        advancedContent.add(
+                WorkbenchStyles.createNoteArea("Enter one menu response per line. The pipeline appends Y automatically if you omit a final confirmation."),
+                BorderLayout.CENTER);
 
         JPanel centerPanel = new JPanel(new BorderLayout(0, 8));
+        centerPanel.setOpaque(false);
         centerPanel.add(descriptionArea, BorderLayout.NORTH);
-        centerPanel.add(new CollapsibleSectionPanel("Advanced Parameters", advancedContent, true), BorderLayout.CENTER);
+        centerPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), BorderLayout.CENTER);
         add(centerPanel, BorderLayout.CENTER);
-
-        JPanel statusPanel = buildStatusPanel();
-        add(statusPanel, BorderLayout.SOUTH);
+        add(buildStatusPanel(), BorderLayout.SOUTH);
         setInputType(inputType);
+        WorkbenchStyles.applyPanelTreeBackground(this);
     }
 
     void setInputType(InputType inputType) {
@@ -116,7 +106,7 @@ final class DistanceMethodPanel extends JPanel {
     }
 
     void setStatusText(String statusText) {
-        statusValue.setText(statusText == null ? "-" : statusText);
+        WorkbenchStyles.updateStatusChip(statusValue, statusText);
     }
 
     void setOutputPath(Path outputPath) {
@@ -125,6 +115,7 @@ final class DistanceMethodPanel extends JPanel {
 
     private JPanel buildStatusPanel() {
         JPanel statusPanel = new JPanel(new GridBagLayout());
+        statusPanel.setOpaque(false);
         GridBagConstraints constraints = new GridBagConstraints();
         constraints.gridx = 0;
         constraints.gridy = 0;
@@ -135,7 +126,7 @@ final class DistanceMethodPanel extends JPanel {
         constraints.gridx = 1;
         constraints.weightx = 1.0;
         constraints.fill = GridBagConstraints.HORIZONTAL;
-        statusValue = new JLabel("Idle");
+        statusValue = WorkbenchStyles.createStatusChip("Idle");
         statusPanel.add(statusValue, constraints);
 
         constraints.gridx = 0;

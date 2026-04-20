@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import org.jdesktop.swingx.JXTaskPane;
 import javax.swing.SwingUtilities;
 import org.json.JSONObject;
 import tanglegram.UiPreferenceStore;
@@ -21,8 +22,8 @@ public final class OneBuilderStandaloneTest {
         run("serializesPipelineRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesPipelineRuntimeConfigAsJson);
         run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
         run("tracksWorkflowTabUnlocks", OneBuilderStandaloneTest::tracksWorkflowTabUnlocks);
-        run("buildsLinuxWorkflowTabs", OneBuilderStandaloneTest::buildsLinuxWorkflowTabs);
-        run("buildsWindowsWorkflowTabs", OneBuilderStandaloneTest::buildsWindowsWorkflowTabs);
+        run("buildsLinuxWorkbenchShell", OneBuilderStandaloneTest::buildsLinuxWorkbenchShell);
+        run("buildsWindowsWorkbenchShell", OneBuilderStandaloneTest::buildsWindowsWorkbenchShell);
         run("roundTripsAdvancedRuntimeConfigThroughPanels", OneBuilderStandaloneTest::roundTripsAdvancedRuntimeConfigThroughPanels);
         run("usesPreferenceDefaultForEmbeddedTanglegramLabelSize", OneBuilderStandaloneTest::usesPreferenceDefaultForEmbeddedTanglegramLabelSize);
         run("loadsCurrentRunTanglegramTabs", OneBuilderStandaloneTest::loadsCurrentRunTanglegramTabs);
@@ -243,35 +244,39 @@ public final class OneBuilderStandaloneTest {
         assertTrue(state.tanglegramEnabled(), "tanglegram tab should unlock when results are ready");
     }
 
-    private static void buildsLinuxWorkflowTabs() throws Exception {
+    private static void buildsLinuxWorkbenchShell() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             OneBuilderWorkspacePanel workspacePanel = new OneBuilderWorkspacePanel(
                     Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"),
                     PlatformSupport.LINUX);
-            assertEquals(3, workspacePanel.workflowTabs().getTabCount(), "unexpected top-level tab count");
-            assertEquals("Input / Align", workspacePanel.workflowTabs().getTitleAt(0), "unexpected first tab");
-            assertEquals("Tree Build", workspacePanel.workflowTabs().getTitleAt(1), "unexpected second tab");
-            assertEquals("Tanglegram", workspacePanel.workflowTabs().getTitleAt(2), "unexpected third tab");
-            assertTrue(!workspacePanel.workflowTabs().isEnabledAt(1), "tree build tab should start disabled");
-            assertTrue(!workspacePanel.workflowTabs().isEnabledAt(2), "tanglegram tab should start disabled");
+            assertEquals(
+                    Arrays.asList("Input / Align", "Tree Build", "Tanglegram"),
+                    workspacePanel.navigationLabels(),
+                    "unexpected left navigation labels");
+            assertEquals("Input / Align", workspacePanel.selectedSectionLabel(), "unexpected initial section");
+            assertTrue(!workspacePanel.isSectionEnabled("Tree Build"), "tree build section should start disabled");
+            assertTrue(!workspacePanel.isSectionEnabled("Tanglegram"), "tanglegram section should start disabled");
+            assertTrue(workspacePanel.hasHeaderPanel(), "expected top header");
             assertTrue(workspacePanel.inputAlignPanel().isRunSupported(), "linux should support run");
             assertTrue(workspacePanel.inputAlignPanel().isExportSelected(), "export should default to selected");
-            assertEquals(4, workspacePanel.treeBuildPanel().methodTabs().getTabCount(), "unexpected method tab count");
-            assertEquals("Distance", workspacePanel.treeBuildPanel().methodTabs().getTitleAt(0), "unexpected distance tab");
-            assertEquals("ML", workspacePanel.treeBuildPanel().methodTabs().getTitleAt(1), "unexpected ml tab");
-            assertEquals("Bayesian", workspacePanel.treeBuildPanel().methodTabs().getTitleAt(2), "unexpected bayesian tab");
-            assertEquals("Parsimony", workspacePanel.treeBuildPanel().methodTabs().getTitleAt(3), "unexpected parsimony tab");
+            assertEquals(
+                    Arrays.asList("Distance", "ML", "Bayesian", "Parsimony"),
+                    workspacePanel.treeBuildPanel().methodCardTitles(),
+                    "unexpected method cards");
+            assertTrue(workspacePanel.treeBuildPanel().hasBottomLogDrawer(), "expected bottom log drawer");
+            assertTrue(workspacePanel.treeBuildPanel().isLogDrawerCollapsed(), "log drawer should default collapsed");
+            assertTrue(countTaskPanes(workspacePanel) >= 5, "expected advanced sections to use SwingX task panes");
         });
     }
 
-    private static void buildsWindowsWorkflowTabs() throws Exception {
+    private static void buildsWindowsWorkbenchShell() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             OneBuilderWorkspacePanel workspacePanel = new OneBuilderWorkspacePanel(
                     Paths.get("C:/onebuilder/phylotree_builder_v0.0.1"),
                     PlatformSupport.WINDOWS);
             assertTrue(!workspacePanel.inputAlignPanel().isRunSupported(), "windows should disable run");
             assertTrue(workspacePanel.inputAlignPanel().isExportButtonEnabled(), "windows should allow export");
-            assertTrue(!workspacePanel.workflowTabs().isEnabledAt(2), "windows should keep tanglegram tab disabled");
+            assertTrue(!workspacePanel.isSectionEnabled("Tanglegram"), "windows should keep tanglegram disabled");
         });
     }
 
@@ -432,6 +437,16 @@ public final class OneBuilderStandaloneTest {
         if (!condition) {
             throw new AssertionError(message);
         }
+    }
+
+    private static int countTaskPanes(java.awt.Component component) {
+        int count = component instanceof JXTaskPane ? 1 : 0;
+        if (component instanceof java.awt.Container) {
+            for (java.awt.Component child : ((java.awt.Container) component).getComponents()) {
+                count += countTaskPanes(child);
+            }
+        }
+        return count;
     }
 
     private static Path findRepoRoot() {

@@ -1,12 +1,10 @@
 package onebuilder;
 
 import java.awt.BorderLayout;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.nio.file.Path;
-import javax.swing.BorderFactory;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -42,15 +40,15 @@ final class BayesianPanel extends JPanel {
 
     BayesianPanel() {
         super(new BorderLayout(12, 12));
-        setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        setOpaque(false);
 
-        JLabel titleLabel = new JLabel("Bayesian");
-        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, titleLabel.getFont().getSize2D() + 1f));
-        enabledCheckBox = new JCheckBox("Enable", true);
-
-        JPanel header = new JPanel(new BorderLayout());
-        header.add(titleLabel, BorderLayout.WEST);
-        header.add(enabledCheckBox, BorderLayout.EAST);
+        enabledCheckBox = new JCheckBox("Enable bayesian method", true);
+        JPanel header = new JPanel(new BorderLayout(8, 0));
+        header.setOpaque(false);
+        header.add(enabledCheckBox, BorderLayout.WEST);
+        header.add(
+                WorkbenchStyles.createSubtitleLabel("Keep the common MrBayes chain settings visible and hide raw command blocks until needed."),
+                BorderLayout.CENTER);
         add(header, BorderLayout.NORTH);
 
         ratesCombo = new JComboBox<>(new String[] {"invgamma", "gamma", "equal", "propinv", "adgamma"});
@@ -73,6 +71,7 @@ final class BayesianPanel extends JPanel {
         commandBlockArea = new JTextArea(7, 28);
 
         JPanel commonForm = new JPanel(new GridBagLayout());
+        commonForm.setOpaque(false);
         GridBagConstraints constraints = baseConstraints();
         addRow(commonForm, constraints, 0, "Rates", ratesCombo);
         addRow(commonForm, constraints, 1, "ngen", ngenSpinner);
@@ -82,15 +81,8 @@ final class BayesianPanel extends JPanel {
         addRow(commonForm, constraints, 5, proteinModelLabel, proteinModelField);
         addRow(commonForm, constraints, 6, nstLabel, nstSpinner);
 
-        JTextArea note = new JTextArea(
-                "Common MrBayes settings cover the standard GUI workflow. Protein mode uses aamodelpr; DNA/CDS mode uses nst.");
-        note.setEditable(false);
-        note.setLineWrap(true);
-        note.setWrapStyleWord(true);
-        note.setOpaque(false);
-        note.setBorder(null);
-
         JPanel advancedForm = new JPanel(new GridBagLayout());
+        advancedForm.setOpaque(false);
         GridBagConstraints advancedConstraints = baseConstraints();
         addRow(advancedForm, advancedConstraints, 0, "nruns", nrunsSpinner);
         addRow(advancedForm, advancedConstraints, 1, "nchains", nchainsSpinner);
@@ -132,25 +124,23 @@ final class BayesianPanel extends JPanel {
         advancedConstraints.fill = GridBagConstraints.BOTH;
         advancedForm.add(new JScrollPane(commandBlockArea), advancedConstraints);
 
-        JTextArea advancedNote = new JTextArea(
-                "If command_block is not empty, the pipeline treats it as the authoritative MrBayes command sequence. Enter one command per line.");
-        advancedNote.setEditable(false);
-        advancedNote.setLineWrap(true);
-        advancedNote.setWrapStyleWord(true);
-        advancedNote.setOpaque(false);
-        advancedNote.setBorder(null);
-
         JPanel advancedContent = new JPanel(new BorderLayout(0, 8));
+        advancedContent.setOpaque(false);
         advancedContent.add(advancedForm, BorderLayout.NORTH);
-        advancedContent.add(advancedNote, BorderLayout.CENTER);
+        advancedContent.add(
+                WorkbenchStyles.createNoteArea("If command_block is not empty, the pipeline treats it as the authoritative MrBayes command sequence. Enter one command per line."),
+                BorderLayout.CENTER);
 
         JPanel centerPanel = new JPanel(new BorderLayout(0, 8));
+        centerPanel.setOpaque(false);
         centerPanel.add(commonForm, BorderLayout.NORTH);
-        centerPanel.add(note, BorderLayout.CENTER);
-        centerPanel.add(new CollapsibleSectionPanel("Advanced Parameters", advancedContent, true), BorderLayout.SOUTH);
+        centerPanel.add(
+                WorkbenchStyles.createNoteArea("Common MrBayes settings cover the standard GUI workflow. Protein mode uses aamodelpr; DNA/CDS mode uses nst."),
+                BorderLayout.CENTER);
+        centerPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), BorderLayout.SOUTH);
         add(centerPanel, BorderLayout.CENTER);
-
         add(buildStatusPanel(), BorderLayout.SOUTH);
+        WorkbenchStyles.applyPanelTreeBackground(this);
     }
 
     void apply(BayesianConfig config, InputType inputType) {
@@ -206,7 +196,7 @@ final class BayesianPanel extends JPanel {
     }
 
     void setStatusText(String statusText) {
-        statusValue.setText(statusText == null ? "-" : statusText);
+        WorkbenchStyles.updateStatusChip(statusValue, statusText);
     }
 
     void setOutputPath(Path outputPath) {
@@ -238,6 +228,7 @@ final class BayesianPanel extends JPanel {
 
     private JPanel buildStatusPanel() {
         JPanel statusPanel = new JPanel(new GridBagLayout());
+        statusPanel.setOpaque(false);
         GridBagConstraints statusConstraints = new GridBagConstraints();
         statusConstraints.gridx = 0;
         statusConstraints.gridy = 0;
@@ -248,7 +239,7 @@ final class BayesianPanel extends JPanel {
         statusConstraints.gridx = 1;
         statusConstraints.weightx = 1.0;
         statusConstraints.fill = GridBagConstraints.HORIZONTAL;
-        statusValue = new JLabel("Idle");
+        statusValue = WorkbenchStyles.createStatusChip("Idle");
         statusPanel.add(statusValue, statusConstraints);
 
         statusConstraints.gridx = 0;

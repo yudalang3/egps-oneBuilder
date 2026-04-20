@@ -1,12 +1,10 @@
 package onebuilder;
 
 import java.awt.BorderLayout;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.nio.file.Path;
-import javax.swing.BorderFactory;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -24,29 +22,25 @@ final class ParsimonyMethodPanel extends JPanel {
     ParsimonyMethodPanel(InputType inputType) {
         super(new BorderLayout(12, 12));
         this.inputType = inputType;
-        setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        setOpaque(false);
 
-        JLabel titleLabel = new JLabel("Parsimony");
-        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, titleLabel.getFont().getSize2D() + 1f));
-        enabledCheckBox = new JCheckBox("Enable", true);
-
-        JPanel header = new JPanel(new BorderLayout());
-        header.add(titleLabel, BorderLayout.WEST);
-        header.add(enabledCheckBox, BorderLayout.EAST);
+        enabledCheckBox = new JCheckBox("Enable parsimony method", true);
+        JPanel header = new JPanel(new BorderLayout(8, 0));
+        header.setOpaque(false);
+        header.add(enabledCheckBox, BorderLayout.WEST);
+        header.add(
+                WorkbenchStyles.createSubtitleLabel("Keep routine runs simple and expose raw PHYLIP menu responses only on demand."),
+                BorderLayout.CENTER);
         add(header, BorderLayout.NORTH);
 
-        JTextArea descriptionArea = new JTextArea(
-                "Parsimony mode runs the existing PHYLIP parsimony workflow. Common usage is usually just enable or disable the method. Advanced users can provide raw PHYLIP menu responses below.");
-        descriptionArea.setEditable(false);
-        descriptionArea.setLineWrap(true);
-        descriptionArea.setWrapStyleWord(true);
-        descriptionArea.setOpaque(false);
-        descriptionArea.setBorder(null);
+        JTextArea descriptionArea = WorkbenchStyles.createNoteArea(
+                "Parsimony mode runs the existing PHYLIP parsimony workflow. Advanced users can override protpars/dnapars menu choices directly.");
 
         methodOverrideLabel = new JLabel();
         methodOverrideArea = new JTextArea(6, 28);
 
         JPanel advancedForm = new JPanel(new GridBagLayout());
+        advancedForm.setOpaque(false);
         GridBagConstraints constraints = new GridBagConstraints();
         constraints.gridx = 0;
         constraints.gridy = 0;
@@ -59,24 +53,21 @@ final class ParsimonyMethodPanel extends JPanel {
         constraints.weightx = 1.0;
         advancedForm.add(new JScrollPane(methodOverrideArea), constraints);
 
-        JTextArea advancedNote = new JTextArea(
-                "One menu response per line. These values are sent directly to PHYLIP. If the last line is not Y, the pipeline appends Y automatically.");
-        advancedNote.setEditable(false);
-        advancedNote.setLineWrap(true);
-        advancedNote.setWrapStyleWord(true);
-        advancedNote.setOpaque(false);
-        advancedNote.setBorder(null);
-
         JPanel advancedContent = new JPanel(new BorderLayout(0, 8));
+        advancedContent.setOpaque(false);
         advancedContent.add(advancedForm, BorderLayout.NORTH);
-        advancedContent.add(advancedNote, BorderLayout.CENTER);
+        advancedContent.add(
+                WorkbenchStyles.createNoteArea("Enter one menu response per line. The pipeline appends Y automatically if you omit a final confirmation."),
+                BorderLayout.CENTER);
 
         JPanel centerPanel = new JPanel(new BorderLayout(0, 8));
+        centerPanel.setOpaque(false);
         centerPanel.add(descriptionArea, BorderLayout.NORTH);
-        centerPanel.add(new CollapsibleSectionPanel("Advanced Parameters", advancedContent, true), BorderLayout.CENTER);
+        centerPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), BorderLayout.CENTER);
         add(centerPanel, BorderLayout.CENTER);
         add(buildStatusPanel(), BorderLayout.SOUTH);
         setInputType(inputType);
+        WorkbenchStyles.applyPanelTreeBackground(this);
     }
 
     void setInputType(InputType inputType) {
@@ -102,7 +93,7 @@ final class ParsimonyMethodPanel extends JPanel {
     }
 
     void setStatusText(String statusText) {
-        statusValue.setText(statusText == null ? "-" : statusText);
+        WorkbenchStyles.updateStatusChip(statusValue, statusText);
     }
 
     void setOutputPath(Path outputPath) {
@@ -111,6 +102,7 @@ final class ParsimonyMethodPanel extends JPanel {
 
     private JPanel buildStatusPanel() {
         JPanel statusPanel = new JPanel(new GridBagLayout());
+        statusPanel.setOpaque(false);
         GridBagConstraints constraints = new GridBagConstraints();
         constraints.gridx = 0;
         constraints.gridy = 0;
@@ -121,7 +113,7 @@ final class ParsimonyMethodPanel extends JPanel {
         constraints.gridx = 1;
         constraints.weightx = 1.0;
         constraints.fill = GridBagConstraints.HORIZONTAL;
-        statusValue = new JLabel("Idle");
+        statusValue = WorkbenchStyles.createStatusChip("Idle");
         statusPanel.add(statusValue, constraints);
 
         constraints.gridx = 0;
