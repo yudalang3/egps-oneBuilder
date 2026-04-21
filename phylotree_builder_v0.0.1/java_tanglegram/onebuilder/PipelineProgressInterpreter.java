@@ -12,11 +12,17 @@ public final class PipelineProgressInterpreter {
         if (line.contains("====Distance method complete")) {
             return MethodProgressEvent.completed(TreeMethodKey.DISTANCE);
         }
+        if (line.contains("====Distance method skipped by runtime config====")) {
+            return MethodProgressEvent.skipped(TreeMethodKey.DISTANCE);
+        }
         if (containsAny(line, "Starting maximum likelihood inference", "开始极大似然法建树")) {
             return MethodProgressEvent.running(TreeMethodKey.MAXIMUM_LIKELIHOOD);
         }
         if (line.contains("====Maximum likelihood method complete")) {
             return MethodProgressEvent.completed(TreeMethodKey.MAXIMUM_LIKELIHOOD);
+        }
+        if (line.contains("====Maximum likelihood method skipped by runtime config====")) {
+            return MethodProgressEvent.skipped(TreeMethodKey.MAXIMUM_LIKELIHOOD);
         }
         if (containsAny(line, "Starting Bayesian inference", "开始贝叶斯法建树")) {
             return MethodProgressEvent.running(TreeMethodKey.BAYESIAN);
@@ -24,11 +30,17 @@ public final class PipelineProgressInterpreter {
         if (line.contains("====Bayesian method complete")) {
             return MethodProgressEvent.completed(TreeMethodKey.BAYESIAN);
         }
+        if (line.contains("====Bayesian method skipped by runtime config====")) {
+            return MethodProgressEvent.skipped(TreeMethodKey.BAYESIAN);
+        }
         if (containsAny(line, "Starting parsimony inference", "开始简约法建树")) {
             return MethodProgressEvent.running(TreeMethodKey.PARSIMONY);
         }
         if (line.contains("====Parsimony method complete")) {
             return MethodProgressEvent.completed(TreeMethodKey.PARSIMONY);
+        }
+        if (line.contains("====Parsimony method skipped by runtime config====")) {
+            return MethodProgressEvent.skipped(TreeMethodKey.PARSIMONY);
         }
         return null;
     }

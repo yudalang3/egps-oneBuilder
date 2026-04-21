@@ -4,6 +4,7 @@ public final class MethodProgressEvent {
     public enum Lifecycle {
         RUNNING,
         COMPLETED,
+        SKIPPED,
         FAILED
     }
 
@@ -25,6 +26,10 @@ public final class MethodProgressEvent {
 
     public static MethodProgressEvent failed(TreeMethodKey methodKey) {
         return new MethodProgressEvent(methodKey, Lifecycle.FAILED);
+    }
+
+    public static MethodProgressEvent skipped(TreeMethodKey methodKey) {
+        return new MethodProgressEvent(methodKey, Lifecycle.SKIPPED);
     }
 
     public TreeMethodKey methodKey() {

@@ -383,6 +383,9 @@ final class OneBuilderWorkspacePanel extends JPanel {
                 case COMPLETED:
                     treeBuildPanel.setMethodStatus(event.methodKey(), "Completed");
                     break;
+                case SKIPPED:
+                    treeBuildPanel.setMethodStatus(event.methodKey(), "Skipped");
+                    break;
                 case FAILED:
                     treeBuildPanel.setMethodStatus(event.methodKey(), "Failed");
                     break;

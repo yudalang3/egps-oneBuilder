@@ -26,6 +26,7 @@ public final class OneBuilderStandaloneTest {
         run("buildsWindowsWorkbenchShell", OneBuilderStandaloneTest::buildsWindowsWorkbenchShell);
         run("blocksNavigationUntilRequiredInputIsReady", OneBuilderStandaloneTest::blocksNavigationUntilRequiredInputIsReady);
         run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
+        run("prefersInputParentDirectoryWhenInputPathIsAFile", OneBuilderStandaloneTest::prefersInputParentDirectoryWhenInputPathIsAFile);
         run("roundTripsAdvancedRuntimeConfigThroughPanels", OneBuilderStandaloneTest::roundTripsAdvancedRuntimeConfigThroughPanels);
         run("usesPreferenceDefaultForEmbeddedTanglegramLabelSize", OneBuilderStandaloneTest::usesPreferenceDefaultForEmbeddedTanglegramLabelSize);
         run("loadsCurrentRunTanglegramTabs", OneBuilderStandaloneTest::loadsCurrentRunTanglegramTabs);
@@ -326,6 +327,19 @@ public final class OneBuilderStandaloneTest {
         UiPreferenceStore.resetNodeForTests();
     }
 
+    private static void prefersInputParentDirectoryWhenInputPathIsAFile() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("onebuilder-input-parent-");
+        Path tempInputFile = Files.createTempFile(tempDirectory, "demo-", ".fasta");
+
+        InputAlignPanel panel = new InputAlignPanel(PlatformSupport.LINUX, () -> { }, () -> PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN));
+        panel.setInputFilePathForTest(tempInputFile.toString());
+
+        assertEquals(
+                tempDirectory.toAbsolutePath().normalize(),
+                panel.initialInputChooserPathForTest(),
+                "expected input chooser to start from the parent directory when the current input is a file");
+    }
+
     private static void roundTripsAdvancedRuntimeConfigThroughPanels() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             TreeParametersPanel treeParametersPanel = new TreeParametersPanel(InputType.PROTEIN);
@@ -467,6 +481,13 @@ public final class OneBuilderStandaloneTest {
                 MethodProgressEvent.running(TreeMethodKey.BAYESIAN),
                 interpreter.interpret(InputType.DNA_CDS, "2026-04-12 - INFO - 开始贝叶斯法建树..."),
                 "unexpected dna running event");
+        assertEquals(
+                MethodProgressEvent.skipped(TreeMethodKey.PARSIMONY),
+                interpreter.interpret(InputType.PROTEIN, "====Parsimony method skipped by runtime config===="),
+                "unexpected skipped event");
+        assertNull(
+                interpreter.interpret(InputType.PROTEIN, "2026-04-12 INFO nothing to map"),
+                "unexpected event for unrelated log output");
     }
 
     private static void run(String name, ThrowingRunnable test) throws Exception {
@@ -480,8 +501,14 @@ public final class OneBuilderStandaloneTest {
     }
 
     private static void assertEquals(Object expected, Object actual, String message) {
-        if (!expected.equals(actual)) {
+        if (expected == null ? actual != null : !expected.equals(actual)) {
             throw new AssertionError(message + " expected=[" + expected + "] actual=[" + actual + "]");
+        }
+    }
+
+    private static void assertNull(Object value, String message) {
+        if (value != null) {
+            throw new AssertionError(message + " expected null but was [" + value + "]");
         }
     }
 
