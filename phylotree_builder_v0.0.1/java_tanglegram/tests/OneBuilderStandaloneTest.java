@@ -26,6 +26,7 @@ public final class OneBuilderStandaloneTest {
         run("buildsWindowsWorkbenchShell", OneBuilderStandaloneTest::buildsWindowsWorkbenchShell);
         run("blocksNavigationUntilRequiredInputIsReady", OneBuilderStandaloneTest::blocksNavigationUntilRequiredInputIsReady);
         run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
+        run("prefersInputParentDirectoryWhenInputPathIsAFile", OneBuilderStandaloneTest::prefersInputParentDirectoryWhenInputPathIsAFile);
         run("roundTripsAdvancedRuntimeConfigThroughPanels", OneBuilderStandaloneTest::roundTripsAdvancedRuntimeConfigThroughPanels);
         run("usesPreferenceDefaultForEmbeddedTanglegramLabelSize", OneBuilderStandaloneTest::usesPreferenceDefaultForEmbeddedTanglegramLabelSize);
         run("loadsCurrentRunTanglegramTabs", OneBuilderStandaloneTest::loadsCurrentRunTanglegramTabs);
@@ -324,6 +325,19 @@ public final class OneBuilderStandaloneTest {
                 "unexpected remembered output browse directory");
 
         UiPreferenceStore.resetNodeForTests();
+    }
+
+    private static void prefersInputParentDirectoryWhenInputPathIsAFile() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("onebuilder-input-parent-");
+        Path tempInputFile = Files.createTempFile(tempDirectory, "demo-", ".fasta");
+
+        InputAlignPanel panel = new InputAlignPanel(PlatformSupport.LINUX, () -> { }, () -> PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN));
+        panel.setInputFilePathForTest(tempInputFile.toString());
+
+        assertEquals(
+                tempDirectory.toAbsolutePath().normalize(),
+                panel.initialInputChooserPathForTest(),
+                "expected input chooser to start from the parent directory when the current input is a file");
     }
 
     private static void roundTripsAdvancedRuntimeConfigThroughPanels() throws Exception {
