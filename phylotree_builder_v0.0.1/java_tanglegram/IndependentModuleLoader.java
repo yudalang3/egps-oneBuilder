@@ -13,7 +13,7 @@ public class IndependentModuleLoader implements IModuleLoader{
 
 	@Override
 	public String getShortDescription() {
-		return "A convenient module to paint Tanglegram visulization. (inheritance from eGPS 1)";
+		return "A convenient module to paint Tanglegram visualization. (inheritance from eGPS 1)";
 	}
 
 	@Override

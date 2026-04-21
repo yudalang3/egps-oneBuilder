@@ -361,6 +361,10 @@ final class InputAlignPanel extends JPanel {
         return initialInputChooserPath();
     }
 
+    void setInputFilePathForTest(String value) {
+        inputFileField.setText(value);
+    }
+
     Path initialOutputChooserPathForTest() {
         return initialOutputChooserPath();
     }
@@ -442,7 +446,10 @@ final class InputAlignPanel extends JPanel {
         if (!inputText.isEmpty()) {
             try {
                 Path currentPath = Paths.get(inputText).toAbsolutePath().normalize();
-                if (Files.isRegularFile(currentPath) || Files.isDirectory(currentPath)) {
+                if (Files.isRegularFile(currentPath)) {
+                    return currentPath.getParent();
+                }
+                if (Files.isDirectory(currentPath)) {
                     return currentPath;
                 }
             } catch (Exception ignored) {
@@ -484,9 +491,9 @@ final class InputAlignPanel extends JPanel {
 
     private static String buildIntroText(PlatformSupport platformSupport) {
         if (platformSupport.supportsPipelineExecution()) {
-            return "Provide one MSA input. On Linux, oneBuilder can run the existing MAFFT wrapper and the four-tree pipeline directly. After this page, use Tree Parameters to tune methods and Tree Build to run or export the config.";
+            return "Provide one FASTA/MSA input. On Linux, oneBuilder can run the existing MAFFT wrapper and the four-tree pipeline directly. After this page, use Tree Parameters to tune methods and Tree Build to run or export the config.";
         }
-        return "Provide one MSA input. Actual alignment and tree construction are Linux-only. On Windows, continue through Tree Parameters and use Tree Build to export a reusable config file.";
+        return "Provide one FASTA/MSA input. Actual alignment and tree construction are Linux-only. On Windows, continue through Tree Parameters and use Tree Build to export a reusable config file.";
     }
 
     private static String textOrDash(String value) {
