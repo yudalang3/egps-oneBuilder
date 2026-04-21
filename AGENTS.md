@@ -49,6 +49,30 @@
 - `phylotree_builder_v0.0.1/java_tanglegram/` is not a standalone Java app in this repo. It is packaged as `egps2.module.treetanglegram` and imports `egps2.*` / `egps3.*` classes from the larger eGPS codebase. No local Java build file is present.
 - Do not delete locally generated `.class` files under `phylotree_builder_v0.0.1/java_tanglegram/`; the user may need them to launch the GUI directly. Keep them locally, but do not add or commit them because `.gitignore` already excludes `*.class`.
 
+## oneBuilder GUI Gotchas
+
+- Keep the oneBuilder workflow fixed to four sections in this exact order: `Input / Align`, `Tree Parameters`, `Tree Build`, `Tanglegram`.
+- `Tree Parameters` is the parameter editor only. Do not reintroduce run-state or output-path widgets inside the per-method parameter panels.
+- `Tree Parameters` uses a method tree, not flat tabs/cards. The visible node names are `Distance Method`, `Maximum Likelihood`, `Bayes Method`, `Maximum Parsimony`, and `Protein Structure`.
+- `Protein Structure` must stay visible even for non-protein input. For non-protein input it should be disabled and explain `Protein only` rather than disappearing.
+- `Tree Build` is the dedicated run page. Keep the configuration/log text area plus `Run`, `Stop`, and `Export Config` there.
+- The current run-state indicators belong in `Tree Build`, not `Tree Parameters`. Keep the compact five-item status area there, with `Protein Structure` shown as a reserved/non-running slot.
+- Inside oneBuilder, `Tanglegram` should unlock only after a successful Linux run and should auto-load the current run output when opened.
+- Windows cannot execute the pipeline from oneBuilder. Keep the startup warning behavior, including the "do not show again" checkbox and the matching Preference toggle to re-enable it later.
+- User-facing wording matters here: prefer explicit labels such as `Run multiple sequence alignment first` instead of vague text like `Run alignment first`.
+- Keep `Maxiterate` capitalized exactly that way in the GUI.
+- `Advanced MAFFT` must remain editable whenever oneBuilder is not actively running; do not disable it just because alignment is currently unchecked.
+- Keep `Advanced Parameters` placement consistent across method panels: it should appear directly below the primary controls, not buried at different vertical positions on different pages.
+- Preserve clear task-pane affordances. If task-pane styling is changed, make sure the expand/collapse arrow stays easy to see.
+- Do not add artificial restrictions against Chinese/Unicode paths in the GUI; the user explicitly wants Unicode-capable path handling.
+
+## Java Verification
+
+- Useful manual verification from `phylotree_builder_v0.0.1/`:
+  - `javac -cp "lib/*:java_tanglegram" -d java_tanglegram java_tanglegram/onebuilder/*.java java_tanglegram/tanglegram/*.java java_tanglegram/tests/OneBuilderStandaloneTest.java java_tanglegram/tests/TanglegramStandaloneTest.java`
+  - `java -cp "lib/*:java_tanglegram" onebuilder.OneBuilderStandaloneTest`
+  - `java -cp "lib/*:java_tanglegram" tanglegram.TanglegramStandaloneTest`
+
 
 
 Threading and Event Dispatch Thread (EDT) Best Practices

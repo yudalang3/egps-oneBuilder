@@ -10,7 +10,7 @@ A Linux-based phylogenetic workflow that combines scriptable CLI wrappers with J
 
 - The repository provides one workflow for protein input and one for DNA/CDS input.
 - Supports MAFFT alignment, PHYLIP distance/parsimony methods, IQ-TREE maximum likelihood, and MrBayes Bayesian inference.
-- Adds `onebuilder.launcher`, a Java Swing workflow GUI. On Linux it can run the existing pipeline; on Windows it is a JSON config editor only.
+- Adds `onebuilder.launcher`, a Java Swing workflow GUI with `Input / Align`, `Tree Parameters`, `Tree Build`, and `Tanglegram`. On Linux it can run the existing pipeline; on Windows it is limited to workflow setup, config export, and standalone result viewing.
 - Keeps the CLI wrappers for scripted and batch-style runs, so the same workflow can be driven either from the GUI or from shell automation.
 - Lets the GUI pass MAFFT, method enable/disable, maximum-likelihood, Bayesian, and raw passthrough settings into the existing shell wrappers and Python pipelines through `--config` runtime JSON.
 - Generates tree visualizations plus TreeDist / Robinson-Foulds matrices and a combined summary heatmap in `tree_summary/`.
@@ -19,11 +19,13 @@ A Linux-based phylogenetic workflow that combines scriptable CLI wrappers with J
 
 ## 0.1 New Features
 
-- `onebuilder.launcher` adds an interactive Java Swing workflow GUI for configuring alignment, tree-building methods, and exposed ML / Bayesian parameters.
+- `onebuilder.launcher` adds an interactive Java Swing workflow GUI with a four-step workspace: `Input / Align`, `Tree Parameters`, `Tree Build`, and `Tanglegram`.
+- The parameter editor is now separated from the run page: method settings live in `Tree Parameters`, while `Tree Build` focuses on draft review, run/export controls, live logs, and compact method-status indicators.
 - The existing CLI wrappers remain first-class entrypoints, so the same workflow can still be scripted for repeated or batch-style runs.
 - GUI and CLI now work together through a shared `--config` runtime JSON bridge instead of maintaining separate execution logic.
 - `tanglegram.launcher` loads one `tree_summary/` result and renders the four inferred trees as six fixed pairwise comparison tabs.
 - `tree_summary/` now includes a combined TreeDist + Robinson-Foulds heatmap figure in addition to the raw distance matrices.
+- On Windows, `onebuilder.launcher` now shows a startup warning explaining that pipeline execution is disabled there, with a preference toggle to hide or re-enable that notice later.
 
 ## 1. Input and Output
 
@@ -138,7 +140,7 @@ The timings below come from real runs of the bundled demo inputs on the current 
 
 The repository now includes two standalone Java Swing entrypoints:
 
-- `onebuilder.launcher`: the full workflow GUI with `Input / Align`, `Tree Build`, and `Tanglegram` tabs. Linux can run the pipeline; Windows only edits and exports JSON config files.
+- `onebuilder.launcher`: the full workflow GUI with `Input / Align`, `Tree Parameters`, `Tree Build`, and `Tanglegram`. Linux can run the pipeline; Windows is for setup and JSON config export only.
 - `tanglegram.launcher`: the focused pairwise tanglegram viewer for loading an existing `tree_summary/` on Linux or Windows.
 
 Compile from the repository root:
@@ -201,21 +203,24 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 
 Usage notes:
 
-- The top-level tabs are fixed to `Input / Align`, `Tree Build`, and `Tanglegram`.
-- `Tree Build` uses a left-side tab set with `Distance`, `ML`, `Bayesian`, and `Parsimony`.
+- The top-level workflow is fixed to `Input / Align`, `Tree Parameters`, `Tree Build`, and `Tanglegram`.
+- `Input / Align` is the only page that must be completed first. If required fields are missing, later sections stay clickable but explain why navigation is blocked.
+- `Tree Parameters` uses a method tree with `Distance Method`, `Maximum Likelihood`, `Bayes Method`, `Maximum Parsimony`, and `Protein Structure`.
+- `Protein Structure` is always visible in the method tree. It is enabled for protein input and shown as `Protein only` for non-protein input.
+- `Tree Build` is now the dedicated run page. It contains the configuration summary/log area plus `Run`, `Stop`, and `Export Config` actions.
+- The `Tree Build` page also shows five compact method-status indicators for `Distance Method`, `Maximum Likelihood`, `Bayes Method`, `Maximum Parsimony`, and the reserved `Protein Structure` slot.
 - Actual alignment and tree building are Linux-only. Use a Linux desktop session or X11 forwarding for real runs.
-- On Windows, `onebuilder.launcher` is limited to parameter editing and JSON config export. It does not execute `s1_quick_align.zsh`, `s2_phylo_4prot.zsh`, or `s2_phylo_4dna.zsh`.
-- Enable `Run alignment first` if the input FASTA is not aligned yet; on Linux the GUI forwards MAFFT settings into `s1_quick_align.zsh`.
-- The input page includes output directory/prefix fields, MAFFT strategy, `maxiterate`, sequence reorder control, `Run`, `Stop`, `Export config file when running`, and `Export JSON`.
-- Advanced parameter groups are collapsed by default through SwingX `JXCollapsiblePane`; expand them only when needed.
-- The tree-building page keeps live run status, current stage, aligned-input path, output-root path, and a scrolling stdout/stderr log panel in the same window.
+- On Windows, `onebuilder.launcher` is limited to parameter editing and JSON config export. It does not execute `s1_quick_align.zsh`, `s2_phylo_4prot.zsh`, or `s2_phylo_4dna.zsh`, and it shows a startup warning unless that notice is disabled in preferences.
+- Enable `Run multiple sequence alignment first` if the input FASTA is raw and not aligned yet; on Linux the GUI forwards MAFFT settings into `s1_quick_align.zsh`.
+- The input page includes input/output paths, remembered browse locations, MAFFT strategy, `Maxiterate`, sequence reorder control, `Advanced MAFFT`, `Export config file when running`, and `Export JSON`.
+- Advanced parameter groups are collapsed by default with a shared task-pane style and now appear in a consistent position directly below the primary controls in each method page.
 - The GUI lets you disable individual tree-building methods and tune the exposed ML and Bayesian parameters before starting a run.
-- The window also includes `Preference > Settings...` for shared UI preferences such as global font family, global font size, window-size restore, and the default tanglegram label-font size.
+- The window also includes `Preference > Settings...` for shared UI preferences such as global font family, global font size, window-size restore, the default tanglegram label-font size, and `Show Windows oneBuilder startup warning`.
 - Preference changes are applied live to currently open Java windows and are reused on the next launch.
 - `Export config file when running` is enabled by default. When it stays enabled, Linux runs save `<output_base_dir>/<output_prefix>.onebuilder.json` and pass that file into the wrappers.
 - If `Export config file when running` is disabled, Linux runs still work but use a temporary runtime JSON file for that run only.
 - `Export JSON` always writes the current GUI settings to `<output_base_dir>/<output_prefix>.onebuilder.json`.
-- Inside `onebuilder.launcher`, the `Tanglegram` page is Linux current-run only. On Windows, use the standalone `tanglegram.launcher` to inspect an existing `tree_summary/`.
+- Inside `onebuilder.launcher`, the `Tanglegram` page unlocks only after a successful Linux run and then auto-loads the current output directory. On Windows, use the standalone `tanglegram.launcher` to inspect an existing `tree_summary/`.
 - Inside the GUI, the `Tanglegram` page also exposes label-font size, horizontal/vertical padding, auto-fit, and a `Reload from current run` action.
 - The launchers explicitly disable FlatLaf's native library integration with `flatlaf.useNativeLibrary=false`, so JDK 24+ does not print the `--enable-native-access=ALL-UNNAMED` warning.
 
