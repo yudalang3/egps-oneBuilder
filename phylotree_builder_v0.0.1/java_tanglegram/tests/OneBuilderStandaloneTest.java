@@ -1,12 +1,12 @@
 package onebuilder;
 
+import java.awt.GraphicsEnvironment;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import org.jdesktop.swingx.JXTaskPane;
 import javax.swing.SwingUtilities;
 import org.json.JSONObject;
 import tanglegram.UiPreferenceStore;
@@ -24,6 +24,8 @@ public final class OneBuilderStandaloneTest {
         run("tracksWorkflowTabUnlocks", OneBuilderStandaloneTest::tracksWorkflowTabUnlocks);
         run("buildsLinuxWorkbenchShell", OneBuilderStandaloneTest::buildsLinuxWorkbenchShell);
         run("buildsWindowsWorkbenchShell", OneBuilderStandaloneTest::buildsWindowsWorkbenchShell);
+        run("blocksNavigationUntilRequiredInputIsReady", OneBuilderStandaloneTest::blocksNavigationUntilRequiredInputIsReady);
+        run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
         run("roundTripsAdvancedRuntimeConfigThroughPanels", OneBuilderStandaloneTest::roundTripsAdvancedRuntimeConfigThroughPanels);
         run("usesPreferenceDefaultForEmbeddedTanglegramLabelSize", OneBuilderStandaloneTest::usesPreferenceDefaultForEmbeddedTanglegramLabelSize);
         run("loadsCurrentRunTanglegramTabs", OneBuilderStandaloneTest::loadsCurrentRunTanglegramTabs);
@@ -232,10 +234,12 @@ public final class OneBuilderStandaloneTest {
     private static void tracksWorkflowTabUnlocks() {
         WorkflowTabsState state = WorkflowTabsState.initial();
         assertTrue(state.inputEnabled(), "input tab should be enabled initially");
+        assertTrue(!state.treeParametersEnabled(), "tree parameters tab should start disabled");
         assertTrue(!state.treeBuildEnabled(), "tree build tab should start disabled");
         assertTrue(!state.tanglegramEnabled(), "tanglegram tab should start disabled");
 
         state = state.markInputConfigured();
+        assertTrue(state.treeParametersEnabled(), "tree parameters tab should unlock when input is configured");
         assertTrue(state.treeBuildEnabled(), "tree build tab should unlock when input is configured");
         assertTrue(!state.tanglegramEnabled(), "tanglegram tab should still be locked");
 
@@ -245,44 +249,86 @@ public final class OneBuilderStandaloneTest {
     }
 
     private static void buildsLinuxWorkbenchShell() throws Exception {
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
         SwingUtilities.invokeAndWait(() -> {
             OneBuilderWorkspacePanel workspacePanel = new OneBuilderWorkspacePanel(
                     Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"),
                     PlatformSupport.LINUX);
             assertEquals(
-                    Arrays.asList("Input / Align", "Tree Build", "Tanglegram"),
+                    Arrays.asList("Input / Align", "Tree Parameters", "Tree Build", "Tanglegram"),
                     workspacePanel.navigationLabels(),
                     "unexpected left navigation labels");
             assertEquals("Input / Align", workspacePanel.selectedSectionLabel(), "unexpected initial section");
+            assertTrue(!workspacePanel.isSectionEnabled("Tree Parameters"), "tree parameters section should start disabled");
             assertTrue(!workspacePanel.isSectionEnabled("Tree Build"), "tree build section should start disabled");
             assertTrue(!workspacePanel.isSectionEnabled("Tanglegram"), "tanglegram section should start disabled");
             assertTrue(workspacePanel.hasHeaderPanel(), "expected top header");
             assertTrue(workspacePanel.inputAlignPanel().isRunSupported(), "linux should support run");
             assertTrue(workspacePanel.inputAlignPanel().isExportSelected(), "export should default to selected");
             assertEquals(
-                    Arrays.asList("Distance", "ML", "Bayesian", "Parsimony"),
-                    workspacePanel.treeBuildPanel().methodCardTitles(),
-                    "unexpected method cards");
-            assertTrue(workspacePanel.treeBuildPanel().hasBottomLogDrawer(), "expected bottom log drawer");
-            assertTrue(workspacePanel.treeBuildPanel().isLogDrawerCollapsed(), "log drawer should default collapsed");
-            assertTrue(countTaskPanes(workspacePanel) >= 5, "expected advanced sections to use SwingX task panes");
+                    Arrays.asList("Distance Method", "Maximum Likelihood", "Bayes Method", "Maximum Parsimony", "Protein Structure"),
+                    workspacePanel.treeParametersPanel().parameterTreeLabels(),
+                    "unexpected parameter tree labels");
+            assertTrue(workspacePanel.treeParametersPanel().isProteinStructureEnabledForTest(), "protein structure should be available for protein projects");
+            assertTrue(workspacePanel.treeBuildPanel().hasRunButtonForTest(), "expected tree build run button");
+            assertTrue(workspacePanel.treeBuildPanel().hasExportConfigButtonForTest(), "expected tree build export button");
         });
     }
 
     private static void buildsWindowsWorkbenchShell() throws Exception {
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
         SwingUtilities.invokeAndWait(() -> {
             OneBuilderWorkspacePanel workspacePanel = new OneBuilderWorkspacePanel(
                     Paths.get("C:/onebuilder/phylotree_builder_v0.0.1"),
                     PlatformSupport.WINDOWS);
             assertTrue(!workspacePanel.inputAlignPanel().isRunSupported(), "windows should disable run");
-            assertTrue(workspacePanel.inputAlignPanel().isExportButtonEnabled(), "windows should allow export");
+            assertTrue(workspacePanel.treeBuildPanel().isExportConfigButtonEnabledForTest(), "windows should allow export config");
             assertTrue(!workspacePanel.isSectionEnabled("Tanglegram"), "windows should keep tanglegram disabled");
         });
     }
 
+    private static void blocksNavigationUntilRequiredInputIsReady() throws Exception {
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
+        SwingUtilities.invokeAndWait(() -> {
+            OneBuilderWorkspacePanel workspacePanel = new OneBuilderWorkspacePanel(
+                    Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"),
+                    PlatformSupport.LINUX);
+            workspacePanel.clickNavigationSection("Tree Parameters");
+            assertEquals("Input / Align", workspacePanel.selectedSectionLabel(), "navigation should stay on the current tab");
+            assertTrue(
+                    workspacePanel.navigationTooltipText("Tree Parameters").contains("Finish the required fields in Input / Align first"),
+                    "expected tooltip to explain why Tree Parameters is locked");
+        });
+    }
+
+    private static void remembersInputAlignBrowseDirectories() {
+        UiPreferenceStore.useTestNode("/egps-onebuilder/tests/onebuilder/browse-memory");
+        UiPreferenceStore.clearNodeForTests();
+        UiPreferenceStore.saveRecentOneBuilderInputDir(Paths.get("/tmp/onebuilder-input-cache"));
+        UiPreferenceStore.saveRecentOneBuilderOutputDir(Paths.get("/tmp/onebuilder-output-cache"));
+
+        InputAlignPanel panel = new InputAlignPanel(PlatformSupport.LINUX, () -> { }, () -> PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN));
+        assertEquals(
+                Paths.get("/tmp/onebuilder-input-cache").toAbsolutePath().normalize(),
+                panel.initialInputChooserPathForTest(),
+                "unexpected remembered input browse directory");
+        assertEquals(
+                Paths.get("/tmp/onebuilder-output-cache").toAbsolutePath().normalize(),
+                panel.initialOutputChooserPathForTest(),
+                "unexpected remembered output browse directory");
+
+        UiPreferenceStore.resetNodeForTests();
+    }
+
     private static void roundTripsAdvancedRuntimeConfigThroughPanels() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            TreeBuildPanel treeBuildPanel = new TreeBuildPanel(InputType.PROTEIN);
+            TreeParametersPanel treeParametersPanel = new TreeParametersPanel(InputType.PROTEIN);
             PipelineRuntimeConfig advancedConfig = new PipelineRuntimeConfig(
                     InputType.PROTEIN,
                     new SimpleMethodConfig(
@@ -337,8 +383,8 @@ public final class OneBuilderStandaloneTest {
                             Arrays.asList("J", "5", "Y"),
                             java.util.Collections.emptyList()));
 
-            treeBuildPanel.applyRuntimeConfig(advancedConfig);
-            PipelineRuntimeConfig roundTripped = treeBuildPanel.runtimeConfig();
+            treeParametersPanel.applyRuntimeConfig(advancedConfig);
+            PipelineRuntimeConfig roundTripped = treeParametersPanel.runtimeConfig();
 
             assertEquals(4000, roundTripped.maximumLikelihood().bootstrapReplicates(), "unexpected ML bootstrap");
             assertEquals("AUTO", roundTripped.maximumLikelihood().threads(), "unexpected ML threads");
@@ -360,10 +406,13 @@ public final class OneBuilderStandaloneTest {
     }
 
     private static void usesPreferenceDefaultForEmbeddedTanglegramLabelSize() throws Exception {
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
         UiPreferenceStore.useTestNode("/egps-onebuilder/tests/onebuilder/preferences");
         UiPreferenceStore.clearNodeForTests();
         UiPreferenceStore.captureLookAndFeelDefaults();
-        UiPreferenceStore.save(new UiPreferences("Dialog", 15, true, 22));
+        UiPreferenceStore.save(new UiPreferences("Dialog", 15, true, 22, true));
 
         SwingUtilities.invokeAndWait(() -> {
             CurrentRunTanglegramPanel panel = new CurrentRunTanglegramPanel();
@@ -375,6 +424,9 @@ public final class OneBuilderStandaloneTest {
     }
 
     private static void loadsCurrentRunTanglegramTabs() throws Exception {
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
         Path repoRoot = findRepoRoot();
         Path sampleOutput = repoRoot.resolve("test1");
 
@@ -437,16 +489,6 @@ public final class OneBuilderStandaloneTest {
         if (!condition) {
             throw new AssertionError(message);
         }
-    }
-
-    private static int countTaskPanes(java.awt.Component component) {
-        int count = component instanceof JXTaskPane ? 1 : 0;
-        if (component instanceof java.awt.Container) {
-            for (java.awt.Component child : ((java.awt.Container) component).getComponents()) {
-                count += countTaskPanes(child);
-            }
-        }
-        return count;
     }
 
     private static Path findRepoRoot() {

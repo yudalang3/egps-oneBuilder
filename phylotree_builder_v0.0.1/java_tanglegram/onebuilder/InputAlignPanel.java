@@ -5,9 +5,9 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -24,6 +24,7 @@ import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import tanglegram.UiPreferenceStore;
 
 final class InputAlignPanel extends JPanel {
     private final JComboBox<InputType> inputTypeCombo;
@@ -37,31 +38,23 @@ final class InputAlignPanel extends JPanel {
     private final JCheckBox reorderCheckBox;
     private final JTextArea alignExtraArgsArea;
     private final JLabel alignedPreviewValue;
-    private final JButton runButton;
-    private final JButton stopButton;
-    private final JButton exportButton;
     private final PlatformSupport platformSupport;
     private final Runnable inputChangedCallback;
-    private final Consumer<RunRequest> runRequestedCallback;
-    private final Consumer<RunRequest> exportRequestedCallback;
-    private final Runnable stopRequestedCallback;
     private final Supplier<PipelineRuntimeConfig> runtimeConfigSupplier;
+    private Path lastInputBrowseDir;
+    private Path lastOutputBrowseDir;
     private boolean running;
 
     InputAlignPanel(
             PlatformSupport platformSupport,
             Runnable inputChangedCallback,
-            Consumer<RunRequest> runRequestedCallback,
-            Consumer<RunRequest> exportRequestedCallback,
-            Runnable stopRequestedCallback,
             Supplier<PipelineRuntimeConfig> runtimeConfigSupplier) {
         super(new BorderLayout(12, 12));
         this.platformSupport = platformSupport;
         this.inputChangedCallback = inputChangedCallback;
-        this.runRequestedCallback = runRequestedCallback;
-        this.exportRequestedCallback = exportRequestedCallback;
-        this.stopRequestedCallback = stopRequestedCallback;
         this.runtimeConfigSupplier = runtimeConfigSupplier;
+        this.lastInputBrowseDir = UiPreferenceStore.loadRecentOneBuilderInputDir();
+        this.lastOutputBrowseDir = UiPreferenceStore.loadRecentOneBuilderOutputDir();
         WorkbenchStyles.applyCanvas(this);
 
         JPanel introCard = WorkbenchStyles.createSurfacePanel(new BorderLayout());
@@ -78,17 +71,21 @@ final class InputAlignPanel extends JPanel {
         inputFileField = new JTextField();
         outputDirField = new JTextField();
         outputPrefixField = new JTextField();
-        runAlignmentCheckBox = new JCheckBox("Run alignment first", false);
+        runAlignmentCheckBox = new JCheckBox(
+                "Run multiple sequence alignment first (turn this on when the input FASTA contains raw sequences and is not aligned yet)",
+                false);
+        runAlignmentCheckBox.setToolTipText(
+                "Enable this when your input file contains raw sequences that still need MAFFT alignment before tree building. Leave it off when the file is already an aligned MSA.");
         exportConfigCheckBox = new JCheckBox("Export config file when running", true);
         alignStrategyCombo = new JComboBox<>(new String[] {"localpair", "auto", "globalpair"});
         maxiterateSpinner = new JSpinner(new SpinnerNumberModel(1000, 0, 1000000, 100));
         reorderCheckBox = new JCheckBox("Reorder sequences", true);
         alignExtraArgsArea = new JTextArea(5, 28);
+        alignExtraArgsArea.setEditable(true);
+        alignExtraArgsArea.setBackground(WorkbenchStyles.SURFACE_BACKGROUND);
+        alignExtraArgsArea.setForeground(WorkbenchStyles.TEXT_PRIMARY);
+        alignExtraArgsArea.setLineWrap(false);
         alignedPreviewValue = new JLabel("-");
-        runButton = new JButton("Run");
-        stopButton = new JButton("Stop");
-        exportButton = new JButton("Export JSON");
-        stopButton.setEnabled(false);
 
         constraints.gridx = 0;
         constraints.gridy = 0;
@@ -155,7 +152,7 @@ final class InputAlignPanel extends JPanel {
         constraints.gridx = 0;
         constraints.gridy = 6;
         constraints.weightx = 0.0;
-        formPanel.add(new JLabel("maxiterate"), constraints);
+        formPanel.add(new JLabel("Maxiterate"), constraints);
         constraints.gridx = 1;
         constraints.weightx = 1.0;
         formPanel.add(maxiterateSpinner, constraints);
@@ -189,7 +186,7 @@ final class InputAlignPanel extends JPanel {
         constraints.gridx = 1;
         constraints.gridwidth = 2;
         constraints.weightx = 1.0;
-        formPanel.add(exportConfigCheckBox, constraints);
+        formPanel.add(buildConfigExportPanel(), constraints);
         constraints.gridwidth = 1;
 
         constraints.gridx = 0;
@@ -204,14 +201,12 @@ final class InputAlignPanel extends JPanel {
 
         add(formPanel, BorderLayout.CENTER);
 
-        JPanel actions = WorkbenchStyles.createSurfacePanel(new BorderLayout());
-        JPanel leftActions = new JPanel();
-        leftActions.setOpaque(false);
-        leftActions.add(runButton);
-        leftActions.add(stopButton);
-        leftActions.add(exportButton);
-        actions.add(leftActions, BorderLayout.WEST);
-        add(actions, BorderLayout.SOUTH);
+        JPanel nextStepCard = WorkbenchStyles.createSurfacePanel(new BorderLayout());
+        nextStepCard.add(
+                WorkbenchStyles.createNoteArea(
+                        "Next step: open Tree Parameters to adjust the method tree, then use Tree Build to export the full config or run the pipeline."),
+                BorderLayout.CENTER);
+        add(nextStepCard, BorderLayout.SOUTH);
 
         DocumentListener documentListener = new DocumentListener() {
             @Override
@@ -239,15 +234,6 @@ final class InputAlignPanel extends JPanel {
         reorderCheckBox.addActionListener(event -> notifyInputChanged());
         alignExtraArgsArea.getDocument().addDocumentListener(documentListener);
         exportConfigCheckBox.addActionListener(event -> notifyInputChanged());
-
-        runButton.addActionListener(event -> submitRunRequest());
-        exportButton.addActionListener(event -> submitExportRequest());
-        stopButton.addActionListener(event -> stopRequestedCallback.run());
-
-        if (!platformSupport.supportsPipelineExecution()) {
-            runButton.setEnabled(false);
-            stopButton.setEnabled(false);
-        }
         toggleAlignmentControls();
         WorkbenchStyles.applyPanelTreeBackground(this);
     }
@@ -260,21 +246,83 @@ final class InputAlignPanel extends JPanel {
         return !inputFileField.getText().trim().isEmpty() && !outputDirField.getText().trim().isEmpty();
     }
 
+    String navigationBlockingMessage() {
+        boolean missingInput = inputFileField.getText().trim().isEmpty();
+        boolean missingOutput = outputDirField.getText().trim().isEmpty();
+        if (missingInput && missingOutput) {
+            return "Finish the required fields in Input / Align first: choose an input FASTA/MSA file and an output base directory.";
+        }
+        if (missingInput) {
+            return "Finish the required fields in Input / Align first: choose an input FASTA/MSA file.";
+        }
+        if (missingOutput) {
+            return "Finish the required fields in Input / Align first: choose an output base directory.";
+        }
+        try {
+            Path inputPath = Paths.get(inputFileField.getText().trim()).toAbsolutePath().normalize();
+            if (!Files.exists(inputPath) || !Files.isRegularFile(inputPath)) {
+                return "Finish the required fields in Input / Align first: choose an existing input FASTA/MSA file.";
+            }
+        } catch (InvalidPathException exception) {
+            return "Finish the required fields in Input / Align first: choose a valid input FASTA/MSA path.";
+        }
+        return null;
+    }
+
+    RunRequest buildRunRequestForExecution() {
+        return buildRunRequest(exportConfigCheckBox.isSelected());
+    }
+
+    RunRequest buildRunRequestForExport() {
+        return buildRunRequest(true);
+    }
+
+    String buildRunDraftSummary(PipelineRuntimeConfig runtimeConfig) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("Input type: ").append(selectedInputType().displayName()).append(System.lineSeparator());
+        builder.append("Input FASTA/MSA: ").append(textOrDash(inputFileField.getText())).append(System.lineSeparator());
+        builder.append("Output base dir: ").append(textOrDash(outputDirField.getText())).append(System.lineSeparator());
+
+        String prefix = outputPrefixField.getText().trim();
+        if (prefix.isEmpty()) {
+            try {
+                Path inputPath = resolvedInputPathOrNull();
+                prefix = inputPath == null ? "-" : defaultOutputPrefix(inputPath);
+            } catch (InvalidPathException exception) {
+                prefix = "-";
+            }
+        }
+        builder.append("Output prefix: ").append(textOrDash(prefix)).append(System.lineSeparator());
+        builder.append("Run multiple sequence alignment before tree building: ")
+                .append(runAlignmentCheckBox.isSelected() ? "Yes" : "No, use the input file as an existing alignment"
+                )
+                .append(System.lineSeparator());
+        builder.append("Expected aligned file: ").append(textOrDash(alignedPreviewValue.getText())).append(System.lineSeparator());
+        builder.append("Keep config file when running: ").append(exportConfigCheckBox.isSelected() ? "Yes" : "No").append(System.lineSeparator());
+        builder.append(System.lineSeparator()).append("Method tree").append(System.lineSeparator());
+        builder.append("- Distance Method: ").append(runtimeConfig.distance().enabled() ? "Enabled" : "Disabled").append(System.lineSeparator());
+        builder.append("- Maximum Likelihood: ").append(runtimeConfig.maximumLikelihood().enabled() ? "Enabled" : "Disabled").append(System.lineSeparator());
+        builder.append("- Bayes Method: ").append(runtimeConfig.bayesian().enabled() ? "Enabled" : "Disabled").append(System.lineSeparator());
+        builder.append("- Maximum Parsimony: ").append(runtimeConfig.parsimony().enabled() ? "Enabled" : "Disabled").append(System.lineSeparator());
+        builder.append("- Protein Structure: ")
+                .append(selectedInputType() == InputType.PROTEIN ? "Placeholder available" : "Protein only")
+                .append(System.lineSeparator());
+        return builder.toString();
+    }
+
     void setRunning(boolean running) {
         this.running = running;
-        boolean pipelineExecution = platformSupport.supportsPipelineExecution();
-        runButton.setEnabled(pipelineExecution && !running);
-        stopButton.setEnabled(pipelineExecution && running);
         inputTypeCombo.setEnabled(!running);
         inputFileField.setEnabled(!running);
         outputDirField.setEnabled(!running);
         outputPrefixField.setEnabled(!running);
         runAlignmentCheckBox.setEnabled(!running);
         exportConfigCheckBox.setEnabled(!running);
-        exportButton.setEnabled(!running);
         alignStrategyCombo.setEnabled(!running && runAlignmentCheckBox.isSelected());
         maxiterateSpinner.setEnabled(!running && runAlignmentCheckBox.isSelected());
         reorderCheckBox.setEnabled(!running && runAlignmentCheckBox.isSelected());
+        alignExtraArgsArea.setEnabled(!running);
+        alignExtraArgsArea.setEditable(!running);
     }
 
     void setAlignedPreview(Path alignedOutput) {
@@ -282,13 +330,14 @@ final class InputAlignPanel extends JPanel {
     }
 
     private void browseForInputFile() {
-        JFileChooser chooser = new JFileChooser();
-        if (!inputFileField.getText().trim().isEmpty()) {
-            chooser.setSelectedFile(Paths.get(inputFileField.getText().trim()).toFile());
-        }
+        Path initialPath = initialInputChooserPath();
+        JFileChooser chooser = new JFileChooser(initialPath == null ? null : initialPath.toFile());
         int selection = chooser.showOpenDialog(this);
         if (selection == JFileChooser.APPROVE_OPTION) {
-            inputFileField.setText(chooser.getSelectedFile().toPath().toString());
+            Path selectedInput = chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
+            inputFileField.setText(selectedInput.toString());
+            lastInputBrowseDir = selectedInput.getParent();
+            UiPreferenceStore.saveRecentOneBuilderInputDir(lastInputBrowseDir);
             if (outputPrefixField.getText().trim().isEmpty()) {
                 outputPrefixField.setText(defaultOutputPrefix(Paths.get(inputFileField.getText().trim())));
             }
@@ -296,31 +345,24 @@ final class InputAlignPanel extends JPanel {
     }
 
     private void browseForOutputDirectory() {
-        JFileChooser chooser = new JFileChooser();
+        Path initialPath = initialOutputChooserPath();
+        JFileChooser chooser = new JFileChooser(initialPath == null ? null : initialPath.toFile());
         chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-        if (!outputDirField.getText().trim().isEmpty()) {
-            chooser.setSelectedFile(Paths.get(outputDirField.getText().trim()).toFile());
-        }
         int selection = chooser.showOpenDialog(this);
         if (selection == JFileChooser.APPROVE_OPTION) {
-            outputDirField.setText(chooser.getSelectedFile().toPath().toString());
+            Path selectedOutputDir = chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
+            outputDirField.setText(selectedOutputDir.toString());
+            lastOutputBrowseDir = selectedOutputDir;
+            UiPreferenceStore.saveRecentOneBuilderOutputDir(lastOutputBrowseDir);
         }
     }
 
-    private void submitRunRequest() {
-        try {
-            runRequestedCallback.accept(buildRunRequest(exportConfigCheckBox.isSelected()));
-        } catch (IllegalArgumentException exception) {
-            JOptionPane.showMessageDialog(this, exception.getMessage(), "eGPS oneBuilder", JOptionPane.ERROR_MESSAGE);
-        }
+    Path initialInputChooserPathForTest() {
+        return initialInputChooserPath();
     }
 
-    private void submitExportRequest() {
-        try {
-            exportRequestedCallback.accept(buildRunRequest(true));
-        } catch (IllegalArgumentException exception) {
-            JOptionPane.showMessageDialog(this, exception.getMessage(), "eGPS oneBuilder", JOptionPane.ERROR_MESSAGE);
-        }
+    Path initialOutputChooserPathForTest() {
+        return initialOutputChooserPath();
     }
 
     private RunRequest buildRunRequest(boolean exportConfigFile) {
@@ -376,13 +418,51 @@ final class InputAlignPanel extends JPanel {
 
     private void notifyInputChanged() {
         toggleAlignmentControls();
-        Path inputPath = inputFileField.getText().trim().isEmpty()
-                ? null
-                : Paths.get(inputFileField.getText().trim()).toAbsolutePath().normalize();
+        Path inputPath = resolvedInputPathOrNull();
         setAlignedPreview(inputPath == null
                 ? null
                 : (runAlignmentCheckBox.isSelected() ? ExecutionPlanBuilder.alignedOutputPath(inputPath) : inputPath));
         inputChangedCallback.run();
+    }
+
+    private Path resolvedInputPathOrNull() {
+        String inputText = inputFileField.getText().trim();
+        if (inputText.isEmpty()) {
+            return null;
+        }
+        try {
+            return Paths.get(inputText).toAbsolutePath().normalize();
+        } catch (InvalidPathException exception) {
+            return null;
+        }
+    }
+
+    private Path initialInputChooserPath() {
+        String inputText = inputFileField.getText().trim();
+        if (!inputText.isEmpty()) {
+            try {
+                Path currentPath = Paths.get(inputText).toAbsolutePath().normalize();
+                if (Files.isRegularFile(currentPath) || Files.isDirectory(currentPath)) {
+                    return currentPath;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return lastInputBrowseDir;
+    }
+
+    private Path initialOutputChooserPath() {
+        String outputDirText = outputDirField.getText().trim();
+        if (!outputDirText.isEmpty()) {
+            try {
+                Path currentPath = Paths.get(outputDirText).toAbsolutePath().normalize();
+                if (Files.isDirectory(currentPath)) {
+                    return currentPath;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return lastOutputBrowseDir;
     }
 
     private void toggleAlignmentControls() {
@@ -390,7 +470,8 @@ final class InputAlignPanel extends JPanel {
         alignStrategyCombo.setEnabled(alignmentEnabled && !running);
         maxiterateSpinner.setEnabled(alignmentEnabled && !running);
         reorderCheckBox.setEnabled(alignmentEnabled && !running);
-        alignExtraArgsArea.setEnabled(alignmentEnabled && !running);
+        alignExtraArgsArea.setEnabled(!running);
+        alignExtraArgsArea.setEditable(!running);
     }
 
     boolean isRunSupported() {
@@ -401,25 +482,39 @@ final class InputAlignPanel extends JPanel {
         return exportConfigCheckBox.isSelected();
     }
 
-    boolean isExportButtonEnabled() {
-        return exportButton.isEnabled();
-    }
-
     private static String buildIntroText(PlatformSupport platformSupport) {
         if (platformSupport.supportsPipelineExecution()) {
-            return "Provide one MSA input. On Linux, oneBuilder can run the existing MAFFT wrapper and the four-tree pipeline directly. The same page can also export a reusable JSON config file.";
+            return "Provide one MSA input. On Linux, oneBuilder can run the existing MAFFT wrapper and the four-tree pipeline directly. After this page, use Tree Parameters to tune methods and Tree Build to run or export the config.";
         }
-        return "Provide one MSA input and export a reusable JSON config file. Actual alignment and tree construction are Linux-only. On Windows, use the standalone tanglegram viewer to inspect an existing tree_summary result.";
+        return "Provide one MSA input. Actual alignment and tree construction are Linux-only. On Windows, continue through Tree Parameters and use Tree Build to export a reusable config file.";
+    }
+
+    private static String textOrDash(String value) {
+        return value == null || value.trim().isEmpty() ? "-" : value.trim();
     }
 
     private JPanel buildAdvancedAlignmentPanel() {
         JTextArea note = WorkbenchStyles.createNoteArea(
-                "Advanced MAFFT flags. Enter one token per line, for example --thread then 8 on the next line. These values are appended after the common alignment controls.");
+                "Advanced MAFFT flags. Use this box only when you need extra MAFFT options beyond the common controls above. Enter one token per line, for example --thread on one line and 8 on the next line. These tokens are appended after the standard MAFFT arguments when the alignment step is enabled. If your input file is already an aligned MSA and the alignment checkbox stays off, these extra MAFFT flags will not be used.");
+        JScrollPane extraArgsScrollPane = new JScrollPane(alignExtraArgsArea);
+        extraArgsScrollPane.setBorder(BorderFactory.createLineBorder(WorkbenchStyles.ACCENT_BORDER, 1, true));
+        extraArgsScrollPane.getViewport().setBackground(WorkbenchStyles.SURFACE_BACKGROUND);
 
         JPanel content = new JPanel(new BorderLayout(0, 8));
         content.setOpaque(false);
-        content.add(new JScrollPane(alignExtraArgsArea), BorderLayout.CENTER);
+        content.add(extraArgsScrollPane, BorderLayout.CENTER);
         content.add(note, BorderLayout.SOUTH);
         return TaskPaneFactory.createBlueTaskPane("Advanced Parameters", content, true);
+    }
+
+    private JPanel buildConfigExportPanel() {
+        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        panel.setOpaque(false);
+        panel.add(exportConfigCheckBox, BorderLayout.NORTH);
+        panel.add(
+                WorkbenchStyles.createNoteArea(
+                        "When this option is enabled, clicking Run will also write a reusable JSON config file for the current job. That file records the selected input, alignment setup, output prefix, and all tree-method parameters so the same workflow can be rerun later from the command line on Linux, shared with collaborators, or kept as an exact record of how this analysis was configured."),
+                BorderLayout.CENTER);
+        return panel;
     }
 }

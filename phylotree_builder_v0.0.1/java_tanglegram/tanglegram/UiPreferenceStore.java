@@ -12,12 +12,15 @@ public final class UiPreferenceStore {
     private static final String KEY_FONT_SIZE = "ui.font.size";
     private static final String KEY_RESTORE_WINDOW_SIZE = "ui.restoreWindowSize";
     private static final String KEY_TANGLEGRAM_LABEL_FONT_SIZE = "ui.tanglegram.labelFontSize";
+    private static final String KEY_SHOW_WINDOWS_ONEBUILDER_WARNING = "ui.onebuilder.showWindowsWarning";
     private static final String KEY_WINDOW_PREFIX = "window.";
     private static final String KEY_WIDTH_SUFFIX = ".width";
     private static final String KEY_HEIGHT_SUFFIX = ".height";
     private static final String KEY_RECENT_RUNNING_RESULT_DIR = "recent.runningResultDir";
     private static final String KEY_RECENT_CONFIG_FILE = "recent.configFile";
     private static final String KEY_RECENT_TREE_FILE_DIR = "recent.treeFileDir";
+    private static final String KEY_RECENT_ONEBUILDER_INPUT_DIR = "recent.onebuilder.inputDir";
+    private static final String KEY_RECENT_ONEBUILDER_OUTPUT_DIR = "recent.onebuilder.outputDir";
 
     private static Preferences preferencesNode = Preferences.userNodeForPackage(UiPreferenceStore.class).node("ui");
     private static String defaultFontFamily;
@@ -40,7 +43,7 @@ public final class UiPreferenceStore {
 
     public static UiPreferences defaultPreferences() {
         captureLookAndFeelDefaults();
-        return new UiPreferences(defaultFontFamily, defaultFontSize.intValue(), true, 12);
+        return new UiPreferences(defaultFontFamily, defaultFontSize.intValue(), true, 12, true);
     }
 
     public static UiPreferences load() {
@@ -49,7 +52,8 @@ public final class UiPreferenceStore {
                 preferencesNode.get(KEY_FONT_FAMILY, defaults.uiFontFamily()),
                 preferencesNode.getInt(KEY_FONT_SIZE, defaults.uiFontSize()),
                 preferencesNode.getBoolean(KEY_RESTORE_WINDOW_SIZE, defaults.restoreLastWindowSize()),
-                preferencesNode.getInt(KEY_TANGLEGRAM_LABEL_FONT_SIZE, defaults.defaultTanglegramLabelFontSize()));
+                preferencesNode.getInt(KEY_TANGLEGRAM_LABEL_FONT_SIZE, defaults.defaultTanglegramLabelFontSize()),
+                preferencesNode.getBoolean(KEY_SHOW_WINDOWS_ONEBUILDER_WARNING, defaults.showWindowsOneBuilderWarning()));
     }
 
     public static void save(UiPreferences preferences) {
@@ -57,6 +61,7 @@ public final class UiPreferenceStore {
         preferencesNode.putInt(KEY_FONT_SIZE, preferences.uiFontSize());
         preferencesNode.putBoolean(KEY_RESTORE_WINDOW_SIZE, preferences.restoreLastWindowSize());
         preferencesNode.putInt(KEY_TANGLEGRAM_LABEL_FONT_SIZE, preferences.defaultTanglegramLabelFontSize());
+        preferencesNode.putBoolean(KEY_SHOW_WINDOWS_ONEBUILDER_WARNING, preferences.showWindowsOneBuilderWarning());
         flushQuietly();
     }
 
@@ -104,6 +109,22 @@ public final class UiPreferenceStore {
 
     public static void saveRecentTreeFileDir(Path path) {
         savePath(KEY_RECENT_TREE_FILE_DIR, path);
+    }
+
+    public static Path loadRecentOneBuilderInputDir() {
+        return loadPath(KEY_RECENT_ONEBUILDER_INPUT_DIR);
+    }
+
+    public static void saveRecentOneBuilderInputDir(Path path) {
+        savePath(KEY_RECENT_ONEBUILDER_INPUT_DIR, path);
+    }
+
+    public static Path loadRecentOneBuilderOutputDir() {
+        return loadPath(KEY_RECENT_ONEBUILDER_OUTPUT_DIR);
+    }
+
+    public static void saveRecentOneBuilderOutputDir(Path path) {
+        savePath(KEY_RECENT_ONEBUILDER_OUTPUT_DIR, path);
     }
 
     public static void useTestNode(String nodePath) {

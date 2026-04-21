@@ -2,35 +2,42 @@ package onebuilder;
 
 public final class WorkflowTabsState {
     private final boolean inputEnabled;
+    private final boolean treeParametersEnabled;
     private final boolean treeBuildEnabled;
     private final boolean tanglegramEnabled;
     private final boolean runInProgress;
 
-    private WorkflowTabsState(boolean inputEnabled, boolean treeBuildEnabled, boolean tanglegramEnabled, boolean runInProgress) {
+    private WorkflowTabsState(
+            boolean inputEnabled,
+            boolean treeParametersEnabled,
+            boolean treeBuildEnabled,
+            boolean tanglegramEnabled,
+            boolean runInProgress) {
         this.inputEnabled = inputEnabled;
+        this.treeParametersEnabled = treeParametersEnabled;
         this.treeBuildEnabled = treeBuildEnabled;
         this.tanglegramEnabled = tanglegramEnabled;
         this.runInProgress = runInProgress;
     }
 
     public static WorkflowTabsState initial() {
-        return new WorkflowTabsState(true, false, false, false);
+        return new WorkflowTabsState(true, false, false, false, false);
     }
 
     public WorkflowTabsState markInputConfigured() {
-        return new WorkflowTabsState(true, true, tanglegramEnabled, runInProgress);
+        return new WorkflowTabsState(true, true, true, tanglegramEnabled, runInProgress);
     }
 
     public WorkflowTabsState markRunStarted() {
-        return new WorkflowTabsState(true, true, tanglegramEnabled, true);
+        return new WorkflowTabsState(true, treeParametersEnabled, treeBuildEnabled, tanglegramEnabled, true);
     }
 
     public WorkflowTabsState markTanglegramReady() {
-        return new WorkflowTabsState(true, true, true, false);
+        return new WorkflowTabsState(true, true, true, true, false);
     }
 
     public WorkflowTabsState markRunFinished() {
-        return new WorkflowTabsState(true, treeBuildEnabled, tanglegramEnabled, false);
+        return new WorkflowTabsState(true, treeParametersEnabled, treeBuildEnabled, tanglegramEnabled, false);
     }
 
     public boolean inputEnabled() {
@@ -39,6 +46,10 @@ public final class WorkflowTabsState {
 
     public boolean treeBuildEnabled() {
         return treeBuildEnabled;
+    }
+
+    public boolean treeParametersEnabled() {
+        return treeParametersEnabled;
     }
 
     public boolean tanglegramEnabled() {

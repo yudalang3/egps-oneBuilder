@@ -4,7 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.nio.file.Path;
+import javax.swing.BorderFactory;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -35,12 +35,11 @@ final class BayesianPanel extends JPanel {
     private final JSpinner burninfracSpinner;
     private final JCheckBox relburninCheckBox;
     private final JTextArea commandBlockArea;
-    private JLabel statusValue;
-    private JLabel outputValue;
 
     BayesianPanel() {
         super(new BorderLayout(12, 12));
         setOpaque(false);
+        setBorder(BorderFactory.createEmptyBorder(6, 10, 10, 10));
 
         enabledCheckBox = new JCheckBox("Enable bayesian method", true);
         JPanel header = new JPanel(new BorderLayout(8, 0));
@@ -133,13 +132,13 @@ final class BayesianPanel extends JPanel {
 
         JPanel centerPanel = new JPanel(new BorderLayout(0, 8));
         centerPanel.setOpaque(false);
+        centerPanel.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
         centerPanel.add(commonForm, BorderLayout.NORTH);
+        centerPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), BorderLayout.CENTER);
         centerPanel.add(
                 WorkbenchStyles.createNoteArea("Common MrBayes settings cover the standard GUI workflow. Protein mode uses aamodelpr; DNA/CDS mode uses nst."),
-                BorderLayout.CENTER);
-        centerPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), BorderLayout.SOUTH);
+                BorderLayout.SOUTH);
         add(centerPanel, BorderLayout.CENTER);
-        add(buildStatusPanel(), BorderLayout.SOUTH);
         WorkbenchStyles.applyPanelTreeBackground(this);
     }
 
@@ -195,14 +194,6 @@ final class BayesianPanel extends JPanel {
         repaint();
     }
 
-    void setStatusText(String statusText) {
-        WorkbenchStyles.updateStatusChip(statusValue, statusText);
-    }
-
-    void setOutputPath(Path outputPath) {
-        outputValue.setText(outputPath == null ? "-" : outputPath.toString());
-    }
-
     private static GridBagConstraints baseConstraints() {
         GridBagConstraints constraints = new GridBagConstraints();
         constraints.insets = new Insets(0, 0, 8, 8);
@@ -224,36 +215,6 @@ final class BayesianPanel extends JPanel {
         constraints.gridx = 1;
         constraints.weightx = 1.0;
         panel.add(component, constraints);
-    }
-
-    private JPanel buildStatusPanel() {
-        JPanel statusPanel = new JPanel(new GridBagLayout());
-        statusPanel.setOpaque(false);
-        GridBagConstraints statusConstraints = new GridBagConstraints();
-        statusConstraints.gridx = 0;
-        statusConstraints.gridy = 0;
-        statusConstraints.insets = new Insets(0, 0, 6, 8);
-        statusConstraints.anchor = GridBagConstraints.WEST;
-        statusPanel.add(new JLabel("Status"), statusConstraints);
-
-        statusConstraints.gridx = 1;
-        statusConstraints.weightx = 1.0;
-        statusConstraints.fill = GridBagConstraints.HORIZONTAL;
-        statusValue = WorkbenchStyles.createStatusChip("Idle");
-        statusPanel.add(statusValue, statusConstraints);
-
-        statusConstraints.gridx = 0;
-        statusConstraints.gridy = 1;
-        statusConstraints.weightx = 0.0;
-        statusConstraints.fill = GridBagConstraints.NONE;
-        statusPanel.add(new JLabel("Output"), statusConstraints);
-
-        statusConstraints.gridx = 1;
-        statusConstraints.weightx = 1.0;
-        statusConstraints.fill = GridBagConstraints.HORIZONTAL;
-        outputValue = new JLabel("-");
-        statusPanel.add(outputValue, statusConstraints);
-        return statusPanel;
     }
 
     private static Integer integerOrNull(Integer value) {

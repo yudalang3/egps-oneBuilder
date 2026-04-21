@@ -66,7 +66,7 @@ public final class TanglegramStandaloneTest {
         UiPreferenceStore.clearNodeForTests();
         UiPreferenceStore.captureLookAndFeelDefaults();
 
-        UiPreferences preferences = new UiPreferences("Dialog", 18, true, 21);
+        UiPreferences preferences = new UiPreferences("Dialog", 18, true, 21, true);
         UiPreferenceStore.save(preferences);
         UiPreferences loaded = UiPreferenceStore.load();
 
@@ -75,6 +75,7 @@ public final class TanglegramStandaloneTest {
         assertTrue(loaded.restoreLastWindowSize(), "expected restore window size to be enabled");
         assertEquals(Integer.valueOf(21), Integer.valueOf(loaded.defaultTanglegramLabelFontSize()),
                 "unexpected default tanglegram label size");
+        assertTrue(loaded.showWindowsOneBuilderWarning(), "expected Windows startup warning to be enabled");
 
         UiPreferenceStore.resetNodeForTests();
     }
@@ -83,13 +84,13 @@ public final class TanglegramStandaloneTest {
         UiPreferenceStore.useTestNode("/egps-onebuilder/tests/tanglegram/window-size");
         UiPreferenceStore.clearNodeForTests();
         UiPreferenceStore.captureLookAndFeelDefaults();
-        UiPreferenceStore.save(new UiPreferences("Dialog", 14, true, 12));
+        UiPreferenceStore.save(new UiPreferences("Dialog", 14, true, 12, true));
         UiPreferenceStore.saveWindowSize("tanglegram", new Dimension(1600, 1000));
 
         assertEquals(new Dimension(1600, 1000), UiPreferenceStore.resolveWindowSize("tanglegram", new Dimension(1400, 900)),
                 "expected stored size to be used");
 
-        UiPreferenceStore.save(new UiPreferences("Dialog", 14, false, 12));
+        UiPreferenceStore.save(new UiPreferences("Dialog", 14, false, 12, true));
         assertEquals(new Dimension(1400, 900), UiPreferenceStore.resolveWindowSize("tanglegram", new Dimension(1400, 900)),
                 "expected fallback size when restore is disabled");
 
@@ -100,7 +101,7 @@ public final class TanglegramStandaloneTest {
         UiPreferenceStore.useTestNode("/egps-onebuilder/tests/tanglegram/render-defaults");
         UiPreferenceStore.clearNodeForTests();
         UiPreferenceStore.captureLookAndFeelDefaults();
-        UiPreferenceStore.save(new UiPreferences("Dialog", 14, true, 26));
+        UiPreferenceStore.save(new UiPreferences("Dialog", 14, true, 26, true));
 
         TanglegramRenderOptions defaults = TanglegramRenderOptions.defaults();
         assertEquals(Integer.valueOf(26), Integer.valueOf(defaults.labelFontSize()), "expected label size from preferences");
@@ -160,7 +161,7 @@ public final class TanglegramStandaloneTest {
         view.setSize(900, 700);
         view.renderNowForTest(new Dimension(900, 700));
 
-        assertTrue(view.getViewport().getView() != null, "expected rendered viewport content");
+        assertTrue(view.getComponentCount() > 0 && view.getComponent(0) != null, "expected rendered viewport content");
     }
 
     private static Path copySampleOutput() throws Exception {

@@ -48,6 +48,8 @@ final class LogDrawerPanel extends JPanel {
         collapsiblePane = new JXCollapsiblePane();
         collapsiblePane.setAnimated(true);
         collapsiblePane.setCollapsed(true);
+        collapsiblePane.setOpaque(false);
+        collapsiblePane.setBorder(BorderFactory.createEmptyBorder());
 
         JPanel drawerContent = WorkbenchStyles.createSurfacePanel(new BorderLayout(0, 10));
         drawerContent.setBorder(BorderFactory.createCompoundBorder(
@@ -62,7 +64,10 @@ final class LogDrawerPanel extends JPanel {
         progressBar.setStringPainted(true);
         progressBar.setString("Idle");
 
-        drawerContent.add(new JScrollPane(logArea), BorderLayout.CENTER);
+        JScrollPane logScrollPane = new JScrollPane(logArea);
+        logScrollPane.setBorder(null);
+        logScrollPane.getViewport().setBackground(WorkbenchStyles.SURFACE_BACKGROUND);
+        drawerContent.add(logScrollPane, BorderLayout.CENTER);
         drawerContent.add(progressBar, BorderLayout.SOUTH);
         drawerContent.setPreferredSize(new Dimension(100, 260));
 

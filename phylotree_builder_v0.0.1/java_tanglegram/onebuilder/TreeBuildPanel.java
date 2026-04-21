@@ -1,309 +1,371 @@
 package onebuilder;
 
 import java.awt.BorderLayout;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridLayout;
-import java.awt.Insets;
+import java.awt.RenderingHints;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
+import java.util.EnumMap;
+import java.util.Map;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.Timer;
+import javax.swing.JTextArea;
+import javax.swing.SwingConstants;
+import javax.swing.UIManager;
 
 final class TreeBuildPanel extends JPanel {
-    private static final int EXPANDED_LOG_FLUSH_MS = 60;
-    private static final int COLLAPSED_LOG_FLUSH_MS = 400;
-    private static final int FORCE_FLUSH_BUFFER_CHARS = 8192;
+    private final PlatformSupport platformSupport;
+    private final JTextArea detailsArea;
+    private final JButton runButton;
+    private final JButton stopButton;
+    private final JButton exportConfigButton;
+    private final StringBuilder logBuffer;
+    private final Map<TreeMethodKey, String> methodStatuses;
+    private final Map<TreeMethodKey, Path> methodOutputs;
+    private final Map<TreeMethodKey, JLabel> methodStatusLabels;
+    private final Map<TreeMethodKey, StatusDot> methodStatusDots;
+    private final JLabel proteinStructureStatusLabel;
+    private final StatusDot proteinStructureStatusDot;
+    private String draftSummary;
+    private String overallStatus;
+    private String currentStage;
+    private Path alignedOutputPath;
+    private Path outputDirectoryPath;
 
-    private final DistanceMethodPanel distancePanel;
-    private final MaximumLikelihoodPanel maximumLikelihoodPanel;
-    private final BayesianPanel bayesianPanel;
-    private final ParsimonyMethodPanel parsimonyPanel;
-    private final LogDrawerPanel logDrawerPanel;
-    private final StringBuilder pendingLogBuffer;
-    private final Timer logFlushTimer;
-    private JLabel runStatusValue;
-    private JLabel currentStageValue;
-    private JLabel alignedOutputValue;
-    private JLabel outputRootValue;
-    private InputType inputType;
-
-    TreeBuildPanel(InputType inputType) {
+    TreeBuildPanel(
+            PlatformSupport platformSupport,
+            Runnable runRequestedCallback,
+            Runnable exportRequestedCallback,
+            Runnable stopRequestedCallback) {
         super(new BorderLayout(0, 16));
-        this.inputType = inputType;
+        this.platformSupport = platformSupport;
+        this.logBuffer = new StringBuilder();
+        this.methodStatuses = new EnumMap<>(TreeMethodKey.class);
+        this.methodOutputs = new EnumMap<>(TreeMethodKey.class);
+        this.methodStatusLabels = new EnumMap<>(TreeMethodKey.class);
+        this.methodStatusDots = new EnumMap<>(TreeMethodKey.class);
+        this.draftSummary = "Input type: -" + System.lineSeparator() + "Input FASTA/MSA: -";
+        this.overallStatus = "Idle";
+        this.currentStage = "-";
         WorkbenchStyles.applyCanvas(this);
 
-        distancePanel = new DistanceMethodPanel(inputType);
-        maximumLikelihoodPanel = new MaximumLikelihoodPanel();
-        bayesianPanel = new BayesianPanel();
-        parsimonyPanel = new ParsimonyMethodPanel(inputType);
-        logDrawerPanel = new LogDrawerPanel();
-        pendingLogBuffer = new StringBuilder();
-        logFlushTimer = new Timer(EXPANDED_LOG_FLUSH_MS, event -> flushBufferedLog());
-        logFlushTimer.setRepeats(false);
-        logDrawerPanel.setCollapseStateListener(collapsed -> {
-            if (!collapsed.booleanValue()) {
-                flushBufferedLog();
-            }
-        });
+        add(buildHeader(), BorderLayout.NORTH);
 
-        add(buildSummaryCard(), BorderLayout.NORTH);
-        add(buildMethodGrid(), BorderLayout.CENTER);
-        add(logDrawerPanel, BorderLayout.SOUTH);
+        detailsArea = new JTextArea();
+        detailsArea.setEditable(false);
+        detailsArea.setLineWrap(false);
+        JScrollPane scrollPane = new JScrollPane(detailsArea);
+        scrollPane.setBorder(null);
+        scrollPane.getViewport().setBackground(WorkbenchStyles.SURFACE_BACKGROUND);
 
-        applyRuntimeConfig(PipelineRuntimeConfig.defaultsFor(inputType));
+        JPanel detailsCard = WorkbenchStyles.createSurfacePanel(new BorderLayout());
+        detailsCard.add(scrollPane, BorderLayout.CENTER);
+        proteinStructureStatusLabel = createStatusValueLabel("Reserved");
+        proteinStructureStatusDot = new StatusDot();
+        updateStatusVisuals(proteinStructureStatusLabel, proteinStructureStatusDot, "Reserved");
+
+        JPanel bodyPanel = WorkbenchStyles.createCanvasPanel(new BorderLayout(0, 12));
+        bodyPanel.add(detailsCard, BorderLayout.CENTER);
+        bodyPanel.add(buildMethodStatusCard(), BorderLayout.SOUTH);
+        add(bodyPanel, BorderLayout.CENTER);
+
+        runButton = new JButton("Run");
+        exportConfigButton = new JButton("Export Config");
+        stopButton = new JButton("Stop");
+        runButton.addActionListener(event -> runRequestedCallback.run());
+        exportConfigButton.addActionListener(event -> exportRequestedCallback.run());
+        stopButton.addActionListener(event -> stopRequestedCallback.run());
+
+        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        buttonRow.setOpaque(false);
+        buttonRow.add(runButton);
+        buttonRow.add(exportConfigButton);
+        buttonRow.add(stopButton);
+
+        JPanel actionCard = WorkbenchStyles.createSurfacePanel(new BorderLayout());
+        actionCard.add(buttonRow, BorderLayout.WEST);
+        add(actionCard, BorderLayout.SOUTH);
+
+        resetMethodStatusesToIdle();
+        setRunning(false);
+        refreshDetailsText();
     }
 
-    List<String> methodCardTitles() {
-        return Arrays.asList("Distance", "ML", "Bayesian", "Parsimony");
+    boolean hasRunButtonForTest() {
+        return runButton != null;
     }
 
-    boolean hasBottomLogDrawer() {
-        return true;
+    boolean hasExportConfigButtonForTest() {
+        return exportConfigButton != null;
     }
 
-    boolean isLogDrawerCollapsed() {
-        return logDrawerPanel.isCollapsed();
+    boolean isExportConfigButtonEnabledForTest() {
+        return exportConfigButton.isEnabled();
     }
 
     void applyPreferences() {
-        WorkbenchStyles.styleMonospaceLog(logDrawerPanel.logArea());
         revalidate();
         repaint();
     }
 
-    private JPanel buildSummaryCard() {
-        JPanel card = WorkbenchStyles.createSurfacePanel(new BorderLayout(0, 16));
-
-        JPanel titleBlock = new JPanel(new BorderLayout(0, 4));
-        titleBlock.setOpaque(false);
-        titleBlock.add(WorkbenchStyles.createSectionTitle("Tree Build"), BorderLayout.NORTH);
-        titleBlock.add(
-                WorkbenchStyles.createSubtitleLabel("Edit the four methods side by side, then open the log drawer only when you need detail."),
-                BorderLayout.CENTER);
-        card.add(titleBlock, BorderLayout.NORTH);
-
-        JPanel fields = new JPanel(new GridBagLayout());
-        fields.setOpaque(false);
-
-        GridBagConstraints constraints = new GridBagConstraints();
-        constraints.gridx = 0;
-        constraints.gridy = 0;
-        constraints.anchor = GridBagConstraints.WEST;
-        constraints.insets = new Insets(0, 0, 10, 18);
-        fields.add(new JLabel("Overall status"), constraints);
-
-        constraints.gridx = 1;
-        constraints.weightx = 1.0;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        runStatusValue = WorkbenchStyles.createStatusChip("Idle");
-        fields.add(runStatusValue, constraints);
-
-        constraints.gridx = 2;
-        constraints.weightx = 0.0;
-        constraints.fill = GridBagConstraints.NONE;
-        fields.add(new JLabel("Current stage"), constraints);
-
-        constraints.gridx = 3;
-        constraints.weightx = 1.0;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        currentStageValue = new JLabel("-");
-        fields.add(currentStageValue, constraints);
-
-        constraints.gridx = 0;
-        constraints.gridy = 1;
-        constraints.weightx = 0.0;
-        constraints.fill = GridBagConstraints.NONE;
-        fields.add(new JLabel("Aligned input"), constraints);
-
-        constraints.gridx = 1;
-        constraints.weightx = 1.0;
-        constraints.gridwidth = 3;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        alignedOutputValue = new JLabel("-");
-        fields.add(alignedOutputValue, constraints);
-
-        constraints.gridx = 0;
-        constraints.gridy = 2;
-        constraints.weightx = 0.0;
-        constraints.gridwidth = 1;
-        constraints.fill = GridBagConstraints.NONE;
-        fields.add(new JLabel("Output root"), constraints);
-
-        constraints.gridx = 1;
-        constraints.weightx = 1.0;
-        constraints.gridwidth = 3;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        outputRootValue = new JLabel("-");
-        fields.add(outputRootValue, constraints);
-
-        card.add(fields, BorderLayout.CENTER);
-        return card;
-    }
-
-    private JScrollPane buildMethodGrid() {
-        JPanel grid = WorkbenchStyles.createCanvasPanel(new GridLayout(2, 2, 16, 16));
-        grid.add(createMethodCard("Distance", "PHYLIP distance + neighbor workflow.", distancePanel));
-        grid.add(createMethodCard("ML", "IQ-TREE likelihood inference.", maximumLikelihoodPanel));
-        grid.add(createMethodCard("Bayesian", "MrBayes posterior sampling and consensus.", bayesianPanel));
-        grid.add(createMethodCard("Parsimony", "PHYLIP parsimony workflow.", parsimonyPanel));
-
-        JScrollPane scrollPane = new JScrollPane(grid);
-        scrollPane.setBorder(null);
-        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-        scrollPane.getViewport().setBackground(WorkbenchStyles.CANVAS_BACKGROUND);
-        return scrollPane;
-    }
-
-    private JPanel createMethodCard(String title, String subtitle, JPanel content) {
-        JPanel card = WorkbenchStyles.createSurfacePanel(new BorderLayout(0, 14));
-        JPanel header = new JPanel(new BorderLayout(0, 4));
-        header.setOpaque(false);
-        header.add(WorkbenchStyles.createSectionTitle(title), BorderLayout.NORTH);
-        header.add(WorkbenchStyles.createSubtitleLabel(subtitle), BorderLayout.CENTER);
-        card.add(header, BorderLayout.NORTH);
-        card.add(content, BorderLayout.CENTER);
-        return card;
-    }
-
-    void setInputType(InputType inputType) {
-        this.inputType = inputType;
-        distancePanel.setInputType(inputType);
-        maximumLikelihoodPanel.setInputType(inputType);
-        bayesianPanel.setInputType(inputType);
-        parsimonyPanel.setInputType(inputType);
-    }
-
-    void applyRuntimeConfig(PipelineRuntimeConfig runtimeConfig) {
-        setInputType(runtimeConfig.inputType());
-        distancePanel.apply(runtimeConfig.distance());
-        maximumLikelihoodPanel.apply(runtimeConfig.maximumLikelihood(), runtimeConfig.inputType());
-        bayesianPanel.apply(runtimeConfig.bayesian(), runtimeConfig.inputType());
-        parsimonyPanel.apply(runtimeConfig.parsimony());
-    }
-
-    PipelineRuntimeConfig runtimeConfig() {
-        return new PipelineRuntimeConfig(
-                inputType,
-                distancePanel.toConfig(),
-                maximumLikelihoodPanel.toConfig(),
-                bayesianPanel.toConfig(inputType),
-                parsimonyPanel.toConfig());
+    void setDraftSummary(String draftSummary) {
+        this.draftSummary = draftSummary == null || draftSummary.isBlank() ? "Input type: -" : draftSummary;
+        refreshDetailsText();
     }
 
     void resetForRun(ExecutionPlan executionPlan) {
-        logFlushTimer.stop();
-        pendingLogBuffer.setLength(0);
-        logDrawerPanel.logArea().setText("");
-        setOverallStatus("Running");
-        setCurrentStage("Preparing");
-        setAlignedOutput(executionPlan.effectiveInputFile());
-        setOutputDirectory(executionPlan.pipelineOutputDir());
-        setMethodStatus(TreeMethodKey.DISTANCE, "Queued");
-        setMethodStatus(TreeMethodKey.MAXIMUM_LIKELIHOOD, "Queued");
-        setMethodStatus(TreeMethodKey.BAYESIAN, "Queued");
-        setMethodStatus(TreeMethodKey.PARSIMONY, "Queued");
-        setMethodOutput(TreeMethodKey.DISTANCE, null);
-        setMethodOutput(TreeMethodKey.MAXIMUM_LIKELIHOOD, null);
-        setMethodOutput(TreeMethodKey.BAYESIAN, null);
-        setMethodOutput(TreeMethodKey.PARSIMONY, null);
-        logDrawerPanel.setProgressRunning(true);
-        logDrawerPanel.setProgressText("Running");
-        logDrawerPanel.setStageText("Running");
+        logBuffer.setLength(0);
+        overallStatus = "Running";
+        currentStage = "Preparing";
+        alignedOutputPath = executionPlan == null ? null : executionPlan.effectiveInputFile();
+        outputDirectoryPath = executionPlan == null ? null : executionPlan.pipelineOutputDir();
+        for (TreeMethodKey methodKey : TreeMethodKey.values()) {
+            methodStatuses.put(methodKey, "Queued");
+            methodOutputs.put(methodKey, null);
+            updateMethodIndicator(methodKey, "Queued");
+        }
+        setRunning(true);
+        refreshDetailsText();
     }
 
     void appendLog(String line) {
         if (line == null) {
             return;
         }
-        pendingLogBuffer.append(line);
+        logBuffer.append(line);
         if (!line.endsWith("\n") && !line.endsWith("\r")) {
-            pendingLogBuffer.append(System.lineSeparator());
+            logBuffer.append(System.lineSeparator());
         }
-        if (pendingLogBuffer.length() >= FORCE_FLUSH_BUFFER_CHARS) {
-            flushBufferedLog();
-            return;
-        }
-        scheduleLogFlush();
-    }
-
-    private void scheduleLogFlush() {
-        logFlushTimer.setInitialDelay(logDrawerPanel.isCollapsed() ? COLLAPSED_LOG_FLUSH_MS : EXPANDED_LOG_FLUSH_MS);
-        logFlushTimer.restart();
-    }
-
-    private void flushBufferedLog() {
-        if (pendingLogBuffer.length() == 0) {
-            return;
-        }
-        logDrawerPanel.logArea().append(pendingLogBuffer.toString());
-        pendingLogBuffer.setLength(0);
-        logDrawerPanel.logArea().setCaretPosition(logDrawerPanel.logArea().getDocument().getLength());
-    }
-
-    void setOverallStatus(String statusText) {
-        WorkbenchStyles.updateStatusChip(runStatusValue, statusText == null ? "Idle" : statusText);
+        refreshDetailsText();
     }
 
     void setCurrentStage(String stageText) {
-        currentStageValue.setText(stageText == null ? "-" : stageText);
-        logDrawerPanel.setStageText(stageText);
-    }
-
-    void setAlignedOutput(Path alignedOutput) {
-        alignedOutputValue.setText(alignedOutput == null ? "-" : alignedOutput.toString());
-    }
-
-    void setOutputDirectory(Path outputDirectory) {
-        outputRootValue.setText(outputDirectory == null ? "-" : outputDirectory.toString());
+        currentStage = stageText == null || stageText.isBlank() ? "-" : stageText;
+        refreshDetailsText();
     }
 
     void setMethodStatus(TreeMethodKey methodKey, String statusText) {
-        switch (methodKey) {
-            case DISTANCE:
-                distancePanel.setStatusText(statusText);
-                break;
-            case MAXIMUM_LIKELIHOOD:
-                maximumLikelihoodPanel.setStatusText(statusText);
-                break;
-            case BAYESIAN:
-                bayesianPanel.setStatusText(statusText);
-                break;
-            case PARSIMONY:
-                parsimonyPanel.setStatusText(statusText);
-                break;
-            default:
-                throw new IllegalStateException("Unexpected method key: " + methodKey);
-        }
+        String normalizedStatus = statusText == null || statusText.isBlank() ? "-" : statusText;
+        methodStatuses.put(methodKey, normalizedStatus);
+        updateMethodIndicator(methodKey, normalizedStatus);
+        refreshDetailsText();
     }
 
     void setMethodOutput(TreeMethodKey methodKey, Path outputPath) {
+        methodOutputs.put(methodKey, outputPath);
+        refreshDetailsText();
+    }
+
+    void finishRun(String finalStatus) {
+        overallStatus = finalStatus == null || finalStatus.isBlank() ? "Idle" : finalStatus;
+        if ("Completed".equalsIgnoreCase(overallStatus)) {
+            currentStage = "Complete";
+        } else if ("Failed".equalsIgnoreCase(overallStatus)) {
+            currentStage = "Failed";
+            replaceRemainingMethodStates("Running", "Failed");
+            replaceRemainingMethodStates("Queued", "Stopped");
+        } else if ("Interrupted".equalsIgnoreCase(overallStatus) || "Stopped".equalsIgnoreCase(overallStatus)) {
+            currentStage = "Stopped";
+            replaceRemainingMethodStates("Running", "Stopped");
+            replaceRemainingMethodStates("Queued", "Stopped");
+        }
+        setRunning(false);
+        refreshDetailsText();
+    }
+
+    void setRunning(boolean running) {
+        runButton.setEnabled(platformSupport.supportsPipelineExecution() && !running);
+        stopButton.setEnabled(platformSupport.supportsPipelineExecution() && running);
+        exportConfigButton.setEnabled(!running);
+    }
+
+    void setExporting(boolean exporting) {
+        runButton.setEnabled(platformSupport.supportsPipelineExecution() && !exporting);
+        stopButton.setEnabled(false);
+        exportConfigButton.setEnabled(!exporting);
+    }
+
+    private JPanel buildHeader() {
+        JPanel headerCard = WorkbenchStyles.createSurfacePanel(new BorderLayout(0, 6));
+        headerCard.add(WorkbenchStyles.createSectionTitle("Tree Build"), BorderLayout.NORTH);
+        headerCard.add(
+                WorkbenchStyles.createSubtitleLabel(
+                        "Review the current configuration, export a reusable config file, or start the Linux pipeline from this page."),
+                BorderLayout.CENTER);
+        return headerCard;
+    }
+
+    private JPanel buildMethodStatusCard() {
+        JPanel statusCard = WorkbenchStyles.createSurfacePanel(new BorderLayout(0, 8));
+        statusCard.add(WorkbenchStyles.createSectionTitle("Method Status"), BorderLayout.NORTH);
+
+        JPanel statusGrid = new JPanel(new GridLayout(1, 5, 8, 0));
+        statusGrid.setOpaque(false);
+        statusGrid.add(createMethodStatusTile("Distance Method", TreeMethodKey.DISTANCE));
+        statusGrid.add(createMethodStatusTile("Maximum Likelihood", TreeMethodKey.MAXIMUM_LIKELIHOOD));
+        statusGrid.add(createMethodStatusTile("Bayes Method", TreeMethodKey.BAYESIAN));
+        statusGrid.add(createMethodStatusTile("Maximum Parsimony", TreeMethodKey.PARSIMONY));
+        statusGrid.add(createStatusTile("Protein Structure", proteinStructureStatusDot, proteinStructureStatusLabel));
+
+        statusCard.add(statusGrid, BorderLayout.CENTER);
+        return statusCard;
+    }
+
+    private JPanel createMethodStatusTile(String labelText, TreeMethodKey methodKey) {
+        JLabel statusLabel = createStatusValueLabel("Idle");
+        StatusDot statusDot = new StatusDot();
+        methodStatusLabels.put(methodKey, statusLabel);
+        methodStatusDots.put(methodKey, statusDot);
+        updateStatusVisuals(statusLabel, statusDot, "Idle");
+        return createStatusTile(labelText, statusDot, statusLabel);
+    }
+
+    private JPanel createStatusTile(String labelText, StatusDot statusDot, JLabel statusLabel) {
+        JPanel tile = new JPanel(new BorderLayout(0, 4));
+        WorkbenchStyles.applyInsetCard(tile, 6, 8, 6, 8);
+
+        JLabel titleLabel = new JLabel(labelText);
+        titleLabel.setHorizontalAlignment(JLabel.CENTER);
+        titleLabel.setForeground(WorkbenchStyles.TEXT_PRIMARY);
+        Font baseFont = UIManager.getFont("Label.font");
+        if (baseFont != null) {
+            titleLabel.setFont(baseFont.deriveFont(Font.PLAIN, Math.max(10f, baseFont.getSize2D() - 1f)));
+        }
+        tile.add(titleLabel, BorderLayout.NORTH);
+
+        JPanel indicatorRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
+        indicatorRow.setOpaque(false);
+        indicatorRow.add(statusDot);
+        indicatorRow.add(statusLabel);
+        tile.add(indicatorRow, BorderLayout.CENTER);
+        return tile;
+    }
+
+    private JLabel createStatusValueLabel(String text) {
+        JLabel label = new JLabel(text, SwingConstants.LEFT);
+        label.setForeground(WorkbenchStyles.TEXT_PRIMARY);
+        Font baseFont = UIManager.getFont("Label.font");
+        if (baseFont != null) {
+            label.setFont(baseFont.deriveFont(Font.BOLD, Math.max(11f, baseFont.getSize2D() - 1f)));
+        }
+        return label;
+    }
+
+    private void resetMethodStatusesToIdle() {
+        for (TreeMethodKey methodKey : TreeMethodKey.values()) {
+            methodStatuses.put(methodKey, "Idle");
+            methodOutputs.put(methodKey, null);
+            updateMethodIndicator(methodKey, "Idle");
+        }
+    }
+
+    private void updateMethodIndicator(TreeMethodKey methodKey, String statusText) {
+        JLabel statusLabel = methodStatusLabels.get(methodKey);
+        StatusDot statusDot = methodStatusDots.get(methodKey);
+        if (statusLabel != null && statusDot != null) {
+            updateStatusVisuals(statusLabel, statusDot, statusText);
+        }
+    }
+
+    private void updateStatusVisuals(JLabel statusLabel, StatusDot statusDot, String statusText) {
+        String normalizedStatus = statusText == null || statusText.isBlank() ? "Idle" : statusText.trim();
+        statusLabel.setText(normalizedStatus);
+        statusLabel.setForeground(WorkbenchStyles.statusForegroundColor(normalizedStatus));
+        statusDot.setFillColor(WorkbenchStyles.statusForegroundColor(normalizedStatus));
+    }
+
+    private void replaceRemainingMethodStates(String currentValue, String replacementValue) {
+        for (TreeMethodKey methodKey : TreeMethodKey.values()) {
+            String methodStatus = methodStatuses.get(methodKey);
+            if (currentValue.equalsIgnoreCase(methodStatus)) {
+                methodStatuses.put(methodKey, replacementValue);
+                updateMethodIndicator(methodKey, replacementValue);
+            }
+        }
+    }
+
+    private void refreshDetailsText() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("Configuration").append(System.lineSeparator());
+        builder.append(draftSummary == null || draftSummary.isBlank() ? "Input type: -" : draftSummary);
+        builder.append(System.lineSeparator()).append(System.lineSeparator());
+
+        builder.append("Run state").append(System.lineSeparator());
+        builder.append("Overall status: ").append(overallStatus).append(System.lineSeparator());
+        builder.append("Current stage: ").append(currentStage).append(System.lineSeparator());
+        builder.append("Aligned input: ").append(alignedOutputPath == null ? "-" : alignedOutputPath).append(System.lineSeparator());
+        builder.append("Output root: ").append(outputDirectoryPath == null ? "-" : outputDirectoryPath).append(System.lineSeparator());
+        if (!platformSupport.supportsPipelineExecution()) {
+            builder.append("Execution note: Linux-only pipeline execution. Export Config remains available on this platform.")
+                    .append(System.lineSeparator());
+        }
+
+        builder.append(System.lineSeparator()).append("Method progress").append(System.lineSeparator());
+        for (TreeMethodKey methodKey : TreeMethodKey.values()) {
+            builder.append("- ").append(methodLabel(methodKey)).append(": ")
+                    .append(methodStatuses.getOrDefault(methodKey, "-"));
+            Path outputPath = methodOutputs.get(methodKey);
+            if (outputPath != null) {
+                builder.append(" | output=").append(outputPath);
+            }
+            builder.append(System.lineSeparator());
+        }
+        builder.append("- Protein Structure: Reserved").append(System.lineSeparator());
+
+        builder.append(System.lineSeparator()).append("Log").append(System.lineSeparator());
+        if (logBuffer.length() == 0) {
+            builder.append("(no log yet)");
+        } else {
+            builder.append(logBuffer);
+        }
+        detailsArea.setText(builder.toString());
+        detailsArea.setCaretPosition(0);
+    }
+
+    private static String methodLabel(TreeMethodKey methodKey) {
         switch (methodKey) {
             case DISTANCE:
-                distancePanel.setOutputPath(outputPath);
-                break;
+                return "Distance Method";
             case MAXIMUM_LIKELIHOOD:
-                maximumLikelihoodPanel.setOutputPath(outputPath);
-                break;
+                return "Maximum Likelihood";
             case BAYESIAN:
-                bayesianPanel.setOutputPath(outputPath);
-                break;
+                return "Bayes Method";
             case PARSIMONY:
-                parsimonyPanel.setOutputPath(outputPath);
-                break;
+                return "Maximum Parsimony";
             default:
                 throw new IllegalStateException("Unexpected method key: " + methodKey);
         }
     }
 
-    void finishRun(String finalStatus) {
-        flushBufferedLog();
-        setOverallStatus(finalStatus);
-        logDrawerPanel.setProgressRunning(false);
-        logDrawerPanel.setProgressText(finalStatus == null ? "Idle" : finalStatus);
-        logDrawerPanel.setStageText(finalStatus == null ? "Idle" : finalStatus);
+    private static final class StatusDot extends JPanel {
+        private Color fillColor = WorkbenchStyles.TEXT_SECONDARY;
+
+        StatusDot() {
+            setOpaque(false);
+            setPreferredSize(new Dimension(12, 12));
+            setMinimumSize(new Dimension(12, 12));
+        }
+
+        void setFillColor(Color fillColor) {
+            this.fillColor = fillColor == null ? WorkbenchStyles.TEXT_SECONDARY : fillColor;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            Graphics2D graphics2d = (Graphics2D) graphics.create();
+            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics2d.setColor(fillColor);
+            graphics2d.fillOval(1, 1, Math.max(0, getWidth() - 3), Math.max(0, getHeight() - 3));
+            graphics2d.dispose();
+        }
     }
 }

@@ -4,7 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.nio.file.Path;
+import javax.swing.BorderFactory;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -16,14 +16,13 @@ final class DistanceMethodPanel extends JPanel {
     private final JLabel methodOverrideLabel;
     private final JTextArea methodOverrideArea;
     private final JTextArea neighborOverrideArea;
-    private JLabel statusValue;
-    private JLabel outputValue;
     private InputType inputType;
 
     DistanceMethodPanel(InputType inputType) {
         super(new BorderLayout(12, 12));
         this.inputType = inputType;
         setOpaque(false);
+        setBorder(BorderFactory.createEmptyBorder(6, 10, 10, 10));
 
         enabledCheckBox = new JCheckBox("Enable distance method", true);
 
@@ -74,10 +73,10 @@ final class DistanceMethodPanel extends JPanel {
 
         JPanel centerPanel = new JPanel(new BorderLayout(0, 8));
         centerPanel.setOpaque(false);
-        centerPanel.add(descriptionArea, BorderLayout.NORTH);
+        centerPanel.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
         centerPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), BorderLayout.CENTER);
+        centerPanel.add(descriptionArea, BorderLayout.SOUTH);
         add(centerPanel, BorderLayout.CENTER);
-        add(buildStatusPanel(), BorderLayout.SOUTH);
         setInputType(inputType);
         WorkbenchStyles.applyPanelTreeBackground(this);
     }
@@ -105,41 +104,4 @@ final class DistanceMethodPanel extends JPanel {
                 java.util.List.of());
     }
 
-    void setStatusText(String statusText) {
-        WorkbenchStyles.updateStatusChip(statusValue, statusText);
-    }
-
-    void setOutputPath(Path outputPath) {
-        outputValue.setText(outputPath == null ? "-" : outputPath.toString());
-    }
-
-    private JPanel buildStatusPanel() {
-        JPanel statusPanel = new JPanel(new GridBagLayout());
-        statusPanel.setOpaque(false);
-        GridBagConstraints constraints = new GridBagConstraints();
-        constraints.gridx = 0;
-        constraints.gridy = 0;
-        constraints.anchor = GridBagConstraints.WEST;
-        constraints.insets = new Insets(0, 0, 6, 8);
-        statusPanel.add(new JLabel("Status"), constraints);
-
-        constraints.gridx = 1;
-        constraints.weightx = 1.0;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        statusValue = WorkbenchStyles.createStatusChip("Idle");
-        statusPanel.add(statusValue, constraints);
-
-        constraints.gridx = 0;
-        constraints.gridy = 1;
-        constraints.weightx = 0.0;
-        constraints.fill = GridBagConstraints.NONE;
-        statusPanel.add(new JLabel("Output"), constraints);
-
-        constraints.gridx = 1;
-        constraints.weightx = 1.0;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        outputValue = new JLabel("-");
-        statusPanel.add(outputValue, constraints);
-        return statusPanel;
-    }
 }

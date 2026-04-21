@@ -129,19 +129,54 @@ final class WorkbenchStyles {
     static void updateStatusChip(JLabel label, String text) {
         String safeText = text == null || text.isBlank() ? "Idle" : text.trim();
         label.setText(safeText);
+        label.setBackground(statusBackgroundColor(safeText));
+        label.setForeground(statusForegroundColor(safeText));
+    }
+
+    static Color statusBackgroundColor(String statusText) {
+        String safeText = statusText == null || statusText.isBlank() ? "Idle" : statusText.trim();
         if ("Completed".equalsIgnoreCase(safeText) || "Complete".equalsIgnoreCase(safeText)) {
-            label.setBackground(new Color(230, 244, 236));
-            label.setForeground(SUCCESS);
-        } else if ("Failed".equalsIgnoreCase(safeText)) {
-            label.setBackground(new Color(253, 236, 236));
-            label.setForeground(DANGER);
-        } else if ("Interrupted".equalsIgnoreCase(safeText) || "Stopped".equalsIgnoreCase(safeText)) {
-            label.setBackground(new Color(255, 244, 224));
-            label.setForeground(WARNING);
-        } else {
-            label.setBackground(ACCENT_SOFT);
-            label.setForeground(ACCENT);
+            return new Color(230, 244, 236);
         }
+        if ("Failed".equalsIgnoreCase(safeText)) {
+            return new Color(253, 236, 236);
+        }
+        if ("Running".equalsIgnoreCase(safeText)) {
+            return ACCENT_SOFT;
+        }
+        if ("Interrupted".equalsIgnoreCase(safeText) || "Stopped".equalsIgnoreCase(safeText)) {
+            return new Color(255, 244, 224);
+        }
+        if ("Idle".equalsIgnoreCase(safeText)
+                || "Queued".equalsIgnoreCase(safeText)
+                || "Reserved".equalsIgnoreCase(safeText)
+                || "N/A".equalsIgnoreCase(safeText)) {
+            return new Color(241, 244, 248);
+        }
+        return ACCENT_SOFT;
+    }
+
+    static Color statusForegroundColor(String statusText) {
+        String safeText = statusText == null || statusText.isBlank() ? "Idle" : statusText.trim();
+        if ("Completed".equalsIgnoreCase(safeText) || "Complete".equalsIgnoreCase(safeText)) {
+            return SUCCESS;
+        }
+        if ("Failed".equalsIgnoreCase(safeText)) {
+            return DANGER;
+        }
+        if ("Running".equalsIgnoreCase(safeText)) {
+            return ACCENT;
+        }
+        if ("Interrupted".equalsIgnoreCase(safeText) || "Stopped".equalsIgnoreCase(safeText)) {
+            return WARNING;
+        }
+        if ("Idle".equalsIgnoreCase(safeText)
+                || "Queued".equalsIgnoreCase(safeText)
+                || "Reserved".equalsIgnoreCase(safeText)
+                || "N/A".equalsIgnoreCase(safeText)) {
+            return TEXT_SECONDARY;
+        }
+        return ACCENT;
     }
 
     static void styleRailButton(AbstractButton button) {
