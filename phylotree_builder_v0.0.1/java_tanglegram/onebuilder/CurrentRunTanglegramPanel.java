@@ -29,12 +29,15 @@ final class CurrentRunTanglegramPanel extends JPanel {
     private JCheckBox autoFitCheckBox;
     private final JLabel summaryLabel;
     private final JideTabbedPane comparisonTabs;
+    private final Object loadMonitor;
     private Path currentOutputDirectory;
     private volatile long loadSequence;
+    private volatile boolean loading;
 
     CurrentRunTanglegramPanel() {
         super(new BorderLayout(12, 12));
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        loadMonitor = new Object();
 
         add(buildControlsPanel(), BorderLayout.NORTH);
 
@@ -118,16 +121,18 @@ final class CurrentRunTanglegramPanel extends JPanel {
     }
 
     void loadRunResults(Path outputDirectory) {
+        final long requestId = ++loadSequence;
         currentOutputDirectory = outputDirectory == null ? null : outputDirectory.toAbsolutePath().normalize();
         comparisonTabs.removeAll();
         if (currentOutputDirectory == null) {
             summaryLabel.setText("No current run loaded.");
+            markLoadFinished();
             return;
         }
 
         Path treeSummaryDir = CurrentRunArtifacts.resolveTreeSummaryDir(currentOutputDirectory);
-        final long requestId = ++loadSequence;
         summaryLabel.setText("Loading current run tanglegrams from " + treeSummaryDir + " ...");
+        markLoadStarted();
         Thread loadThread = new Thread(() -> {
             try {
                 TreeSummaryLoadResult loadResult = TreeSummaryLoader.load(treeSummaryDir);
@@ -140,6 +145,20 @@ final class CurrentRunTanglegramPanel extends JPanel {
         loadThread.start();
     }
 
+    boolean waitForLoadCompletionForTest(long timeoutMillis) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        synchronized (loadMonitor) {
+            while (loading) {
+                long remaining = deadline - System.currentTimeMillis();
+                if (remaining <= 0) {
+                    return false;
+                }
+                loadMonitor.wait(remaining);
+            }
+            return true;
+        }
+    }
+
     private void applyLoadResult(long requestId, Path treeSummaryDir, TreeSummaryLoadResult loadResult) {
         if (requestId != loadSequence) {
             return;
@@ -147,6 +166,7 @@ final class CurrentRunTanglegramPanel extends JPanel {
         comparisonTabs.removeAll();
         if (loadResult.resolvedTrees().size() < 2) {
             summaryLabel.setText("Current run does not contain at least two readable trees: " + treeSummaryDir);
+            markLoadFinished();
             return;
         }
 
@@ -164,6 +184,7 @@ final class CurrentRunTanglegramPanel extends JPanel {
                 ? ""
                 : " Missing methods: " + loadResult.missingMethods();
         summaryLabel.setText("Loaded " + loadResult.availablePairs().size() + " pair tabs from " + treeSummaryDir + "." + warningSuffix);
+        markLoadFinished();
     }
 
     private void applyLoadFailure(long requestId, Exception exception) {
@@ -172,5 +193,19 @@ final class CurrentRunTanglegramPanel extends JPanel {
         }
         comparisonTabs.removeAll();
         summaryLabel.setText("Failed to load current run tanglegrams: " + exception.getMessage());
+        markLoadFinished();
+    }
+
+    private void markLoadStarted() {
+        synchronized (loadMonitor) {
+            loading = true;
+        }
+    }
+
+    private void markLoadFinished() {
+        synchronized (loadMonitor) {
+            loading = false;
+            loadMonitor.notifyAll();
+        }
     }
 }

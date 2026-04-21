@@ -246,6 +246,8 @@ final class OneBuilderWorkspacePanel extends JPanel {
             return;
         }
 
+        latestCompletedOutputDirectory = null;
+        currentRunTanglegramPanel.loadRunResults(null);
         workflowTabsState = workflowTabsState.markInputConfigured().markRunStarted();
         syncWorkflowTabs();
         inputAlignPanel.setRunning(true);

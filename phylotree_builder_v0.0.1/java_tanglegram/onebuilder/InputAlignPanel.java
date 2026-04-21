@@ -247,8 +247,10 @@ final class InputAlignPanel extends JPanel {
     }
 
     String navigationBlockingMessage() {
-        boolean missingInput = inputFileField.getText().trim().isEmpty();
-        boolean missingOutput = outputDirField.getText().trim().isEmpty();
+        String inputText = inputFileField.getText().trim();
+        String outputDirText = outputDirField.getText().trim();
+        boolean missingInput = inputText.isEmpty();
+        boolean missingOutput = outputDirText.isEmpty();
         if (missingInput && missingOutput) {
             return "Finish the required fields in Input / Align first: choose an input FASTA/MSA file and an output base directory.";
         }
@@ -259,12 +261,17 @@ final class InputAlignPanel extends JPanel {
             return "Finish the required fields in Input / Align first: choose an output base directory.";
         }
         try {
-            Path inputPath = Paths.get(inputFileField.getText().trim()).toAbsolutePath().normalize();
+            Path inputPath = Paths.get(inputText).toAbsolutePath().normalize();
             if (!Files.exists(inputPath) || !Files.isRegularFile(inputPath)) {
                 return "Finish the required fields in Input / Align first: choose an existing input FASTA/MSA file.";
             }
         } catch (InvalidPathException exception) {
             return "Finish the required fields in Input / Align first: choose a valid input FASTA/MSA path.";
+        }
+        try {
+            Paths.get(outputDirText).toAbsolutePath().normalize();
+        } catch (InvalidPathException exception) {
+            return "Finish the required fields in Input / Align first: choose a valid output base directory path.";
         }
         return null;
     }
@@ -379,12 +386,22 @@ final class InputAlignPanel extends JPanel {
             throw new IllegalArgumentException("Output base directory is required.");
         }
 
-        Path inputPath = Paths.get(inputText).toAbsolutePath().normalize();
+        Path inputPath;
+        try {
+            inputPath = Paths.get(inputText).toAbsolutePath().normalize();
+        } catch (InvalidPathException exception) {
+            throw new IllegalArgumentException("Input FASTA/MSA path is invalid: " + inputText, exception);
+        }
         if (!Files.exists(inputPath) || !Files.isRegularFile(inputPath)) {
             throw new IllegalArgumentException("Input file does not exist: " + inputPath);
         }
 
-        Path outputDirectory = Paths.get(outputDirectoryText).toAbsolutePath().normalize();
+        Path outputDirectory;
+        try {
+            outputDirectory = Paths.get(outputDirectoryText).toAbsolutePath().normalize();
+        } catch (InvalidPathException exception) {
+            throw new IllegalArgumentException("Output base directory path is invalid: " + outputDirectoryText, exception);
+        }
         String prefix = outputPrefixField.getText().trim();
         if (prefix.isEmpty()) {
             prefix = defaultOutputPrefix(inputPath);

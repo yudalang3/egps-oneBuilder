@@ -1,6 +1,7 @@
 package onebuilder;
 
 import java.awt.GraphicsEnvironment;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,11 +23,13 @@ public final class OneBuilderStandaloneTest {
         run("serializesPipelineRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesPipelineRuntimeConfigAsJson);
         run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
         run("tracksWorkflowTabUnlocks", OneBuilderStandaloneTest::tracksWorkflowTabUnlocks);
+        run("relocksTanglegramWhenNewRunStarts", OneBuilderStandaloneTest::relocksTanglegramWhenNewRunStarts);
         run("buildsLinuxWorkbenchShell", OneBuilderStandaloneTest::buildsLinuxWorkbenchShell);
         run("buildsWindowsWorkbenchShell", OneBuilderStandaloneTest::buildsWindowsWorkbenchShell);
         run("blocksNavigationUntilRequiredInputIsReady", OneBuilderStandaloneTest::blocksNavigationUntilRequiredInputIsReady);
         run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
         run("prefersInputParentDirectoryWhenInputPathIsAFile", OneBuilderStandaloneTest::prefersInputParentDirectoryWhenInputPathIsAFile);
+        run("rejectsInvalidOutputDirectoryPath", OneBuilderStandaloneTest::rejectsInvalidOutputDirectoryPath);
         run("roundTripsAdvancedRuntimeConfigThroughPanels", OneBuilderStandaloneTest::roundTripsAdvancedRuntimeConfigThroughPanels);
         run("usesPreferenceDefaultForEmbeddedTanglegramLabelSize", OneBuilderStandaloneTest::usesPreferenceDefaultForEmbeddedTanglegramLabelSize);
         run("loadsCurrentRunTanglegramTabs", OneBuilderStandaloneTest::loadsCurrentRunTanglegramTabs);
@@ -249,6 +252,16 @@ public final class OneBuilderStandaloneTest {
         assertTrue(state.tanglegramEnabled(), "tanglegram tab should unlock when results are ready");
     }
 
+    private static void relocksTanglegramWhenNewRunStarts() {
+        WorkflowTabsState state = WorkflowTabsState.initial()
+                .markInputConfigured()
+                .markTanglegramReady();
+        assertTrue(state.tanglegramEnabled(), "tanglegram should be enabled after a successful run");
+
+        state = state.markRunStarted();
+        assertTrue(!state.tanglegramEnabled(), "starting a new run should relock tanglegram until new results exist");
+    }
+
     private static void buildsLinuxWorkbenchShell() throws Exception {
         if (GraphicsEnvironment.isHeadless()) {
             return;
@@ -338,6 +351,20 @@ public final class OneBuilderStandaloneTest {
                 tempDirectory.toAbsolutePath().normalize(),
                 panel.initialInputChooserPathForTest(),
                 "expected input chooser to start from the parent directory when the current input is a file");
+    }
+
+    private static void rejectsInvalidOutputDirectoryPath() throws Exception {
+        Path tempInputFile = Files.createTempFile("onebuilder-input-", ".fasta");
+        InputAlignPanel panel = new InputAlignPanel(PlatformSupport.LINUX, () -> { }, () -> PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN));
+        setTextField(panel, "inputFileField", tempInputFile.toString());
+        setTextField(panel, "outputDirField", "bad|path");
+
+        try {
+            panel.buildRunRequestForExport();
+            throw new AssertionError("expected invalid output path to be rejected");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("Output"), "expected output-path validation message");
+        }
     }
 
     private static void roundTripsAdvancedRuntimeConfigThroughPanels() throws Exception {
@@ -443,10 +470,16 @@ public final class OneBuilderStandaloneTest {
         }
         Path repoRoot = findRepoRoot();
         Path sampleOutput = repoRoot.resolve("test1");
+        CurrentRunTanglegramPanel[] panelRef = new CurrentRunTanglegramPanel[1];
 
         SwingUtilities.invokeAndWait(() -> {
             CurrentRunTanglegramPanel panel = new CurrentRunTanglegramPanel();
+            panelRef[0] = panel;
             panel.loadRunResults(sampleOutput);
+        });
+        assertTrue(panelRef[0].waitForLoadCompletionForTest(10000), "timed out waiting for tanglegram tabs to load");
+        SwingUtilities.invokeAndWait(() -> {
+            CurrentRunTanglegramPanel panel = panelRef[0];
             assertEquals(6, panel.comparisonTabs().getTabCount(), "unexpected tanglegram pair tab count");
             assertEquals("NJ-ML", panel.comparisonTabs().getTitleAt(0), "unexpected first pair tab");
             assertEquals("NJ-BI", panel.comparisonTabs().getTitleAt(1), "unexpected second pair tab");
@@ -516,6 +549,13 @@ public final class OneBuilderStandaloneTest {
         if (!condition) {
             throw new AssertionError(message);
         }
+    }
+
+    private static void setTextField(Object target, String fieldName, String value) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        javax.swing.JTextField textField = (javax.swing.JTextField) field.get(target);
+        textField.setText(value);
     }
 
     private static Path findRepoRoot() {

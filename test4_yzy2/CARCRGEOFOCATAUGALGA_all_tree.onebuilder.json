@@ -1,0 +1,80 @@
+{
+  "methods": {
+    "maximum_likelihood": {
+      "iqtree": {
+        "common": {
+          "model_set": "WAG,LG,JTT,Dayhoff,DCMut,rtREV,cpREV,VT,Blosum62,mtMam,mtArt,HIVb,HIVw",
+          "model_strategy": "MFP",
+          "bootstrap_replicates": 1000
+        },
+        "advanced": {
+          "keep_ident": false,
+          "safe": false,
+          "quiet": true,
+          "redo": true,
+          "verbose": false,
+          "abayes": false
+        },
+        "extra_args": []
+      },
+      "enabled": true
+    },
+    "bayesian": {
+      "mrbayes": {
+        "command_block": [],
+        "common": {
+          "ngen": 50000,
+          "samplefreq": 100,
+          "protein_model_prior": "mixed",
+          "rates": "invgamma",
+          "printfreq": 1000,
+          "diagnfreq": 5000
+        },
+        "advanced": {}
+      },
+      "enabled": true
+    },
+    "distance": {
+      "protdist": {
+        "common": {},
+        "advanced": {},
+        "menu_overrides": []
+      },
+      "neighbor": {
+        "common": {},
+        "advanced": {},
+        "menu_overrides": []
+      },
+      "enabled": true
+    },
+    "parsimony": {
+      "protpars": {
+        "common": {},
+        "advanced": {},
+        "menu_overrides": []
+      },
+      "enabled": true
+    }
+  },
+  "run": {
+    "input_file": "C:\\Users\\yudal\\Documents\\project\\eGPS2\\jars\\egps2_collections\\egps-oneBuilder\\test4_yzy2\\CARCRGEOFOCATAUGALGA_all.fasta",
+    "output_prefix": "CARCRGEOFOCATAUGALGA_all_tree",
+    "input_type": "Protein",
+    "output_base_dir": "C:\\Users\\yudal\\Documents\\project\\eGPS2\\jars\\egps2_collections\\egps-oneBuilder\\test4_yzy2"
+  },
+  "alignment": {
+    "maxiterate": 1000,
+    "reorder": true,
+    "strategy": "localpair",
+    "mafft": {
+      "common": {
+        "maxiterate": 1000,
+        "reorder": true,
+        "strategy": "localpair"
+      },
+      "advanced": {},
+      "extra_args": []
+    },
+    "run_alignment_first": false
+  }
+}

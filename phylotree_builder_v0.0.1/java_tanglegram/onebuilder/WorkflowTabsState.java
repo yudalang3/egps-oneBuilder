@@ -29,7 +29,7 @@ public final class WorkflowTabsState {
     }
 
     public WorkflowTabsState markRunStarted() {
-        return new WorkflowTabsState(true, treeParametersEnabled, treeBuildEnabled, tanglegramEnabled, true);
+        return new WorkflowTabsState(true, treeParametersEnabled, treeBuildEnabled, false, true);
     }
 
     public WorkflowTabsState markTanglegramReady() {
