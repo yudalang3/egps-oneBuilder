@@ -38,8 +38,6 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     private static final int SHADOW_OFFSET_Y = 10;
     private static final int MIN_SHEET_WIDTH = 120;
     private static final int MIN_SHEET_HEIGHT = 220;
-    private static final int FLOOR_DEPTH_X = 150;
-    private static final int FLOOR_DEPTH_Y = 90;
     private static final int SHEET_TITLE_HEIGHT = 18;
     private static final int LABEL_BAND_HEIGHT = 74;
     private static final int CONTENT_PADDING_X = 20;
@@ -148,7 +146,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
         int layerCount = importedTrees.size();
         int availableWidth = Math.max(1, viewportSize.width - (HORIZONTAL_MARGIN * 2) - (SHEET_GAP * Math.max(0, layerCount - 1)));
-        int availableHeight = Math.max(1, viewportSize.height - (VERTICAL_MARGIN * 2) - FLOOR_DEPTH_Y);
+        int availableHeight = Math.max(1, viewportSize.height - (VERTICAL_MARGIN * 2) - 90);
         int sheetWidth = Math.max(1, availableWidth / Math.max(1, layerCount));
         int shearRise = (int) Math.ceil(Math.abs(SHEAR_Y * sheetWidth));
         int maxHeight = Math.max(1, availableHeight - shearRise);
@@ -205,16 +203,21 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         }
         PreparedLayer first = layers.get(0);
         PreparedLayer last = layers.get(layers.size() - 1);
-        int topLeftX = first.x() - 32;
-        int topLeftY = first.y() + first.sheetHeight() - 4;
-        int topRightX = last.x() + last.sheetWidth() + 40;
-        int topRightY = topLeftY + (int) Math.round(SHEAR_Y * (topRightX - topLeftX));
+        int leftBottomLeftX = first.x();
+        int leftBottomLeftY = first.y() + first.sheetHeight();
+        int rightBottomLeftX = last.x();
+        int rightBottomLeftY = last.y() + last.sheetHeight();
+
+        int rightBottomRightX = last.x() + last.sheetWidth();
+        int rightBottomRightY = last.y() + last.sheetHeight() + (int) Math.round(SHEAR_Y * last.sheetWidth());
+        int leftBottomRightX = first.x() + first.sheetWidth();
+        int leftBottomRightY = first.y() + first.sheetHeight() + (int) Math.round(SHEAR_Y * first.sheetWidth());
 
         Polygon floor = new Polygon(
-                new int[] { topLeftX, topRightX, topRightX + FLOOR_DEPTH_X, topLeftX + FLOOR_DEPTH_X },
-                new int[] { topLeftY, topRightY, topRightY + FLOOR_DEPTH_Y, topLeftY + FLOOR_DEPTH_Y },
+                new int[] { leftBottomLeftX, rightBottomLeftX, rightBottomRightX, leftBottomRightX },
+                new int[] { leftBottomLeftY, rightBottomLeftY, rightBottomRightY, leftBottomRightY },
                 4);
-        graphics2d.setColor(new Color(205, 211, 218, 108));
+        graphics2d.setColor(new Color(205, 211, 218, 88));
         graphics2d.fillPolygon(floor);
     }
 
