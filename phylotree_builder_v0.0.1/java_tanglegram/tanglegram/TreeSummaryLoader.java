@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,40 @@ public final class TreeSummaryLoader {
         }
 
         return new TreeSummaryLoadResult(normalizedTreeSummaryDir, outputRootDir, resolvedTrees, missingMethods, warnings);
+    }
+
+    public static TreeSummaryLoadResult loadRunResult(Path outputRootDir) throws IOException {
+        Path normalizedOutputRootDir = outputRootDir.toAbsolutePath().normalize();
+        if (!Files.isDirectory(normalizedOutputRootDir)) {
+            throw new IOException("Directory does not exist: " + normalizedOutputRootDir);
+        }
+
+        List<String> missingDirectories = new ArrayList<>();
+        for (String directoryName : Arrays.asList(
+                "bayesian_method",
+                "distance_method",
+                "maximum_likelihood",
+                "parsimony_method",
+                "tree_summary")) {
+            if (!Files.isDirectory(normalizedOutputRootDir.resolve(directoryName))) {
+                missingDirectories.add(directoryName);
+            }
+        }
+        if (!missingDirectories.isEmpty()) {
+            throw new IOException("Missing required directories: " + missingDirectories);
+        }
+
+        List<String> missingTrees = new ArrayList<>();
+        for (TreeMethod method : TreeMethod.DISPLAY_ORDER) {
+            if (resolveTree(method, null, normalizedOutputRootDir.resolve("tree_summary"), normalizedOutputRootDir) == null) {
+                missingTrees.add(method.shortLabel());
+            }
+        }
+        if (!missingTrees.isEmpty()) {
+            throw new IOException("Missing required tree files for: " + missingTrees);
+        }
+
+        return load(normalizedOutputRootDir.resolve("tree_summary"));
     }
 
     private static Map<TreeMethod, String> readMetadata(Path metadataFile) throws IOException {

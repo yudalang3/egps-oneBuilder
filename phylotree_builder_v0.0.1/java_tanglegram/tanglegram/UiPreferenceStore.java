@@ -2,6 +2,7 @@ package tanglegram;
 
 import java.awt.Dimension;
 import java.awt.Font;
+import java.nio.file.Path;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 import javax.swing.UIManager;
@@ -14,6 +15,9 @@ public final class UiPreferenceStore {
     private static final String KEY_WINDOW_PREFIX = "window.";
     private static final String KEY_WIDTH_SUFFIX = ".width";
     private static final String KEY_HEIGHT_SUFFIX = ".height";
+    private static final String KEY_RECENT_RUNNING_RESULT_DIR = "recent.runningResultDir";
+    private static final String KEY_RECENT_CONFIG_FILE = "recent.configFile";
+    private static final String KEY_RECENT_TREE_FILE_DIR = "recent.treeFileDir";
 
     private static Preferences preferencesNode = Preferences.userNodeForPackage(UiPreferenceStore.class).node("ui");
     private static String defaultFontFamily;
@@ -78,6 +82,30 @@ public final class UiPreferenceStore {
         flushQuietly();
     }
 
+    public static Path loadRecentRunningResultDir() {
+        return loadPath(KEY_RECENT_RUNNING_RESULT_DIR);
+    }
+
+    public static void saveRecentRunningResultDir(Path path) {
+        savePath(KEY_RECENT_RUNNING_RESULT_DIR, path);
+    }
+
+    public static Path loadRecentConfigFile() {
+        return loadPath(KEY_RECENT_CONFIG_FILE);
+    }
+
+    public static void saveRecentConfigFile(Path path) {
+        savePath(KEY_RECENT_CONFIG_FILE, path);
+    }
+
+    public static Path loadRecentTreeFileDir() {
+        return loadPath(KEY_RECENT_TREE_FILE_DIR);
+    }
+
+    public static void saveRecentTreeFileDir(Path path) {
+        savePath(KEY_RECENT_TREE_FILE_DIR, path);
+    }
+
     public static void useTestNode(String nodePath) {
         preferencesNode = Preferences.userRoot().node(nodePath);
     }
@@ -101,6 +129,27 @@ public final class UiPreferenceStore {
 
     private static String windowPreferenceKey(String windowKey) {
         return KEY_WINDOW_PREFIX + windowKey;
+    }
+
+    private static Path loadPath(String key) {
+        String value = preferencesNode.get(key, null);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Path.of(value).toAbsolutePath().normalize();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static void savePath(String key, Path path) {
+        if (path == null) {
+            preferencesNode.remove(key);
+        } else {
+            preferencesNode.put(key, path.toAbsolutePath().normalize().toString());
+        }
+        flushQuietly();
     }
 
     private static void flushQuietly() {
