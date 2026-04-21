@@ -149,6 +149,7 @@ final class WorkbenchStyles {
         }
         if ("Idle".equalsIgnoreCase(safeText)
                 || "Queued".equalsIgnoreCase(safeText)
+                || "Skipped".equalsIgnoreCase(safeText)
                 || "Reserved".equalsIgnoreCase(safeText)
                 || "N/A".equalsIgnoreCase(safeText)) {
             return new Color(241, 244, 248);
@@ -172,6 +173,7 @@ final class WorkbenchStyles {
         }
         if ("Idle".equalsIgnoreCase(safeText)
                 || "Queued".equalsIgnoreCase(safeText)
+                || "Skipped".equalsIgnoreCase(safeText)
                 || "Reserved".equalsIgnoreCase(safeText)
                 || "N/A".equalsIgnoreCase(safeText)) {
             return TEXT_SECONDARY;

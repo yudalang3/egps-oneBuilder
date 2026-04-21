@@ -481,6 +481,13 @@ public final class OneBuilderStandaloneTest {
                 MethodProgressEvent.running(TreeMethodKey.BAYESIAN),
                 interpreter.interpret(InputType.DNA_CDS, "2026-04-12 - INFO - 开始贝叶斯法建树..."),
                 "unexpected dna running event");
+        assertEquals(
+                MethodProgressEvent.skipped(TreeMethodKey.PARSIMONY),
+                interpreter.interpret(InputType.PROTEIN, "====Parsimony method skipped by runtime config===="),
+                "unexpected skipped event");
+        assertNull(
+                interpreter.interpret(InputType.PROTEIN, "2026-04-12 INFO nothing to map"),
+                "unexpected event for unrelated log output");
     }
 
     private static void run(String name, ThrowingRunnable test) throws Exception {
@@ -494,8 +501,14 @@ public final class OneBuilderStandaloneTest {
     }
 
     private static void assertEquals(Object expected, Object actual, String message) {
-        if (!expected.equals(actual)) {
+        if (expected == null ? actual != null : !expected.equals(actual)) {
             throw new AssertionError(message + " expected=[" + expected + "] actual=[" + actual + "]");
+        }
+    }
+
+    private static void assertNull(Object value, String message) {
+        if (value != null) {
+            throw new AssertionError(message + " expected null but was [" + value + "]");
         }
     }
 
