@@ -9,6 +9,8 @@ from pathlib import Path
 PROTEIN_DEFAULTS = {
     "distance": {
         "enabled": True,
+        "neighbor_method": "NJ",
+        "neighbor_outgroup_index": None,
         "protdist_menu_overrides": [],
         "neighbor_menu_overrides": [],
     },
@@ -52,6 +54,7 @@ PROTEIN_DEFAULTS = {
     },
     "parsimony": {
         "enabled": True,
+        "protpars_outgroup_index": None,
         "protpars_menu_overrides": [],
     },
 }
@@ -60,6 +63,11 @@ PROTEIN_DEFAULTS = {
 DNA_DEFAULTS = {
     "distance": {
         "enabled": True,
+        "dnadist_model": "F84",
+        "dnadist_transition_transversion_ratio": 2.0,
+        "dnadist_empirical_base_frequencies": True,
+        "neighbor_method": "NJ",
+        "neighbor_outgroup_index": None,
         "dnadist_menu_overrides": [],
         "neighbor_menu_overrides": [],
     },
@@ -103,6 +111,8 @@ DNA_DEFAULTS = {
     },
     "parsimony": {
         "enabled": True,
+        "dnapars_outgroup_index": None,
+        "dnapars_transversion_parsimony": False,
         "dnapars_menu_overrides": [],
     },
 }
@@ -161,6 +171,9 @@ def _merge_maximum_likelihood(target, overrides):
     _merge_scalar_overrides(target, overrides, skip_keys={"iqtree"})
     iqtree = overrides.get("iqtree")
     if not isinstance(iqtree, dict):
+        target["model_strategy"] = _normalize_tree_build_model_strategy(
+            target.get("model_strategy")
+        )
         return
 
     _merge_scalar_overrides(target, iqtree, skip_keys={"common", "advanced", "extra_args"})
@@ -168,6 +181,9 @@ def _merge_maximum_likelihood(target, overrides):
     _merge_section_into_target(target, iqtree.get("advanced"))
     if "extra_args" in iqtree:
         target["extra_args"] = _normalize_string_list(iqtree.get("extra_args"))
+    target["model_strategy"] = _normalize_tree_build_model_strategy(
+        target.get("model_strategy")
+    )
 
 
 def _merge_bayesian(target, overrides):
@@ -201,6 +217,8 @@ def _merge_phylip_program(target, overrides, program_key, target_key):
     if not isinstance(program, dict):
         return
 
+    _merge_section_into_target(target, program.get("common"))
+    _merge_section_into_target(target, program.get("advanced"))
     if "menu_overrides" in program:
         target[target_key] = _normalize_string_list(program.get("menu_overrides"))
 
@@ -232,3 +250,14 @@ def _normalize_string_list(value):
     if isinstance(value, (list, tuple)):
         return [str(item) for item in value if item is not None]
     return [str(value)]
+
+
+def _normalize_tree_build_model_strategy(value):
+    strategy = str(value).strip() if value is not None else ""
+    if not strategy:
+        return "MFP"
+    if strategy in {"MF", "TESTNEWONLY", "TESTNEW"}:
+        return "MFP"
+    if strategy == "TESTONLY":
+        return "TEST"
+    return strategy

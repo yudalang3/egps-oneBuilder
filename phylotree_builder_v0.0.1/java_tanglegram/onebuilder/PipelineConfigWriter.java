@@ -33,16 +33,18 @@ public final class PipelineConfigWriter {
     }
 
     private static JSONObject buildAlignmentSection(RunRequest request) {
+        JSONObject common = new JSONObject()
+                .put("strategy", request.alignOptions().strategy())
+                .put("maxiterate", request.alignOptions().maxiterate())
+                .put("reorder", request.alignOptions().reorder());
+        putIfPresent(common, "threads", request.alignOptions().threads());
         return new JSONObject()
                 .put("run_alignment_first", request.runAlignmentFirst())
                 .put("strategy", request.alignOptions().strategy())
                 .put("maxiterate", request.alignOptions().maxiterate())
                 .put("reorder", request.alignOptions().reorder())
                 .put("mafft", new JSONObject()
-                        .put("common", new JSONObject()
-                                .put("strategy", request.alignOptions().strategy())
-                                .put("maxiterate", request.alignOptions().maxiterate())
-                                .put("reorder", request.alignOptions().reorder()))
+                        .put("common", common)
                         .put("advanced", new JSONObject())
                         .put("extra_args", new JSONArray(request.alignOptions().extraArgs())));
     }
@@ -50,11 +52,20 @@ public final class PipelineConfigWriter {
     private static JSONObject buildDistanceSection(PipelineRuntimeConfig config) {
         JSONObject section = new JSONObject().put("enabled", config.distance().enabled());
         if (config.inputType() == InputType.PROTEIN) {
-            section.put("protdist", phylipProgramSection(config.distance().protdistMenuOverrides()));
+            section.put("protdist", phylipProgramSection(
+                    new JSONObject(),
+                    config.distance().protdistMenuOverrides()));
         } else {
-            section.put("dnadist", phylipProgramSection(config.distance().dnadistMenuOverrides()));
+            JSONObject common = new JSONObject()
+                    .put("dnadist_model", config.distance().dnadistModel())
+                    .put("dnadist_transition_transversion_ratio", config.distance().dnadistTransitionTransversionRatio())
+                    .put("dnadist_empirical_base_frequencies", config.distance().dnadistEmpiricalBaseFrequencies());
+            section.put("dnadist", phylipProgramSection(common, config.distance().dnadistMenuOverrides()));
         }
-        section.put("neighbor", phylipProgramSection(config.distance().neighborMenuOverrides()));
+        JSONObject neighborCommon = new JSONObject()
+                .put("neighbor_method", config.distance().neighborMethod());
+        putIfPresent(neighborCommon, "neighbor_outgroup_index", config.distance().neighborOutgroupIndex());
+        section.put("neighbor", phylipProgramSection(neighborCommon, config.distance().neighborMenuOverrides()));
         return section;
     }
 
@@ -105,7 +116,9 @@ public final class PipelineConfigWriter {
         putIfPresent(advanced, "nchains", config.bayesian().nchains());
         putIfPresent(advanced, "temp", config.bayesian().temp());
         putIfPresent(advanced, "stoprule", config.bayesian().stoprule());
-        putIfPresent(advanced, "stopval", config.bayesian().stopval());
+        if (Boolean.TRUE.equals(config.bayesian().stoprule())) {
+            putIfPresent(advanced, "stopval", config.bayesian().stopval());
+        }
         putIfPresent(advanced, "burnin", config.bayesian().burnin());
         putIfPresent(advanced, "burninfrac", config.bayesian().burninfrac());
         putIfPresent(advanced, "relburnin", config.bayesian().relburnin());
@@ -120,16 +133,21 @@ public final class PipelineConfigWriter {
     private static JSONObject buildParsimonySection(PipelineRuntimeConfig config) {
         JSONObject section = new JSONObject().put("enabled", config.parsimony().enabled());
         if (config.inputType() == InputType.PROTEIN) {
-            section.put("protpars", phylipProgramSection(config.parsimony().protparsMenuOverrides()));
+            JSONObject common = new JSONObject();
+            putIfPresent(common, "protpars_outgroup_index", config.parsimony().protparsOutgroupIndex());
+            section.put("protpars", phylipProgramSection(common, config.parsimony().protparsMenuOverrides()));
         } else {
-            section.put("dnapars", phylipProgramSection(config.parsimony().dnaparsMenuOverrides()));
+            JSONObject common = new JSONObject()
+                    .put("dnapars_transversion_parsimony", config.parsimony().dnaparsTransversionParsimony());
+            putIfPresent(common, "dnapars_outgroup_index", config.parsimony().dnaparsOutgroupIndex());
+            section.put("dnapars", phylipProgramSection(common, config.parsimony().dnaparsMenuOverrides()));
         }
         return section;
     }
 
-    private static JSONObject phylipProgramSection(java.util.List<String> menuOverrides) {
+    private static JSONObject phylipProgramSection(JSONObject common, java.util.List<String> menuOverrides) {
         return new JSONObject()
-                .put("common", new JSONObject())
+                .put("common", common == null ? new JSONObject() : common)
                 .put("advanced", new JSONObject())
                 .put("menu_overrides", new JSONArray(menuOverrides));
     }

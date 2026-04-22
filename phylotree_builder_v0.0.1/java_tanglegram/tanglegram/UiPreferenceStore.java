@@ -2,9 +2,12 @@ package tanglegram;
 
 import java.awt.Dimension;
 import java.awt.Font;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.Writer;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.prefs.BackingStoreException;
-import java.util.prefs.Preferences;
+import java.util.Properties;
 import javax.swing.UIManager;
 
 public final class UiPreferenceStore {
@@ -21,8 +24,9 @@ public final class UiPreferenceStore {
     private static final String KEY_RECENT_TREE_FILE_DIR = "recent.treeFileDir";
     private static final String KEY_RECENT_ONEBUILDER_INPUT_DIR = "recent.onebuilder.inputDir";
     private static final String KEY_RECENT_ONEBUILDER_OUTPUT_DIR = "recent.onebuilder.outputDir";
+    private static final Object STORE_LOCK = new Object();
 
-    private static Preferences preferencesNode = Preferences.userNodeForPackage(UiPreferenceStore.class).node("ui");
+    private static Path propertiesFile = defaultPropertiesPath();
     private static String defaultFontFamily;
     private static Integer defaultFontSize;
 
@@ -47,22 +51,24 @@ public final class UiPreferenceStore {
     }
 
     public static UiPreferences load() {
+        Properties properties = loadProperties();
         UiPreferences defaults = defaultPreferences();
         return new UiPreferences(
-                preferencesNode.get(KEY_FONT_FAMILY, defaults.uiFontFamily()),
-                preferencesNode.getInt(KEY_FONT_SIZE, defaults.uiFontSize()),
-                preferencesNode.getBoolean(KEY_RESTORE_WINDOW_SIZE, defaults.restoreLastWindowSize()),
-                preferencesNode.getInt(KEY_TANGLEGRAM_LABEL_FONT_SIZE, defaults.defaultTanglegramLabelFontSize()),
-                preferencesNode.getBoolean(KEY_SHOW_WINDOWS_ONEBUILDER_WARNING, defaults.showWindowsOneBuilderWarning()));
+                properties.getProperty(KEY_FONT_FAMILY, defaults.uiFontFamily()),
+                parseInt(properties, KEY_FONT_SIZE, defaults.uiFontSize()),
+                parseBoolean(properties, KEY_RESTORE_WINDOW_SIZE, defaults.restoreLastWindowSize()),
+                parseInt(properties, KEY_TANGLEGRAM_LABEL_FONT_SIZE, defaults.defaultTanglegramLabelFontSize()),
+                parseBoolean(properties, KEY_SHOW_WINDOWS_ONEBUILDER_WARNING, defaults.showWindowsOneBuilderWarning()));
     }
 
     public static void save(UiPreferences preferences) {
-        preferencesNode.put(KEY_FONT_FAMILY, preferences.uiFontFamily());
-        preferencesNode.putInt(KEY_FONT_SIZE, preferences.uiFontSize());
-        preferencesNode.putBoolean(KEY_RESTORE_WINDOW_SIZE, preferences.restoreLastWindowSize());
-        preferencesNode.putInt(KEY_TANGLEGRAM_LABEL_FONT_SIZE, preferences.defaultTanglegramLabelFontSize());
-        preferencesNode.putBoolean(KEY_SHOW_WINDOWS_ONEBUILDER_WARNING, preferences.showWindowsOneBuilderWarning());
-        flushQuietly();
+        Properties properties = loadProperties();
+        properties.setProperty(KEY_FONT_FAMILY, preferences.uiFontFamily());
+        properties.setProperty(KEY_FONT_SIZE, Integer.toString(preferences.uiFontSize()));
+        properties.setProperty(KEY_RESTORE_WINDOW_SIZE, Boolean.toString(preferences.restoreLastWindowSize()));
+        properties.setProperty(KEY_TANGLEGRAM_LABEL_FONT_SIZE, Integer.toString(preferences.defaultTanglegramLabelFontSize()));
+        properties.setProperty(KEY_SHOW_WINDOWS_ONEBUILDER_WARNING, Boolean.toString(preferences.showWindowsOneBuilderWarning()));
+        saveProperties(properties);
     }
 
     public static Dimension resolveWindowSize(String windowKey, Dimension defaultSize) {
@@ -70,8 +76,9 @@ public final class UiPreferenceStore {
         if (!preferences.restoreLastWindowSize()) {
             return new Dimension(defaultSize);
         }
-        int width = preferencesNode.getInt(windowPreferenceKey(windowKey) + KEY_WIDTH_SUFFIX, -1);
-        int height = preferencesNode.getInt(windowPreferenceKey(windowKey) + KEY_HEIGHT_SUFFIX, -1);
+        Properties properties = loadProperties();
+        int width = parseInt(properties, windowPreferenceKey(windowKey) + KEY_WIDTH_SUFFIX, -1);
+        int height = parseInt(properties, windowPreferenceKey(windowKey) + KEY_HEIGHT_SUFFIX, -1);
         if (width > 0 && height > 0) {
             return new Dimension(width, height);
         }
@@ -82,9 +89,10 @@ public final class UiPreferenceStore {
         if (size == null || size.width <= 0 || size.height <= 0) {
             return;
         }
-        preferencesNode.putInt(windowPreferenceKey(windowKey) + KEY_WIDTH_SUFFIX, size.width);
-        preferencesNode.putInt(windowPreferenceKey(windowKey) + KEY_HEIGHT_SUFFIX, size.height);
-        flushQuietly();
+        Properties properties = loadProperties();
+        properties.setProperty(windowPreferenceKey(windowKey) + KEY_WIDTH_SUFFIX, Integer.toString(size.width));
+        properties.setProperty(windowPreferenceKey(windowKey) + KEY_HEIGHT_SUFFIX, Integer.toString(size.height));
+        saveProperties(properties);
     }
 
     public static Path loadRecentRunningResultDir() {
@@ -128,21 +136,19 @@ public final class UiPreferenceStore {
     }
 
     public static void useTestNode(String nodePath) {
-        preferencesNode = Preferences.userRoot().node(nodePath);
+        propertiesFile = testPropertiesPath(nodePath);
     }
 
     public static void resetNodeForTests() {
-        preferencesNode = Preferences.userNodeForPackage(UiPreferenceStore.class).node("ui");
+        propertiesFile = defaultPropertiesPath();
     }
 
     public static void clearNodeForTests() {
-        try {
-            preferencesNode.clear();
-            for (String childName : preferencesNode.childrenNames()) {
-                preferencesNode.node(childName).removeNode();
+        synchronized (STORE_LOCK) {
+            try {
+                Files.deleteIfExists(propertiesFile);
+            } catch (IOException ignored) {
             }
-            flushQuietly();
-        } catch (BackingStoreException ignored) {
         }
         defaultFontFamily = null;
         defaultFontSize = null;
@@ -153,7 +159,7 @@ public final class UiPreferenceStore {
     }
 
     private static Path loadPath(String key) {
-        String value = preferencesNode.get(key, null);
+        String value = loadProperties().getProperty(key);
         if (value == null || value.isBlank()) {
             return null;
         }
@@ -165,18 +171,75 @@ public final class UiPreferenceStore {
     }
 
     private static void savePath(String key, Path path) {
+        Properties properties = loadProperties();
         if (path == null) {
-            preferencesNode.remove(key);
+            properties.remove(key);
         } else {
-            preferencesNode.put(key, path.toAbsolutePath().normalize().toString());
+            properties.setProperty(key, path.toAbsolutePath().normalize().toString());
         }
-        flushQuietly();
+        saveProperties(properties);
     }
 
-    private static void flushQuietly() {
-        try {
-            preferencesNode.flush();
-        } catch (BackingStoreException ignored) {
+    private static Properties loadProperties() {
+        synchronized (STORE_LOCK) {
+            Properties properties = new Properties();
+            if (!Files.isRegularFile(propertiesFile)) {
+                return properties;
+            }
+            try (Reader reader = Files.newBufferedReader(propertiesFile)) {
+                properties.load(reader);
+            } catch (IOException ignored) {
+            }
+            return properties;
         }
+    }
+
+    private static void saveProperties(Properties properties) {
+        synchronized (STORE_LOCK) {
+            try {
+                Path parent = propertiesFile.getParent();
+                if (parent != null) {
+                    Files.createDirectories(parent);
+                }
+                try (Writer writer = Files.newBufferedWriter(propertiesFile)) {
+                    properties.store(writer, "eGPS oneBuilder UI preferences");
+                }
+            } catch (IOException exception) {
+                throw new IllegalStateException("Failed to save UI preferences to " + propertiesFile, exception);
+            }
+        }
+    }
+
+    private static int parseInt(Properties properties, String key, int defaultValue) {
+        String value = properties.getProperty(key);
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
+        }
+    }
+
+    private static boolean parseBoolean(Properties properties, String key, boolean defaultValue) {
+        String value = properties.getProperty(key);
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        return Boolean.parseBoolean(value.trim());
+    }
+
+    private static Path defaultPropertiesPath() {
+        String userHome = System.getProperty("user.home", ".");
+        return Path.of(userHome, ".egps.onebuilder.prop").toAbsolutePath().normalize();
+    }
+
+    private static Path testPropertiesPath(String nodePath) {
+        String sanitized = nodePath == null || nodePath.isBlank()
+                ? "default"
+                : nodePath.replaceAll("[^A-Za-z0-9._-]+", "_");
+        String tempRoot = System.getProperty("java.io.tmpdir", System.getProperty("user.home", "."));
+        return Path.of(tempRoot, "egps-onebuilder-tests", sanitized + ".prop").toAbsolutePath().normalize();
     }
 }

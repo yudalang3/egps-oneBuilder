@@ -78,8 +78,9 @@ JSON 设计分两档：
 
 | 软件 | JSON 路径 | 官方参数 / 命令 | 适用范围 | 当前状态 | 说明 |
 | --- | --- | --- | --- | --- | --- |
-| MAFFT | `alignment.mafft.common.strategy` | `--auto` / `--localpair` / `--globalpair` | Both | 已支持 | 当前 GUI 已暴露 |
+| MAFFT | `alignment.mafft.common.strategy` | `--auto` / `--localpair` / `--genafpair` / `--globalpair` | Both | 已支持 | 当前 GUI 已暴露 |
 | MAFFT | `alignment.mafft.common.maxiterate` | `--maxiterate` | Both | 已支持 | 当前 GUI 已暴露 |
+| MAFFT | `alignment.mafft.common.threads` | `--thread` | Both | 已支持 | 当前 GUI 已暴露 |
 | MAFFT | `alignment.mafft.common.reorder` | `--reorder` | Both | 已支持 | `false` 时相当于不加 `--reorder` |
 | Distance | `methods.distance.enabled` | 方法开关 | Both | 已支持 | 仅控制是否运行 |
 | IQ-TREE | `methods.maximum_likelihood.enabled` | 方法开关 | Both | 已支持 | 仅控制是否运行 |
@@ -109,7 +110,7 @@ JSON 设计分两档：
 | IQ-TREE | `methods.maximum_likelihood.iqtree.advanced.seed` | `-seed` | Both | 已支持 | 随机种子 |
 | IQ-TREE | `methods.maximum_likelihood.iqtree.advanced.safe` | `-safe` | Both | 已支持 | 安全模式 |
 | IQ-TREE | `methods.maximum_likelihood.iqtree.advanced.keep_ident` | `-keep-ident` | Both | 已支持 | 保留重复序列 |
-| IQ-TREE | `methods.maximum_likelihood.iqtree.advanced.quiet` | `--quiet` | Both | 已支持 | 默认为 `true` |
+| IQ-TREE | `methods.maximum_likelihood.iqtree.advanced.quiet` | `-quiet` | Both | 已支持 | 默认为 `true` |
 | IQ-TREE | `methods.maximum_likelihood.iqtree.advanced.verbose` | `-v` | Both | 已支持 | 仅在 `quiet=false` 时才有意义 |
 | IQ-TREE | `methods.maximum_likelihood.iqtree.advanced.redo` | `-redo` | Both | 已支持 | 默认为 `true` |
 | IQ-TREE | `methods.maximum_likelihood.iqtree.advanced.memory_limit` | `-mem` | Both | 已支持 | 例如 `8G` |
@@ -138,15 +139,14 @@ JSON 设计分两档：
 
 | JSON 路径 | 官方参数 | 档位 | 说明 |
 | --- | --- | --- | --- |
-| `alignment.mafft.common.strategy` | `--auto` / `--localpair` / `--globalpair` | 常用 | 目前 GUI 提供三档 |
+| `alignment.mafft.common.strategy` | `--auto` / `--localpair` / `--genafpair` / `--globalpair` | 常用 | 当前 GUI 已给出常用预设 |
 | `alignment.mafft.common.maxiterate` | `--maxiterate` | 常用 | 迭代次数 |
+| `alignment.mafft.common.threads` | `--thread` | 常用 | 并行线程数，`0`/空值表示用 MAFFT 默认 |
 | `alignment.mafft.common.reorder` | `--reorder` | 常用 | 是否允许重排序 |
 
 建议归入高级档但不逐个结构化的官方参数，当前统一走 `alignment.mafft.extra_args[]`：
 
-- `--thread`
 - `--retree`
-- `--genafpair`
 - `--ep`
 - `--op`
 - `--lexp`
@@ -196,7 +196,7 @@ JSON 设计分两档：
 | `...iqtree.advanced.seed` | `-seed` | 高级 | 随机种子 |
 | `...iqtree.advanced.safe` | `-safe` | 高级 | 安全模式 |
 | `...iqtree.advanced.keep_ident` | `-keep-ident` | 高级 | 保留相同序列 |
-| `...iqtree.advanced.quiet` | `--quiet` | 高级 | 静默输出 |
+| `...iqtree.advanced.quiet` | `-quiet` | 高级 | 静默输出 |
 | `...iqtree.advanced.verbose` | `-v` | 高级 | 详细输出 |
 | `...iqtree.advanced.redo` | `-redo` | 高级 | 重跑现有前缀 |
 | `...iqtree.advanced.memory_limit` | `-mem` | 高级 | 内存上限 |
@@ -241,6 +241,12 @@ JSON 设计分两档：
 - 这时你应该自己写完整的分析命令。
 - 适合需要 `charset`、`partition`、`unlink`、`prset`、更复杂 `mcmcp` 或者自定义 `sumt/sump` 行为的情况。
 
+当前 GUI 已做的收紧：
+
+- `stoprule=false` 时不会导出 `stopval`
+- `relburnin` 只有在 `burninfrac > 0` 时才会保留
+- `protein_model_prior` 现在是可编辑下拉框，带常见建议值，但仍允许手动输入
+
 ### 5. PHYLIP 简约法
 
 当前策略与距离法一致：
@@ -268,7 +274,7 @@ JSON 设计分两档：
 
 ### Protein
 
-- MAFFT: `strategy=localpair`, `maxiterate=1000`, `reorder=true`
+- MAFFT: `strategy=localpair`, `maxiterate=1000`, `threads=null`, `reorder=true`
 - IQ-TREE: `bootstrap_replicates=1000`, `model_strategy=MFP`
 - IQ-TREE `model_set`: `WAG,LG,JTT,Dayhoff,DCMut,rtREV,cpREV,VT,Blosum62,mtMam,mtArt,HIVb,HIVw`
 - MrBayes: `protein_model_prior=mixed`, `rates=invgamma`, `ngen=50000`, `samplefreq=100`, `printfreq=1000`, `diagnfreq=5000`
@@ -277,7 +283,7 @@ JSON 设计分两档：
 
 ### DNA/CDS
 
-- MAFFT: `strategy=localpair`, `maxiterate=1000`, `reorder=true`
+- MAFFT: `strategy=localpair`, `maxiterate=1000`, `threads=null`, `reorder=true`
 - IQ-TREE: `bootstrap_replicates=1000`, `model_strategy=MFP`
 - MrBayes: `nst=6`, `rates=invgamma`, `ngen=10000`, `samplefreq=100`, `printfreq=100`, `diagnfreq=1000`
 - PHYLIP distance: 默认菜单 `Y`

@@ -4,6 +4,9 @@ import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import javax.swing.BorderFactory;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -16,6 +19,9 @@ import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
 
 final class MaximumLikelihoodPanel extends JPanel {
+    private static final List<String> PROTEIN_MODEL_STRATEGIES = List.of("MFP", "TEST", "LG", "WAG", "JTT");
+    private static final List<String> DNA_MODEL_STRATEGIES = List.of("MFP", "TEST", "GTR", "HKY", "JC");
+
     private final JCheckBox enabledCheckBox;
     private final JSpinner bootstrapSpinner;
     private final JComboBox<String> modelStrategyCombo;
@@ -32,6 +38,7 @@ final class MaximumLikelihoodPanel extends JPanel {
     private final JTextField memoryLimitField;
     private final JTextField outgroupField;
     private final JComboBox<String> sequenceTypeCombo;
+    private final JCheckBox alrtCheckBox;
     private final JSpinner alrtSpinner;
     private final JCheckBox abayesCheckBox;
     private final JTextArea extraArgsArea;
@@ -51,7 +58,7 @@ final class MaximumLikelihoodPanel extends JPanel {
         add(header, BorderLayout.NORTH);
 
         bootstrapSpinner = new JSpinner(new SpinnerNumberModel(1000, 0, 1000000, 100));
-        modelStrategyCombo = new JComboBox<>(new String[] {"MFP", "MF", "TESTONLY", "LG", "GTR"});
+        modelStrategyCombo = new JComboBox<>();
         modelSetField = new JTextField();
         modelSetLabel = new JLabel("Model set");
         threadsField = new JTextField();
@@ -59,12 +66,13 @@ final class MaximumLikelihoodPanel extends JPanel {
         seedSpinner = new JSpinner(new SpinnerNumberModel(0, 0, Integer.MAX_VALUE, 1));
         safeCheckBox = new JCheckBox("Use -safe");
         keepIdentCheckBox = new JCheckBox("Use -keep-ident");
-        quietCheckBox = new JCheckBox("Use --quiet", true);
+        quietCheckBox = new JCheckBox("Use -quiet", true);
         verboseCheckBox = new JCheckBox("Use -v");
         redoCheckBox = new JCheckBox("Use -redo", true);
         memoryLimitField = new JTextField();
         outgroupField = new JTextField();
         sequenceTypeCombo = new JComboBox<>(new String[] {"", "AA", "DNA", "CODON", "NT2AA", "BIN", "MORPH"});
+        alrtCheckBox = new JCheckBox("Enable -alrt");
         alrtSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 1000000, 100));
         abayesCheckBox = new JCheckBox("Use -abayes");
         extraArgsArea = new JTextArea(5, 28);
@@ -85,7 +93,7 @@ final class MaximumLikelihoodPanel extends JPanel {
         addRow(advancedForm, advancedConstraints, 3, "Memory limit (-mem)", memoryLimitField);
         addRow(advancedForm, advancedConstraints, 4, "Outgroup (-o)", outgroupField);
         addRow(advancedForm, advancedConstraints, 5, "Sequence type (-st)", sequenceTypeCombo);
-        addRow(advancedForm, advancedConstraints, 6, "SH-aLRT (-alrt)", alrtSpinner);
+        addRow(advancedForm, advancedConstraints, 6, alrtCheckBox, alrtSpinner);
 
         advancedConstraints.gridx = 0;
         advancedConstraints.gridy = 7;
@@ -129,10 +137,14 @@ final class MaximumLikelihoodPanel extends JPanel {
         centerPanel.add(commonForm, BorderLayout.NORTH);
         centerPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), BorderLayout.CENTER);
         centerPanel.add(
-                WorkbenchStyles.createNoteArea("Common ML settings cover the usual IQ-TREE workflow. Protein mode can restrict the candidate model set; DNA/CDS keeps this field disabled."),
+                WorkbenchStyles.createNoteArea("Common ML settings cover the usual IQ-TREE workflow. The model set field stays available for MFP and TEST, and is disabled for fixed-model runs."),
                 BorderLayout.SOUTH);
         add(centerPanel, BorderLayout.CENTER);
         WorkbenchStyles.applyPanelTreeBackground(this);
+        modelStrategyCombo.addActionListener(event -> updateModelSetControls());
+        alrtCheckBox.addActionListener(event -> updateAlrtControls());
+        setInputType(InputType.PROTEIN);
+        updateAlrtControls();
     }
 
     void apply(MaximumLikelihoodConfig config, InputType inputType) {
@@ -155,6 +167,8 @@ final class MaximumLikelihoodPanel extends JPanel {
         abayesCheckBox.setSelected(config.abayes());
         extraArgsArea.setText(TextListCodec.joinLines(config.extraArgs()));
         setInputType(inputType);
+        alrtCheckBox.setSelected(config.alrt() != null);
+        updateAlrtControls();
     }
 
     MaximumLikelihoodConfig toConfig() {
@@ -174,15 +188,68 @@ final class MaximumLikelihoodPanel extends JPanel {
                 blankToNull(memoryLimitField.getText()),
                 blankToNull(outgroupField.getText()),
                 blankToNull(String.valueOf(sequenceTypeCombo.getSelectedItem())),
-                integerOrNull((Integer) alrtSpinner.getValue()),
+                alrtCheckBox.isSelected() ? Integer.valueOf(((Integer) alrtSpinner.getValue()).intValue()) : null,
                 abayesCheckBox.isSelected(),
                 TextListCodec.splitLines(extraArgsArea.getText()));
     }
 
     void setInputType(InputType inputType) {
-        boolean protein = inputType == InputType.PROTEIN;
-        modelSetField.setEnabled(protein);
-        modelSetLabel.setEnabled(protein);
+        String currentStrategy = String.valueOf(modelStrategyCombo.getSelectedItem());
+        List<String> strategies = inputType == InputType.PROTEIN ? PROTEIN_MODEL_STRATEGIES : DNA_MODEL_STRATEGIES;
+        repopulateModelStrategies(strategies, currentStrategy);
+        updateModelSetControls();
+    }
+
+    List<String> modelStrategyOptionsForTest() {
+        List<String> options = new ArrayList<>();
+        for (int index = 0; index < modelStrategyCombo.getItemCount(); index++) {
+            options.add(String.valueOf(modelStrategyCombo.getItemAt(index)));
+        }
+        return options;
+    }
+
+    boolean isModelSetEnabledForTest() {
+        return modelSetField.isEnabled();
+    }
+
+    void setModelStrategyForTest(String strategy) {
+        modelStrategyCombo.setSelectedItem(strategy);
+    }
+
+    private void repopulateModelStrategies(List<String> strategies, String currentStrategy) {
+        modelStrategyCombo.removeAllItems();
+        for (String strategy : strategies) {
+            modelStrategyCombo.addItem(strategy);
+        }
+        String normalizedSelection = normalizeStrategy(strategies, currentStrategy);
+        modelStrategyCombo.setSelectedItem(normalizedSelection);
+    }
+
+    private void updateAlrtControls() {
+        alrtSpinner.setEnabled(alrtCheckBox.isSelected());
+    }
+
+    private void updateModelSetControls() {
+        String strategy = String.valueOf(modelStrategyCombo.getSelectedItem());
+        boolean enableModelSet = Arrays.asList("MFP", "TEST").contains(strategy);
+        modelSetField.setEnabled(enableModelSet);
+        modelSetLabel.setEnabled(enableModelSet);
+        if (!enableModelSet) {
+            modelSetField.setText("");
+        }
+    }
+
+    private static String normalizeStrategy(List<String> allowedStrategies, String strategy) {
+        if (strategy == null || strategy.isBlank()) {
+            return allowedStrategies.get(0);
+        }
+        String trimmed = strategy.trim();
+        if ("MF".equals(trimmed) || "TESTNEWONLY".equals(trimmed) || "TESTNEW".equals(trimmed)) {
+            trimmed = "MFP";
+        } else if ("TESTONLY".equals(trimmed)) {
+            trimmed = "TEST";
+        }
+        return allowedStrategies.contains(trimmed) ? trimmed : allowedStrategies.get(0);
     }
 
     private static GridBagConstraints baseConstraints() {
@@ -198,6 +265,10 @@ final class MaximumLikelihoodPanel extends JPanel {
     }
 
     private static void addRow(JPanel panel, GridBagConstraints constraints, int row, JLabel label, java.awt.Component component) {
+        addRow(panel, constraints, row, (java.awt.Component) label, component);
+    }
+
+    private static void addRow(JPanel panel, GridBagConstraints constraints, int row, java.awt.Component label, java.awt.Component component) {
         constraints.gridx = 0;
         constraints.gridy = row;
         constraints.weightx = 0.0;

@@ -35,6 +35,7 @@ final class InputAlignPanel extends JPanel {
     private final JCheckBox exportConfigCheckBox;
     private final JComboBox<String> alignStrategyCombo;
     private final JSpinner maxiterateSpinner;
+    private final JSpinner alignThreadsSpinner;
     private final JCheckBox reorderCheckBox;
     private final JTextArea alignExtraArgsArea;
     private final JLabel alignedPreviewValue;
@@ -77,8 +78,9 @@ final class InputAlignPanel extends JPanel {
         runAlignmentCheckBox.setToolTipText(
                 "Enable this when your input file contains raw sequences that still need MAFFT alignment before tree building. Leave it off when the file is already an aligned MSA.");
         exportConfigCheckBox = new JCheckBox("Export config file when running", true);
-        alignStrategyCombo = new JComboBox<>(new String[] {"localpair", "auto", "globalpair"});
+        alignStrategyCombo = new JComboBox<>(new String[] {"localpair", "genafpair", "auto", "globalpair"});
         maxiterateSpinner = new JSpinner(new SpinnerNumberModel(1000, 0, 1000000, 100));
+        alignThreadsSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 512, 1));
         reorderCheckBox = new JCheckBox("Reorder sequences", true);
         alignExtraArgsArea = new JTextArea(5, 28);
         alignExtraArgsArea.setEditable(true);
@@ -160,6 +162,14 @@ final class InputAlignPanel extends JPanel {
         constraints.gridx = 0;
         constraints.gridy = 7;
         constraints.weightx = 0.0;
+        formPanel.add(new JLabel("MAFFT threads"), constraints);
+        constraints.gridx = 1;
+        constraints.weightx = 1.0;
+        formPanel.add(alignThreadsSpinner, constraints);
+
+        constraints.gridx = 0;
+        constraints.gridy = 8;
+        constraints.weightx = 0.0;
         formPanel.add(new JLabel("Alignment flags"), constraints);
         constraints.gridx = 1;
         constraints.gridwidth = 2;
@@ -168,7 +178,7 @@ final class InputAlignPanel extends JPanel {
         constraints.gridwidth = 1;
 
         constraints.gridx = 0;
-        constraints.gridy = 8;
+        constraints.gridy = 9;
         constraints.anchor = GridBagConstraints.NORTHWEST;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Advanced MAFFT"), constraints);
@@ -180,7 +190,7 @@ final class InputAlignPanel extends JPanel {
         constraints.anchor = GridBagConstraints.WEST;
 
         constraints.gridx = 0;
-        constraints.gridy = 9;
+        constraints.gridy = 10;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Config export"), constraints);
         constraints.gridx = 1;
@@ -190,7 +200,7 @@ final class InputAlignPanel extends JPanel {
         constraints.gridwidth = 1;
 
         constraints.gridx = 0;
-        constraints.gridy = 10;
+        constraints.gridy = 11;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Expected aligned file"), constraints);
         constraints.gridx = 1;
@@ -231,6 +241,7 @@ final class InputAlignPanel extends JPanel {
         runAlignmentCheckBox.addActionListener(event -> notifyInputChanged());
         alignStrategyCombo.addActionListener(event -> notifyInputChanged());
         maxiterateSpinner.addChangeListener(event -> notifyInputChanged());
+        alignThreadsSpinner.addChangeListener(event -> notifyInputChanged());
         reorderCheckBox.addActionListener(event -> notifyInputChanged());
         alignExtraArgsArea.getDocument().addDocumentListener(documentListener);
         exportConfigCheckBox.addActionListener(event -> notifyInputChanged());
@@ -304,6 +315,7 @@ final class InputAlignPanel extends JPanel {
                 .append(runAlignmentCheckBox.isSelected() ? "Yes" : "No, use the input file as an existing alignment"
                 )
                 .append(System.lineSeparator());
+        builder.append("MAFFT threads: ").append(integerTextOrAuto((Integer) alignThreadsSpinner.getValue())).append(System.lineSeparator());
         builder.append("Expected aligned file: ").append(textOrDash(alignedPreviewValue.getText())).append(System.lineSeparator());
         builder.append("Keep config file when running: ").append(exportConfigCheckBox.isSelected() ? "Yes" : "No").append(System.lineSeparator());
         builder.append(System.lineSeparator()).append("Method tree").append(System.lineSeparator());
@@ -327,6 +339,7 @@ final class InputAlignPanel extends JPanel {
         exportConfigCheckBox.setEnabled(!running);
         alignStrategyCombo.setEnabled(!running && runAlignmentCheckBox.isSelected());
         maxiterateSpinner.setEnabled(!running && runAlignmentCheckBox.isSelected());
+        alignThreadsSpinner.setEnabled(!running && runAlignmentCheckBox.isSelected());
         reorderCheckBox.setEnabled(!running && runAlignmentCheckBox.isSelected());
         alignExtraArgsArea.setEnabled(!running);
         alignExtraArgsArea.setEditable(!running);
@@ -418,6 +431,7 @@ final class InputAlignPanel extends JPanel {
                 .alignOptions(new AlignmentOptions(
                         String.valueOf(alignStrategyCombo.getSelectedItem()),
                         ((Integer) maxiterateSpinner.getValue()).intValue(),
+                        integerOrNull((Integer) alignThreadsSpinner.getValue()),
                         reorderCheckBox.isSelected(),
                         TextListCodec.splitLines(alignExtraArgsArea.getText())))
                 .runtimeConfig(runtimeConfigSupplier.get())
@@ -493,6 +507,7 @@ final class InputAlignPanel extends JPanel {
         boolean alignmentEnabled = runAlignmentCheckBox.isSelected();
         alignStrategyCombo.setEnabled(alignmentEnabled && !running);
         maxiterateSpinner.setEnabled(alignmentEnabled && !running);
+        alignThreadsSpinner.setEnabled(alignmentEnabled && !running);
         reorderCheckBox.setEnabled(alignmentEnabled && !running);
         alignExtraArgsArea.setEnabled(!running);
         alignExtraArgsArea.setEditable(!running);
@@ -517,9 +532,17 @@ final class InputAlignPanel extends JPanel {
         return value == null || value.trim().isEmpty() ? "-" : value.trim();
     }
 
+    private static String integerTextOrAuto(Integer value) {
+        return value == null || value.intValue() <= 0 ? "Auto/default" : Integer.toString(value.intValue());
+    }
+
+    private static Integer integerOrNull(Integer value) {
+        return value == null || value.intValue() <= 0 ? null : Integer.valueOf(value.intValue());
+    }
+
     private JPanel buildAdvancedAlignmentPanel() {
         JTextArea note = WorkbenchStyles.createNoteArea(
-                "Advanced MAFFT flags. Use this box only when you need extra MAFFT options beyond the common controls above. Enter one token per line, for example --thread on one line and 8 on the next line. These tokens are appended after the standard MAFFT arguments when the alignment step is enabled. If your input file is already an aligned MSA and the alignment checkbox stays off, these extra MAFFT flags will not be used.");
+                "Advanced MAFFT flags. Use this box only when you need extra MAFFT options beyond the common controls above. The common controls already cover the usual localpair, genafpair, auto, globalpair, and thread-count setup. Enter one token per line here only for less common MAFFT flags. These tokens are appended after the standard MAFFT arguments when the alignment step is enabled. If your input file is already an aligned MSA and the alignment checkbox stays off, these extra MAFFT flags will not be used.");
         JScrollPane extraArgsScrollPane = new JScrollPane(alignExtraArgsArea);
         extraArgsScrollPane.setBorder(BorderFactory.createLineBorder(WorkbenchStyles.ACCENT_BORDER, 1, true));
         extraArgsScrollPane.getViewport().setBackground(WorkbenchStyles.SURFACE_BACKGROUND);

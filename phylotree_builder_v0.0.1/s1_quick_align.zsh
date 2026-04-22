@@ -8,6 +8,7 @@ usage() {
 
 strategy="localpair"
 maxiterate="1000"
+thread_count=""
 reorder_enabled=1
 config_path=""
 strategy_from_cli=0
@@ -89,8 +90,10 @@ extra_args = mafft.get("extra_args", []) if isinstance(mafft, dict) else []
 strategy = common.get("strategy", alignment.get("strategy", "localpair"))
 maxiterate = common.get("maxiterate", alignment.get("maxiterate", 1000))
 reorder = common.get("reorder", alignment.get("reorder", True))
+threads = common.get("threads")
 print(strategy)
 print(maxiterate)
+print("" if threads is None else threads)
 print("1" if reorder else "0")
 for arg in extra_args:
     print(arg)
@@ -103,12 +106,15 @@ for arg in extra_args:
     if [[ "$maxiterate_from_cli" -eq 0 && "${#config_values[@]}" -ge 2 && -n "${config_values[2]}" ]]; then
         maxiterate="${config_values[2]}"
     fi
-    if [[ "$reorder_from_cli" -eq 0 && "${#config_values[@]}" -ge 3 && -n "${config_values[3]}" ]]; then
-        reorder_enabled="${config_values[3]}"
+    if [[ "${#config_values[@]}" -ge 3 && -n "${config_values[3]}" ]]; then
+        thread_count="${config_values[3]}"
     fi
-    if [[ "${#config_values[@]}" -gt 3 ]]; then
+    if [[ "$reorder_from_cli" -eq 0 && "${#config_values[@]}" -ge 4 && -n "${config_values[4]}" ]]; then
+        reorder_enabled="${config_values[4]}"
+    fi
+    if [[ "${#config_values[@]}" -gt 4 ]]; then
         mafft_extra_args=()
-        for ((i = 4; i <= ${#config_values[@]}; i++)); do
+        for ((i = 5; i <= ${#config_values[@]}; i++)); do
             mafft_extra_args+=("${config_values[$i]}")
         done
     fi
@@ -146,6 +152,9 @@ if [[ "$reorder_enabled" -eq 1 ]]; then
     mafft_cmd+=(--reorder)
 fi
 mafft_cmd+=("--$strategy" --maxiterate "$maxiterate")
+if [[ -n "$thread_count" && "$thread_count" != "0" ]]; then
+    mafft_cmd+=(--thread "$thread_count")
+fi
 if [[ "${#mafft_extra_args[@]}" -gt 0 ]]; then
     mafft_cmd+=("${mafft_extra_args[@]}")
 fi

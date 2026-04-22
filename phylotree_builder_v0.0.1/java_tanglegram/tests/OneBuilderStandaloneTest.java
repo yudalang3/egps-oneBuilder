@@ -27,14 +27,17 @@ public final class OneBuilderStandaloneTest {
         run("buildsLinuxWorkbenchShell", OneBuilderStandaloneTest::buildsLinuxWorkbenchShell);
         run("buildsWindowsWorkbenchShell", OneBuilderStandaloneTest::buildsWindowsWorkbenchShell);
         run("blocksNavigationUntilRequiredInputIsReady", OneBuilderStandaloneTest::blocksNavigationUntilRequiredInputIsReady);
-        run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
         run("prefersInputParentDirectoryWhenInputPathIsAFile", OneBuilderStandaloneTest::prefersInputParentDirectoryWhenInputPathIsAFile);
         run("rejectsInvalidOutputDirectoryPath", OneBuilderStandaloneTest::rejectsInvalidOutputDirectoryPath);
+        run("adaptsMaximumLikelihoodStrategiesByInputType", OneBuilderStandaloneTest::adaptsMaximumLikelihoodStrategiesByInputType);
+        run("preservesAlrtZeroInSerializedConfig", OneBuilderStandaloneTest::preservesAlrtZeroInSerializedConfig);
+        run("omitsStopvalWhenStopruleIsDisabled", OneBuilderStandaloneTest::omitsStopvalWhenStopruleIsDisabled);
         run("roundTripsAdvancedRuntimeConfigThroughPanels", OneBuilderStandaloneTest::roundTripsAdvancedRuntimeConfigThroughPanels);
         run("usesPreferenceDefaultForEmbeddedTanglegramLabelSize", OneBuilderStandaloneTest::usesPreferenceDefaultForEmbeddedTanglegramLabelSize);
         run("loadsCurrentRunTanglegramTabs", OneBuilderStandaloneTest::loadsCurrentRunTanglegramTabs);
         run("detectsCurrentRunTanglegramArtifacts", OneBuilderStandaloneTest::detectsCurrentRunTanglegramArtifacts);
         run("interpretsMethodProgressFromLogs", OneBuilderStandaloneTest::interpretsMethodProgressFromLogs);
+        run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
     }
 
     private static void buildsProteinExecutionPlanWithoutAlignment() {
@@ -159,6 +162,14 @@ public final class OneBuilderStandaloneTest {
                         Arrays.asList("charset core = 1-300;", "prset statefreqpr=fixed(equal);")))
                 .withDistance(new SimpleMethodConfig(
                         false,
+                        "F84",
+                        Double.valueOf(2.0d),
+                        true,
+                        "NJ",
+                        Integer.valueOf(3),
+                        null,
+                        null,
+                        false,
                         Arrays.asList("P", "P", "G", "0.5", "Y"),
                         java.util.Collections.emptyList(),
                         Arrays.asList("N", "Y"),
@@ -166,6 +177,14 @@ public final class OneBuilderStandaloneTest {
                         java.util.Collections.emptyList()))
                 .withParsimony(new SimpleMethodConfig(
                         true,
+                        "F84",
+                        Double.valueOf(2.0d),
+                        true,
+                        "NJ",
+                        null,
+                        Integer.valueOf(7),
+                        null,
+                        false,
                         java.util.Collections.emptyList(),
                         java.util.Collections.emptyList(),
                         java.util.Collections.emptyList(),
@@ -179,7 +198,7 @@ public final class OneBuilderStandaloneTest {
                 .outputPrefix("protein_demo")
                 .exportConfigFile(true)
                 .runAlignmentFirst(false)
-                .alignOptions(new AlignmentOptions("globalpair", 3000, false, Arrays.asList("--thread", "8", "--retree", "2")))
+                .alignOptions(new AlignmentOptions("globalpair", 3000, Integer.valueOf(8), false, Arrays.asList("--retree", "2")))
                 .runtimeConfig(config)
                 .build();
 
@@ -200,8 +219,9 @@ public final class OneBuilderStandaloneTest {
         assertTrue(json.contains("\"common\""), "expected common tier");
         assertTrue(json.contains("\"advanced\""), "expected advanced tier");
         assertTrue(json.contains("\"strategy\": \"globalpair\""), "expected alignment strategy");
+        assertTrue(json.contains("\"threads\": 8"), "expected MAFFT thread count");
         assertTrue(json.contains("\"extra_args\": ["), "expected extra args array");
-        assertTrue(json.contains("\"--thread\""), "expected MAFFT extra arg");
+        assertTrue(json.contains("\"--retree\""), "expected MAFFT extra arg");
         assertTrue(json.contains("\"maximum_likelihood\""), "expected ML section");
         assertTrue(json.contains("\"iqtree\""), "expected IQ-TREE section");
         assertTrue(json.contains("\"bootstrap_replicates\": 2000"), "expected bootstrap count");
@@ -211,6 +231,7 @@ public final class OneBuilderStandaloneTest {
         assertTrue(json.contains("\"seed\": 42"), "expected IQ-TREE seed");
         assertTrue(json.contains("\"memory_limit\": \"8G\""), "expected IQ-TREE memory limit");
         assertTrue(json.contains("\"outgroup\": \"seq1\""), "expected IQ-TREE outgroup");
+        assertTrue(json.contains("\"alrt\": 1000"), "expected IQ-TREE alrt support");
         assertTrue(json.contains("\"-bnni\""), "expected IQ-TREE passthrough arg");
         assertTrue(json.contains("\"bayesian\""), "expected bayesian section");
         assertTrue(json.contains("\"mrbayes\""), "expected MrBayes section");
@@ -222,6 +243,9 @@ public final class OneBuilderStandaloneTest {
         assertTrue(json.contains("\"distance\""), "expected distance section");
         assertTrue(json.contains("\"protdist\""), "expected protdist section");
         assertTrue(json.contains("\"neighbor\""), "expected neighbor section");
+        assertTrue(json.contains("\"neighbor_method\": \"NJ\""), "expected neighbor method");
+        assertTrue(json.contains("\"neighbor_outgroup_index\": 3"), "expected neighbor outgroup");
+        assertTrue(json.contains("\"protpars_outgroup_index\": 7"), "expected protpars outgroup");
         assertTrue(json.contains("\"menu_overrides\": ["), "expected PHYLIP passthrough array");
         assertTrue(json.contains("\"P\""), "expected PHYLIP menu override");
         assertTrue(json.contains("\"enabled\": false"), "expected distance enabled flag");
@@ -369,11 +393,19 @@ public final class OneBuilderStandaloneTest {
 
     private static void roundTripsAdvancedRuntimeConfigThroughPanels() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            TreeParametersPanel treeParametersPanel = new TreeParametersPanel(InputType.PROTEIN);
-            PipelineRuntimeConfig advancedConfig = new PipelineRuntimeConfig(
+            TreeParametersPanel proteinPanel = new TreeParametersPanel(InputType.PROTEIN);
+            PipelineRuntimeConfig proteinConfig = new PipelineRuntimeConfig(
                     InputType.PROTEIN,
                     new SimpleMethodConfig(
                             true,
+                            "F84",
+                            Double.valueOf(2.0d),
+                            true,
+                            "UPGMA",
+                            null,
+                            null,
+                            null,
+                            false,
                             Arrays.asList("P", "P", "G", "0.5", "Y"),
                             java.util.Collections.emptyList(),
                             Arrays.asList("N", "Y"),
@@ -395,7 +427,7 @@ public final class OneBuilderStandaloneTest {
                             "16G",
                             "seq2",
                             "AA",
-                            Integer.valueOf(2000),
+                            Integer.valueOf(0),
                             true,
                             Arrays.asList("-bnni", "-wbtl")),
                     new BayesianConfig(
@@ -418,32 +450,228 @@ public final class OneBuilderStandaloneTest {
                             Arrays.asList("charset core = 1-300;", "prset statefreqpr=fixed(equal);")),
                     new SimpleMethodConfig(
                             true,
+                            "F84",
+                            Double.valueOf(2.0d),
+                            true,
+                            "NJ",
+                            null,
+                            Integer.valueOf(5),
+                            null,
+                            false,
                             java.util.Collections.emptyList(),
                             java.util.Collections.emptyList(),
                             java.util.Collections.emptyList(),
                             Arrays.asList("J", "5", "Y"),
                             java.util.Collections.emptyList()));
 
-            treeParametersPanel.applyRuntimeConfig(advancedConfig);
-            PipelineRuntimeConfig roundTripped = treeParametersPanel.runtimeConfig();
+            proteinPanel.applyRuntimeConfig(proteinConfig);
+            PipelineRuntimeConfig roundTrippedProtein = proteinPanel.runtimeConfig();
 
-            assertEquals(4000, roundTripped.maximumLikelihood().bootstrapReplicates(), "unexpected ML bootstrap");
-            assertEquals("AUTO", roundTripped.maximumLikelihood().threads(), "unexpected ML threads");
-            assertEquals(Integer.valueOf(6), roundTripped.maximumLikelihood().threadsMax(), "unexpected ML thread cap");
-            assertEquals(Arrays.asList("-bnni", "-wbtl"), roundTripped.maximumLikelihood().extraArgs(), "unexpected ML extra args");
-            assertEquals(Integer.valueOf(3), roundTripped.bayesian().nruns(), "unexpected MrBayes nruns");
-            assertEquals(Double.valueOf(0.2), roundTripped.bayesian().burninfrac(), "unexpected MrBayes burnin fraction");
+            assertEquals(4000, roundTrippedProtein.maximumLikelihood().bootstrapReplicates(), "unexpected ML bootstrap");
+            assertEquals("AUTO", roundTrippedProtein.maximumLikelihood().threads(), "unexpected ML threads");
+            assertEquals(Integer.valueOf(6), roundTrippedProtein.maximumLikelihood().threadsMax(), "unexpected ML thread cap");
+            assertEquals(Integer.valueOf(0), roundTrippedProtein.maximumLikelihood().alrt(), "expected alrt=0 to round-trip");
+            assertEquals(Arrays.asList("-bnni", "-wbtl"), roundTrippedProtein.maximumLikelihood().extraArgs(), "unexpected ML extra args");
+            assertEquals(Integer.valueOf(3), roundTrippedProtein.bayesian().nruns(), "unexpected MrBayes nruns");
+            assertEquals(Double.valueOf(0.2), roundTrippedProtein.bayesian().burninfrac(), "unexpected MrBayes burnin fraction");
             assertEquals(
                     Arrays.asList("charset core = 1-300;", "prset statefreqpr=fixed(equal);"),
-                    roundTripped.bayesian().commandBlock(),
+                    roundTrippedProtein.bayesian().commandBlock(),
                     "unexpected MrBayes command block");
             assertEquals(
                     Arrays.asList("P", "P", "G", "0.5", "Y"),
-                    roundTripped.distance().protdistMenuOverrides(),
+                    roundTrippedProtein.distance().protdistMenuOverrides(),
                     "unexpected protdist menu overrides");
-            assertEquals(Arrays.asList("J", "5", "Y"), roundTripped.parsimony().protparsMenuOverrides(),
+            assertEquals("UPGMA", roundTrippedProtein.distance().neighborMethod(), "unexpected protein neighbor method");
+            assertNull(roundTrippedProtein.distance().neighborOutgroupIndex(), "protein UPGMA should not keep outgroup");
+            assertEquals(Integer.valueOf(5), roundTrippedProtein.parsimony().protparsOutgroupIndex(),
+                    "unexpected protpars outgroup");
+            assertEquals(Arrays.asList("J", "5", "Y"), roundTrippedProtein.parsimony().protparsMenuOverrides(),
                     "unexpected protpars menu overrides");
+
+            TreeParametersPanel dnaPanel = new TreeParametersPanel(InputType.DNA_CDS);
+            PipelineRuntimeConfig dnaConfig = new PipelineRuntimeConfig(
+                    InputType.DNA_CDS,
+                    new SimpleMethodConfig(
+                            true,
+                            "Kimura",
+                            Double.valueOf(3.5d),
+                            false,
+                            "NJ",
+                            Integer.valueOf(7),
+                            null,
+                            null,
+                            false,
+                            java.util.Collections.emptyList(),
+                            Arrays.asList("D", "T", "3.5", "F", "Y"),
+                            Arrays.asList("O", "7", "Y"),
+                            java.util.Collections.emptyList(),
+                            java.util.Collections.emptyList()),
+                    new MaximumLikelihoodConfig(
+                            true,
+                            1500,
+                            "GTR",
+                            "",
+                            null,
+                            null,
+                            null,
+                            false,
+                            false,
+                            true,
+                            false,
+                            true,
+                            null,
+                            null,
+                            null,
+                            Integer.valueOf(0),
+                            false,
+                            java.util.Collections.emptyList()),
+                    new BayesianConfig(true, null, "gamma", 25000, 100, 500, 2000, Integer.valueOf(2)),
+                    new SimpleMethodConfig(
+                            true,
+                            "F84",
+                            Double.valueOf(2.0d),
+                            true,
+                            "NJ",
+                            null,
+                            null,
+                            Integer.valueOf(4),
+                            true,
+                            java.util.Collections.emptyList(),
+                            java.util.Collections.emptyList(),
+                            java.util.Collections.emptyList(),
+                            java.util.Collections.emptyList(),
+                            Arrays.asList("O", "4", "N", "Y")));
+
+            dnaPanel.applyRuntimeConfig(dnaConfig);
+            PipelineRuntimeConfig roundTrippedDna = dnaPanel.runtimeConfig();
+
+            assertEquals("Kimura", roundTrippedDna.distance().dnadistModel(), "unexpected dnadist model");
+            assertEquals(Double.valueOf(3.5d), roundTrippedDna.distance().dnadistTransitionTransversionRatio(),
+                    "unexpected dnadist ratio");
+            assertTrue(!roundTrippedDna.distance().dnadistEmpiricalBaseFrequencies(),
+                    "expected empirical base frequencies to round-trip");
+            assertEquals("NJ", roundTrippedDna.distance().neighborMethod(), "unexpected dna neighbor method");
+            assertEquals(Integer.valueOf(7), roundTrippedDna.distance().neighborOutgroupIndex(),
+                    "unexpected dna neighbor outgroup");
+            assertEquals(Integer.valueOf(4), roundTrippedDna.parsimony().dnaparsOutgroupIndex(),
+                    "unexpected dnapars outgroup");
+            assertTrue(roundTrippedDna.parsimony().dnaparsTransversionParsimony(),
+                    "expected dnapars transversion flag");
         });
+    }
+
+    private static void adaptsMaximumLikelihoodStrategiesByInputType() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            MaximumLikelihoodPanel panel = new MaximumLikelihoodPanel();
+            panel.setInputType(InputType.PROTEIN);
+            assertEquals(
+                    Arrays.asList("MFP", "TEST", "LG", "WAG", "JTT"),
+                    panel.modelStrategyOptionsForTest(),
+                    "unexpected protein ML strategies");
+            assertTrue(panel.isModelSetEnabledForTest(), "protein model set should be enabled for MFP");
+
+            panel.setModelStrategyForTest("LG");
+            assertTrue(!panel.isModelSetEnabledForTest(), "fixed protein model should disable model-set restriction");
+
+            panel.setInputType(InputType.DNA_CDS);
+            assertEquals(
+                    Arrays.asList("MFP", "TEST", "GTR", "HKY", "JC"),
+                    panel.modelStrategyOptionsForTest(),
+                    "unexpected DNA ML strategies");
+            assertTrue(panel.isModelSetEnabledForTest(), "dna model set should be enabled for model-selection strategies");
+
+            panel.setModelStrategyForTest("GTR");
+            assertTrue(!panel.isModelSetEnabledForTest(), "fixed DNA model should disable model-set restriction");
+        });
+    }
+
+    private static void preservesAlrtZeroInSerializedConfig() throws Exception {
+        Path tempFile = Files.createTempFile("onebuilder-config-alrt-", ".json");
+        PipelineRuntimeConfig config = PipelineRuntimeConfig.defaultsFor(InputType.DNA_CDS)
+                .withMaximumLikelihood(new MaximumLikelihoodConfig(
+                        true,
+                        1000,
+                        "MFP",
+                        "",
+                        null,
+                        null,
+                        null,
+                        false,
+                        false,
+                        true,
+                        false,
+                        true,
+                        null,
+                        null,
+                        null,
+                        Integer.valueOf(0),
+                        false,
+                        java.util.Collections.emptyList()));
+
+        RunRequest request = RunRequest.builder()
+                .inputType(InputType.DNA_CDS)
+                .inputFile(Paths.get("/data/input/aligned.fasta"))
+                .outputDirectory(Paths.get("/data/output"))
+                .outputPrefix("dna_demo")
+                .exportConfigFile(true)
+                .runAlignmentFirst(false)
+                .alignOptions(AlignmentOptions.defaults())
+                .runtimeConfig(config)
+                .build();
+
+        new PipelineConfigWriter().write(tempFile, request);
+        JSONObject advanced = new JSONObject(Files.readString(tempFile, StandardCharsets.UTF_8))
+                .getJSONObject("methods")
+                .getJSONObject("maximum_likelihood")
+                .getJSONObject("iqtree")
+                .getJSONObject("advanced");
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(advanced.getInt("alrt")), "expected alrt=0 to be serialized");
+    }
+
+    private static void omitsStopvalWhenStopruleIsDisabled() throws Exception {
+        Path tempFile = Files.createTempFile("onebuilder-config-stoprule-", ".json");
+        PipelineRuntimeConfig config = PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN)
+                .withBayesian(new BayesianConfig(
+                        true,
+                        "mixed",
+                        "gamma",
+                        75000,
+                        250,
+                        1000,
+                        3000,
+                        null,
+                        Integer.valueOf(2),
+                        Integer.valueOf(4),
+                        Double.valueOf(0.2),
+                        Boolean.FALSE,
+                        Double.valueOf(0.01),
+                        Integer.valueOf(500),
+                        Double.valueOf(0.25),
+                        Boolean.TRUE,
+                        java.util.Collections.emptyList()));
+
+        RunRequest request = RunRequest.builder()
+                .inputType(InputType.PROTEIN)
+                .inputFile(Paths.get("/data/input/aligned.fasta"))
+                .outputDirectory(Paths.get("/data/output"))
+                .outputPrefix("protein_demo")
+                .exportConfigFile(true)
+                .runAlignmentFirst(false)
+                .alignOptions(AlignmentOptions.defaults())
+                .runtimeConfig(config)
+                .build();
+
+        new PipelineConfigWriter().write(tempFile, request);
+        JSONObject advanced = new JSONObject(Files.readString(tempFile, StandardCharsets.UTF_8))
+                .getJSONObject("methods")
+                .getJSONObject("bayesian")
+                .getJSONObject("mrbayes")
+                .getJSONObject("advanced");
+
+        assertTrue(advanced.has("stoprule"), "expected explicit stoprule field");
+        assertTrue(!advanced.has("stopval"), "stopval should be omitted when stoprule is disabled");
     }
 
     private static void usesPreferenceDefaultForEmbeddedTanglegramLabelSize() throws Exception {

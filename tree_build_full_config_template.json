@@ -7,19 +7,20 @@
   },
   "alignment": {
     "run_alignment_first": false,
-    "strategy": "localpair",
+    "strategy": "genafpair",
     "maxiterate": 1000,
     "reorder": true,
     "mafft": {
       "common": {
-        "strategy": "localpair",
+        "strategy": "genafpair",
         "maxiterate": 1000,
+        "threads": 8,
         "reorder": true
       },
       "advanced": {},
       "extra_args": [
-        "--thread",
-        "4"
+        "--retree",
+        "2"
       ]
     }
   },

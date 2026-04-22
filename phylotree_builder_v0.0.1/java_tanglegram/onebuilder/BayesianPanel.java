@@ -12,10 +12,23 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTextArea;
-import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
 
 final class BayesianPanel extends JPanel {
+    private static final String[] PROTEIN_MODEL_PRIOR_SUGGESTIONS = {
+            "mixed",
+            "wag",
+            "jones",
+            "dayhoff",
+            "mtrev",
+            "mtmam",
+            "rtrev",
+            "cprev",
+            "vt",
+            "blosum",
+            "poisson"
+    };
+
     private final JCheckBox enabledCheckBox;
     private final JComboBox<String> ratesCombo;
     private final JSpinner ngenSpinner;
@@ -23,7 +36,7 @@ final class BayesianPanel extends JPanel {
     private final JSpinner printfreqSpinner;
     private final JSpinner diagnfreqSpinner;
     private final JLabel proteinModelLabel;
-    private final JTextField proteinModelField;
+    private final JComboBox<String> proteinModelCombo;
     private final JLabel nstLabel;
     private final JSpinner nstSpinner;
     private final JSpinner nrunsSpinner;
@@ -56,7 +69,8 @@ final class BayesianPanel extends JPanel {
         printfreqSpinner = new JSpinner(new SpinnerNumberModel(1000, 1, 1000000, 10));
         diagnfreqSpinner = new JSpinner(new SpinnerNumberModel(5000, 1, 1000000, 10));
         proteinModelLabel = new JLabel("Protein prior");
-        proteinModelField = new JTextField();
+        proteinModelCombo = new JComboBox<>(PROTEIN_MODEL_PRIOR_SUGGESTIONS);
+        proteinModelCombo.setEditable(true);
         nstLabel = new JLabel("nst");
         nstSpinner = new JSpinner(new SpinnerNumberModel(6, 1, 6, 1));
         nrunsSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 128, 1));
@@ -77,7 +91,7 @@ final class BayesianPanel extends JPanel {
         addRow(commonForm, constraints, 2, "samplefreq", samplefreqSpinner);
         addRow(commonForm, constraints, 3, "printfreq", printfreqSpinner);
         addRow(commonForm, constraints, 4, "diagnfreq", diagnfreqSpinner);
-        addRow(commonForm, constraints, 5, proteinModelLabel, proteinModelField);
+        addRow(commonForm, constraints, 5, proteinModelLabel, proteinModelCombo);
         addRow(commonForm, constraints, 6, nstLabel, nstSpinner);
 
         JPanel advancedForm = new JPanel(new GridBagLayout());
@@ -127,7 +141,7 @@ final class BayesianPanel extends JPanel {
         advancedContent.setOpaque(false);
         advancedContent.add(advancedForm, BorderLayout.NORTH);
         advancedContent.add(
-                WorkbenchStyles.createNoteArea("If command_block is not empty, the pipeline treats it as the authoritative MrBayes command sequence. Enter one command per line."),
+                WorkbenchStyles.createNoteArea("If command_block is not empty, the pipeline treats it as the authoritative MrBayes command sequence. Enter one command per line. Use either burnin or burninfrac when possible; relburnin only matters for fraction-based burn-in summaries."),
                 BorderLayout.CENTER);
 
         JPanel centerPanel = new JPanel(new BorderLayout(0, 8));
@@ -140,6 +154,10 @@ final class BayesianPanel extends JPanel {
                 BorderLayout.SOUTH);
         add(centerPanel, BorderLayout.CENTER);
         WorkbenchStyles.applyPanelTreeBackground(this);
+        stopruleCheckBox.addActionListener(event -> updateStopruleControls());
+        burninfracSpinner.addChangeListener(event -> updateBurninControls());
+        updateStopruleControls();
+        updateBurninControls();
     }
 
     void apply(BayesianConfig config, InputType inputType) {
@@ -149,7 +167,7 @@ final class BayesianPanel extends JPanel {
         samplefreqSpinner.setValue(Integer.valueOf(config.samplefreq()));
         printfreqSpinner.setValue(Integer.valueOf(config.printfreq()));
         diagnfreqSpinner.setValue(Integer.valueOf(config.diagnfreq()));
-        proteinModelField.setText(config.proteinModelPrior() == null ? "" : config.proteinModelPrior());
+        proteinModelCombo.setSelectedItem(config.proteinModelPrior() == null ? "" : config.proteinModelPrior());
         nstSpinner.setValue(Integer.valueOf(config.nst() == null ? 6 : config.nst().intValue()));
         nrunsSpinner.setValue(Integer.valueOf(config.nruns() == null ? 0 : config.nruns().intValue()));
         nchainsSpinner.setValue(Integer.valueOf(config.nchains() == null ? 0 : config.nchains().intValue()));
@@ -161,12 +179,14 @@ final class BayesianPanel extends JPanel {
         relburninCheckBox.setSelected(Boolean.TRUE.equals(config.relburnin()));
         commandBlockArea.setText(TextListCodec.joinLines(config.commandBlock()));
         setInputType(inputType);
+        updateStopruleControls();
+        updateBurninControls();
     }
 
     BayesianConfig toConfig(InputType inputType) {
         return new BayesianConfig(
                 enabledCheckBox.isSelected(),
-                inputType == InputType.PROTEIN ? blankToNull(proteinModelField.getText()) : null,
+                inputType == InputType.PROTEIN ? selectedProteinModelPrior() : null,
                 String.valueOf(ratesCombo.getSelectedItem()).trim(),
                 ((Integer) ngenSpinner.getValue()).intValue(),
                 ((Integer) samplefreqSpinner.getValue()).intValue(),
@@ -177,21 +197,33 @@ final class BayesianPanel extends JPanel {
                 integerOrNull((Integer) nchainsSpinner.getValue()),
                 doubleOrNull((Double) tempSpinner.getValue()),
                 stopruleCheckBox.isSelected() ? Boolean.TRUE : null,
-                doubleOrNull((Double) stopvalSpinner.getValue()),
+                stopruleCheckBox.isSelected() ? doubleOrNull((Double) stopvalSpinner.getValue()) : null,
                 integerOrNull((Integer) burninSpinner.getValue()),
                 doubleOrNull((Double) burninfracSpinner.getValue()),
-                relburninCheckBox.isSelected() ? Boolean.TRUE : null,
+                relburninCheckBox.isEnabled() && relburninCheckBox.isSelected() ? Boolean.TRUE : null,
                 TextListCodec.splitLines(commandBlockArea.getText()));
     }
 
     void setInputType(InputType inputType) {
         boolean protein = inputType == InputType.PROTEIN;
         proteinModelLabel.setVisible(protein);
-        proteinModelField.setVisible(protein);
+        proteinModelCombo.setVisible(protein);
         nstLabel.setVisible(!protein);
         nstSpinner.setVisible(!protein);
         revalidate();
         repaint();
+    }
+
+    private void updateStopruleControls() {
+        stopvalSpinner.setEnabled(stopruleCheckBox.isSelected());
+    }
+
+    private void updateBurninControls() {
+        boolean relburninEnabled = ((Double) burninfracSpinner.getValue()).doubleValue() > 0.0d;
+        relburninCheckBox.setEnabled(relburninEnabled);
+        if (!relburninEnabled) {
+            relburninCheckBox.setSelected(false);
+        }
     }
 
     private static GridBagConstraints baseConstraints() {
@@ -223,6 +255,11 @@ final class BayesianPanel extends JPanel {
 
     private static Double doubleOrNull(Double value) {
         return value == null || value.doubleValue() <= 0.0d ? null : Double.valueOf(value.doubleValue());
+    }
+
+    private String selectedProteinModelPrior() {
+        Object selected = proteinModelCombo.getEditor().getItem();
+        return blankToNull(selected == null ? null : String.valueOf(selected));
     }
 
     private static String blankToNull(String value) {

@@ -91,25 +91,34 @@ zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 
 ### 2.3 GUI plus CLI
 
-This is the main hybrid workflow: use the GUI to set parameters, then let it call the existing CLI wrappers and Python pipelines with a runtime JSON config.
+This is the main hybrid workflow: use the GUI to set parameters, export one runtime JSON, then replay the whole flow from the shell with a single command.
 
 ```bash
 java -cp "java_tanglegram:lib/*" onebuilder.launcher
 ```
 
-The GUI writes the temporary config and dispatches the same underlying pipeline logic used by the command-line wrappers.
+Then run that exported JSON on Linux:
 
-In other words, you can use the GUI to set parameters and click Run, then continue using the command-line scripts for later runs.
+```bash
+zsh phylotree_builder_v0.0.1/run_onebuilder_config.zsh /path/to/demo.onebuilder.json
+```
+
+This script reads `run.input_type`, `run.input_file`, `run.output_base_dir`, `run.output_prefix`, and `alignment.run_alignment_first` from the JSON, optionally runs MAFFT first, then dispatches to the correct protein or DNA/CDS wrapper automatically.
+
+The lower-level wrappers remain available, but `run_onebuilder_config.zsh` is now the intended CLI entrypoint for replaying a GUI-exported configuration.
 
 ### 2.4 Wrapper Options
 
 The wrappers now expose the options that the GUI uses internally:
 
-- `s1_quick_align.zsh [--config runtime.json] [--strategy localpair|auto|globalpair] [--maxiterate N] [--reorder|--no-reorder] <input.fasta>`
+- `run_onebuilder_config.zsh <runtime.json>` or `run_onebuilder_config.zsh --config <runtime.json>`
+- `s1_quick_align.zsh [--config runtime.json] [--strategy localpair|genafpair|auto|globalpair] [--maxiterate N] [--reorder|--no-reorder] <input.fasta>`
 - `s2_phylo_4prot.zsh [--config runtime.json] <input.fasta> [output_prefix]`
 - `s2_phylo_4dna.zsh [--config runtime.json] <input.fasta> [output_prefix]`
 
-The optional `--config` JSON file is mainly intended for `onebuilder.launcher`. It lets the GUI pass alignment, method enable/disable state, ML parameters, Bayesian parameters, and raw passthrough blocks into the existing shell wrappers and Python pipelines.
+`run_onebuilder_config.zsh` is Linux-only and is the highest-level CLI wrapper. It reuses the JSON exported by `onebuilder.launcher` directly, so you do not need to repeat the input file or output prefix on the command line.
+
+The lower-level `--config` JSON support on `s1_quick_align.zsh`, `s2_phylo_4prot.zsh`, and `s2_phylo_4dna.zsh` remains available. It lets the GUI pass alignment, method enable/disable state, ML parameters, Bayesian parameters, and raw passthrough blocks into the existing shell wrappers and Python pipelines.
 
 Detailed parameter reference:
 
@@ -142,6 +151,7 @@ The repository now includes two standalone Java Swing entrypoints:
 
 - `onebuilder.launcher`: the full workflow GUI with `Input / Align`, `Tree Parameters`, `Tree Build`, and `Tanglegram`. Linux can run the pipeline; Windows is for setup and JSON config export only.
 - `tanglegram.launcher`: the focused pairwise tanglegram viewer for loading an existing `tree_summary/` on Linux or Windows.
+- `run_onebuilder_config.zsh`: the Linux-only JSON runner that replays a GUI-exported `.onebuilder.json` without re-entering the input file or output prefix.
 
 Compile from the repository root:
 
@@ -217,9 +227,11 @@ Usage notes:
 - The GUI lets you disable individual tree-building methods and tune the exposed ML and Bayesian parameters before starting a run.
 - The window also includes `Preference > Settings...` for shared UI preferences such as global font family, global font size, window-size restore, the default tanglegram label-font size, and `Show Windows oneBuilder startup warning`.
 - Preference changes are applied live to currently open Java windows and are reused on the next launch.
+- Shared GUI preferences are stored in `~/.egps.onebuilder.prop` instead of the Windows registry, so the same storage model is used on Linux and Windows.
 - `Export config file when running` is enabled by default. When it stays enabled, Linux runs save `<output_base_dir>/<output_prefix>.onebuilder.json` and pass that file into the wrappers.
 - If `Export config file when running` is disabled, Linux runs still work but use a temporary runtime JSON file for that run only.
 - `Export JSON` always writes the current GUI settings to `<output_base_dir>/<output_prefix>.onebuilder.json`.
+- The exported `<output_prefix>.onebuilder.json` is now directly executable on Linux through `zsh phylotree_builder_v0.0.1/run_onebuilder_config.zsh /path/to/file.onebuilder.json`.
 - Inside `onebuilder.launcher`, the `Tanglegram` page unlocks only after a successful Linux run and then auto-loads the current output directory. On Windows, use the standalone `tanglegram.launcher` to inspect an existing `tree_summary/`.
 - Inside the GUI, the `Tanglegram` page also exposes label-font size, horizontal/vertical padding, auto-fit, and a `Reload from current run` action.
 - The launchers explicitly disable FlatLaf's native library integration with `flatlaf.useNativeLibrary=false`, so JDK 24+ does not print the `--enable-native-access=ALL-UNNAMED` warning.
@@ -262,6 +274,7 @@ Usage notes:
 - If you already have pipeline output on Windows, this is the viewer to use for the six pairwise comparisons.
 - The menu bar contains `Files > Open` and `Preference > Settings...`.
 - `Preference` shares the same global UI settings as `onebuilder.launcher`, including the global font and the default tanglegram label-font size.
+- Those shared UI settings are stored in `~/.egps.onebuilder.prop`.
 - `Open` expects a `tree_summary/` directory from a pipeline run.
 - The viewer always lays out the available comparisons as fixed pair tabs in this order: `NJ-ML`, `NJ-BI`, `NJ-MP`, `ML-BI`, `ML-MP`, `BI-MP`.
 - If one method is missing but at least two trees can still be resolved, the viewer loads only the valid pair tabs instead of failing the whole window.

@@ -43,6 +43,34 @@ def _normalize_phylip_menu_input(menu_overrides, default_input):
     return "\n".join(lines) + "\n"
 
 
+def _build_neighbor_menu_input(settings):
+    overrides = settings.get("neighbor_menu_overrides")
+    if overrides:
+        return _normalize_phylip_menu_input(overrides, "Y\n")
+
+    lines = []
+    neighbor_method = str(settings.get("neighbor_method", "NJ")).strip().upper()
+    if neighbor_method == "UPGMA":
+        lines.append("N")
+    else:
+        outgroup_index = settings.get("neighbor_outgroup_index")
+        if outgroup_index is not None:
+            lines.extend(["O", str(outgroup_index)])
+    return _normalize_phylip_menu_input(lines, "Y\n")
+
+
+def _build_protpars_menu_input(settings):
+    overrides = settings.get("protpars_menu_overrides")
+    if overrides:
+        return _normalize_phylip_menu_input(overrides, "4\n5\nY\n")
+
+    lines = ["4", "5"]
+    outgroup_index = settings.get("protpars_outgroup_index")
+    if outgroup_index is not None:
+        lines.extend(["O", str(outgroup_index)])
+    return _normalize_phylip_menu_input(lines, "4\n5\nY\n")
+
+
 def _append_iqtree_args(cmd, settings):
     option_pairs = [
         ("sequence_type", "-st"),
@@ -67,7 +95,7 @@ def _append_iqtree_args(cmd, settings):
     if settings.get("verbose") and not settings.get("quiet", True):
         cmd.append("-v")
     if settings.get("quiet", True):
-        cmd.append("--quiet")
+        cmd.append("-quiet")
     if settings.get("redo", True):
         cmd.append("-redo")
     for extra_arg in settings.get("extra_args", []):
@@ -119,10 +147,17 @@ def _build_protein_mrbayes_commands(nexus_file_name, settings):
         f"printfreq={settings['printfreq']}",
         f"diagnfreq={settings['diagnfreq']}",
     ]
-    for option_key in ("nruns", "nchains", "temp", "stoprule", "stopval"):
+    for option_key in ("nruns", "nchains", "temp"):
         option_value = settings.get(option_key)
         if option_value is not None:
             mcmcp_options.append(f"{option_key}={option_value}")
+    stoprule_value = settings.get("stoprule")
+    if stoprule_value is not None:
+        mcmcp_options.append(
+            f"stoprule={'yes' if stoprule_value else 'no'}"
+        )
+        if stoprule_value and settings.get("stopval") is not None:
+            mcmcp_options.append(f"stopval={settings['stopval']}")
     commands.append("mcmcp " + " ".join(mcmcp_options) + ";\n")
     commands.append("mcmc;\n")
     commands.append(_build_sumt_command(settings))
@@ -362,7 +397,7 @@ class ProteinPhylogeneticPipeline:
 
             neighbor_input = _normalize_phylip_menu_input(
                 self.runtime_settings["distance"].get("neighbor_menu_overrides"),
-                "Y\n",
+                _build_neighbor_menu_input(self.runtime_settings["distance"]),
             )
             proc = subprocess.Popen(
                 [self.phylip_commands["neighbor"]],
@@ -428,7 +463,7 @@ class ProteinPhylogeneticPipeline:
             # Run protpars for protein parsimony analysis
             protpars_input = _normalize_phylip_menu_input(
                 self.runtime_settings["parsimony"].get("protpars_menu_overrides"),
-                "4\n5\nY\n",
+                _build_protpars_menu_input(self.runtime_settings["parsimony"]),
             )
             proc = subprocess.Popen(
                 [self.phylip_commands["protpars"]],
