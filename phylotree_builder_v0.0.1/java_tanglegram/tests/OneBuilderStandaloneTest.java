@@ -31,6 +31,7 @@ public final class OneBuilderStandaloneTest {
         run("rejectsInvalidOutputDirectoryPath", OneBuilderStandaloneTest::rejectsInvalidOutputDirectoryPath);
         run("autoDetectsDnaInputTypeForExportedConfig", OneBuilderStandaloneTest::autoDetectsDnaInputTypeForExportedConfig);
         run("adaptsMaximumLikelihoodStrategiesByInputType", OneBuilderStandaloneTest::adaptsMaximumLikelihoodStrategiesByInputType);
+        run("showsBootstrapGuidanceForTypicalAndExtremeValues", OneBuilderStandaloneTest::showsBootstrapGuidanceForTypicalAndExtremeValues);
         run("preservesAlrtZeroInSerializedConfig", OneBuilderStandaloneTest::preservesAlrtZeroInSerializedConfig);
         run("omitsStopvalWhenStopruleIsDisabled", OneBuilderStandaloneTest::omitsStopvalWhenStopruleIsDisabled);
         run("roundTripsAdvancedRuntimeConfigThroughPanels", OneBuilderStandaloneTest::roundTripsAdvancedRuntimeConfigThroughPanels);
@@ -186,6 +187,8 @@ public final class OneBuilderStandaloneTest {
                         Integer.valueOf(7),
                         null,
                         false,
+                        false,
+                        true,
                         java.util.Collections.emptyList(),
                         java.util.Collections.emptyList(),
                         java.util.Collections.emptyList(),
@@ -247,6 +250,8 @@ public final class OneBuilderStandaloneTest {
         assertTrue(json.contains("\"neighbor_method\": \"NJ\""), "expected neighbor method");
         assertTrue(json.contains("\"neighbor_outgroup_index\": 3"), "expected neighbor outgroup");
         assertTrue(json.contains("\"protpars_outgroup_index\": 7"), "expected protpars outgroup");
+        assertTrue(json.contains("\"protpars_print_steps\": false"), "expected protpars print-steps flag");
+        assertTrue(json.contains("\"protpars_print_sequences\": true"), "expected protpars print-sequences flag");
         assertTrue(json.contains("\"menu_overrides\": ["), "expected PHYLIP passthrough array");
         assertTrue(json.contains("\"P\""), "expected PHYLIP menu override");
         assertTrue(json.contains("\"enabled\": false"), "expected distance enabled flag");
@@ -382,7 +387,7 @@ public final class OneBuilderStandaloneTest {
         Path tempInputFile = Files.createTempFile("onebuilder-input-", ".fasta");
         InputAlignPanel panel = new InputAlignPanel(PlatformSupport.LINUX, () -> { }, () -> PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN));
         setTextField(panel, "inputFileField", tempInputFile.toString());
-        setTextField(panel, "outputDirField", "bad\uD800path");
+        setTextField(panel, "outputDirField", "bad\u0000path");
 
         try {
             panel.buildRunRequestForExport();
@@ -489,6 +494,8 @@ public final class OneBuilderStandaloneTest {
                             Integer.valueOf(5),
                             null,
                             false,
+                            false,
+                            true,
                             java.util.Collections.emptyList(),
                             java.util.Collections.emptyList(),
                             java.util.Collections.emptyList(),
@@ -517,6 +524,10 @@ public final class OneBuilderStandaloneTest {
             assertNull(roundTrippedProtein.distance().neighborOutgroupIndex(), "protein UPGMA should not keep outgroup");
             assertEquals(Integer.valueOf(5), roundTrippedProtein.parsimony().protparsOutgroupIndex(),
                     "unexpected protpars outgroup");
+            assertTrue(!roundTrippedProtein.parsimony().protparsPrintSteps(),
+                    "expected protpars print-steps flag to round-trip");
+            assertTrue(roundTrippedProtein.parsimony().protparsPrintSequences(),
+                    "expected protpars print-sequences flag to round-trip");
             assertEquals(Arrays.asList("J", "5", "Y"), roundTrippedProtein.parsimony().protparsMenuOverrides(),
                     "unexpected protpars menu overrides");
 
@@ -568,6 +579,8 @@ public final class OneBuilderStandaloneTest {
                             null,
                             Integer.valueOf(4),
                             true,
+                            true,
+                            true,
                             java.util.Collections.emptyList(),
                             java.util.Collections.emptyList(),
                             java.util.Collections.emptyList(),
@@ -614,6 +627,27 @@ public final class OneBuilderStandaloneTest {
 
             panel.setModelStrategyForTest("GTR");
             assertTrue(!panel.isModelSetEnabledForTest(), "fixed DNA model should disable model-set restriction");
+        });
+    }
+
+    private static void showsBootstrapGuidanceForTypicalAndExtremeValues() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            MaximumLikelihoodPanel panel = new MaximumLikelihoodPanel();
+
+            assertTrue(panel.bootstrapGuidanceTextForTest().contains("1000"),
+                    "default bootstrap guidance should mention the recommended default");
+
+            panel.setBootstrapReplicatesForTest(0);
+            assertTrue(panel.bootstrapGuidanceTextForTest().contains("skip"),
+                    "bootstrap=0 guidance should explain that -bb is skipped");
+
+            panel.setBootstrapReplicatesForTest(25000);
+            assertTrue(panel.bootstrapGuidanceTextForTest().contains("runtime"),
+                    "large bootstrap guidance should warn about runtime cost");
+
+            panel.setAlrtEnabledForTest(true);
+            assertTrue(panel.bootstrapGuidanceTextForTest().contains("-alrt"),
+                    "guidance should explain the relationship between bootstrap and -alrt");
         });
     }
 

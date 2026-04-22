@@ -2,12 +2,12 @@
 /phylotree_builder_v0.0.1/__pycache__/
 /phylotree_builder_v0.0.1/lib/
 /phylotree_builder_v0.0.1/test*/
-/input_demo/
 /phylotree_builder_v0.0.1/third_party/
 /test1/
 /test2/
 /test3*/
 /test4*/
+/input_demo/demo_outputs/
 /launch.md
 /docs/
 *.fasta

@@ -17,6 +17,7 @@ import javax.swing.JSpinner;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.event.ChangeListener;
 
 final class MaximumLikelihoodPanel extends JPanel {
     private static final List<String> PROTEIN_MODEL_STRATEGIES = List.of("MFP", "TEST", "LG", "WAG", "JTT");
@@ -42,6 +43,7 @@ final class MaximumLikelihoodPanel extends JPanel {
     private final JSpinner alrtSpinner;
     private final JCheckBox abayesCheckBox;
     private final JTextArea extraArgsArea;
+    private final JTextArea bootstrapGuidanceArea;
 
     MaximumLikelihoodPanel() {
         super(new BorderLayout(12, 12));
@@ -76,6 +78,7 @@ final class MaximumLikelihoodPanel extends JPanel {
         alrtSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 1000000, 100));
         abayesCheckBox = new JCheckBox("Use -abayes");
         extraArgsArea = new JTextArea(5, 28);
+        bootstrapGuidanceArea = WorkbenchStyles.createNoteArea("");
 
         JPanel commonForm = new JPanel(new GridBagLayout());
         commonForm.setOpaque(false);
@@ -135,16 +138,26 @@ final class MaximumLikelihoodPanel extends JPanel {
         centerPanel.setOpaque(false);
         centerPanel.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
         centerPanel.add(commonForm, BorderLayout.NORTH);
-        centerPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), BorderLayout.CENTER);
-        centerPanel.add(
+        JPanel lowerPanel = new JPanel(new BorderLayout(0, 8));
+        lowerPanel.setOpaque(false);
+        lowerPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), BorderLayout.CENTER);
+        JPanel notePanel = new JPanel(new BorderLayout(0, 6));
+        notePanel.setOpaque(false);
+        notePanel.add(bootstrapGuidanceArea, BorderLayout.NORTH);
+        notePanel.add(
                 WorkbenchStyles.createNoteArea("Common ML settings cover the usual IQ-TREE workflow. The model set field stays available for MFP and TEST, and is disabled for fixed-model runs."),
-                BorderLayout.SOUTH);
+                BorderLayout.CENTER);
+        lowerPanel.add(notePanel, BorderLayout.SOUTH);
+        centerPanel.add(lowerPanel, BorderLayout.CENTER);
         add(centerPanel, BorderLayout.CENTER);
         WorkbenchStyles.applyPanelTreeBackground(this);
         modelStrategyCombo.addActionListener(event -> updateModelSetControls());
         alrtCheckBox.addActionListener(event -> updateAlrtControls());
+        ChangeListener bootstrapListener = event -> updateBootstrapGuidance();
+        bootstrapSpinner.addChangeListener(bootstrapListener);
         setInputType(InputType.PROTEIN);
         updateAlrtControls();
+        updateBootstrapGuidance();
     }
 
     void apply(MaximumLikelihoodConfig config, InputType inputType) {
@@ -169,6 +182,7 @@ final class MaximumLikelihoodPanel extends JPanel {
         setInputType(inputType);
         alrtCheckBox.setSelected(config.alrt() != null);
         updateAlrtControls();
+        updateBootstrapGuidance();
     }
 
     MaximumLikelihoodConfig toConfig() {
@@ -216,6 +230,21 @@ final class MaximumLikelihoodPanel extends JPanel {
         modelStrategyCombo.setSelectedItem(strategy);
     }
 
+    String bootstrapGuidanceTextForTest() {
+        return bootstrapGuidanceArea.getText();
+    }
+
+    void setBootstrapReplicatesForTest(int value) {
+        bootstrapSpinner.setValue(Integer.valueOf(value));
+        updateBootstrapGuidance();
+    }
+
+    void setAlrtEnabledForTest(boolean enabled) {
+        alrtCheckBox.setSelected(enabled);
+        updateAlrtControls();
+        updateBootstrapGuidance();
+    }
+
     private void repopulateModelStrategies(List<String> strategies, String currentStrategy) {
         modelStrategyCombo.removeAllItems();
         for (String strategy : strategies) {
@@ -227,6 +256,30 @@ final class MaximumLikelihoodPanel extends JPanel {
 
     private void updateAlrtControls() {
         alrtSpinner.setEnabled(alrtCheckBox.isSelected());
+        updateBootstrapGuidance();
+    }
+
+    private void updateBootstrapGuidance() {
+        int bootstrapReplicates = ((Integer) bootstrapSpinner.getValue()).intValue();
+        boolean warning = false;
+        String text;
+        if (bootstrapReplicates == 0) {
+            warning = true;
+            text = "Bootstrap 0 skips IQ-TREE ultrafast bootstrap (-bb). Use this only when you do not want bootstrap support values.";
+        } else if (bootstrapReplicates < 100) {
+            warning = true;
+            text = "Bootstrap below 100 is allowed, but support summaries are usually too weak for routine runs. 1000 remains the recommended default.";
+        } else if (bootstrapReplicates > 5000) {
+            warning = true;
+            text = "Large bootstrap counts can increase IQ-TREE runtime substantially. 1000 is the recommended default unless you need a heavier support analysis.";
+        } else {
+            text = "Bootstrap 1000 is the recommended default for routine IQ-TREE runs. Increase it only when you explicitly want more support resampling.";
+        }
+        if (alrtCheckBox.isSelected()) {
+            text += " -alrt is a separate support metric and does not replace bootstrap.";
+        }
+        bootstrapGuidanceArea.setText(text);
+        bootstrapGuidanceArea.setForeground(warning ? WorkbenchStyles.WARNING : WorkbenchStyles.TEXT_SECONDARY);
     }
 
     private void updateModelSetControls() {

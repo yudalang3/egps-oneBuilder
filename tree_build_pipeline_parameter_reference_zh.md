@@ -49,7 +49,7 @@
 其中当前仓库的参数消费方式是：
 
 - MAFFT：`s1_quick_align.zsh` 读取 `alignment` 段。
-- PHYLIP：Python 管线从 `menu_overrides` 读取交互式菜单输入序列。
+- PHYLIP：Python 管线优先消费 `common` 里的结构化常用字段；如果给了 `menu_overrides`，则按原始交互菜单输入执行。
 - IQ-TREE：Python 管线消费结构化字段，并把 `extra_args` 直接追加到命令尾部。
 - MrBayes：Python 管线消费结构化字段；如果 `command_block` 非空，则改为使用原生命令块。
 
@@ -83,8 +83,13 @@ JSON 设计分两档：
 | MAFFT | `alignment.mafft.common.threads` | `--thread` | Both | 已支持 | 当前 GUI 已暴露 |
 | MAFFT | `alignment.mafft.common.reorder` | `--reorder` | Both | 已支持 | `false` 时相当于不加 `--reorder` |
 | Distance | `methods.distance.enabled` | 方法开关 | Both | 已支持 | 仅控制是否运行 |
+| PHYLIP dnadist | `methods.distance.dnadist.common.dnadist_model` | 菜单 `D` | DNA/CDS | 已支持 | `F84 / Kimura / Jukes-Cantor / LogDet` |
+| PHYLIP dnadist | `methods.distance.dnadist.common.dnadist_transition_transversion_ratio` | 菜单 `T` | DNA/CDS | 已支持 | 仅对 `F84 / Kimura` 有意义 |
+| PHYLIP dnadist | `methods.distance.dnadist.common.dnadist_empirical_base_frequencies` | 菜单 `F` | DNA/CDS | 已支持 | 仅对 `F84` 有意义 |
+| PHYLIP neighbor | `methods.distance.neighbor.common.neighbor_method` | 菜单 `N` | Both | 已支持 | `NJ / UPGMA` |
+| PHYLIP neighbor | `methods.distance.neighbor.common.neighbor_outgroup_index` | 菜单 `O` | Both | 已支持 | `UPGMA` 时不适用 |
 | IQ-TREE | `methods.maximum_likelihood.enabled` | 方法开关 | Both | 已支持 | 仅控制是否运行 |
-| IQ-TREE | `methods.maximum_likelihood.iqtree.common.bootstrap_replicates` | `-bb` | Both | 已支持 | 当前 GUI 已暴露 |
+| IQ-TREE | `methods.maximum_likelihood.iqtree.common.bootstrap_replicates` | `-bb` | Both | 已支持 | 当前 GUI 已暴露，并带推荐/耗时提示 |
 | IQ-TREE | `methods.maximum_likelihood.iqtree.common.model_strategy` | `-m` | Both | 已支持 | 当前 GUI 已暴露 |
 | IQ-TREE | `methods.maximum_likelihood.iqtree.common.model_set` | `-mset` | Protein 优先 | 已支持 | DNA 也可传，但通常留空 |
 | MrBayes | `methods.bayesian.enabled` | 方法开关 | Both | 已支持 | 仅控制是否运行 |
@@ -96,6 +101,11 @@ JSON 设计分两档：
 | MrBayes | `methods.bayesian.mrbayes.common.protein_model_prior` | `prset aamodelpr=` | Protein | 已支持 | 当前 GUI 已暴露 |
 | MrBayes | `methods.bayesian.mrbayes.common.nst` | `lset nst=` | DNA/CDS | 已支持 | 当前 GUI 已暴露 |
 | Parsimony | `methods.parsimony.enabled` | 方法开关 | Both | 已支持 | 仅控制是否运行 |
+| PHYLIP protpars | `methods.parsimony.protpars.common.protpars_outgroup_index` | 菜单 `O` | Protein | 已支持 | 蛋白简约法外群 |
+| PHYLIP protpars | `methods.parsimony.protpars.common.protpars_print_steps` | 菜单 `4` | Protein | 已支持 | 是否打印每个位点的 steps |
+| PHYLIP protpars | `methods.parsimony.protpars.common.protpars_print_sequences` | 菜单 `5` | Protein | 已支持 | 是否打印节点序列 |
+| PHYLIP dnapars | `methods.parsimony.dnapars.common.dnapars_outgroup_index` | 菜单 `O` | DNA/CDS | 已支持 | DNA 简约法外群 |
+| PHYLIP dnapars | `methods.parsimony.dnapars.common.dnapars_transversion_parsimony` | 菜单 `N` | DNA/CDS | 已支持 | 颠换简约法 |
 
 ## 高级参数
 
@@ -168,8 +178,8 @@ JSON 设计分两档：
 当前仓库对 PHYLIP 的策略是：
 
 - `enabled` 负责控制是否运行。
-- 具体菜单项不做大量 Java 表单化。
-- 需要完整控制时，直接写 `menu_overrides[]`。
+- 高频常用项优先结构化到 `common`。
+- 需要完整控制时，再写 `menu_overrides[]`。
 
 默认菜单序列：
 
@@ -180,7 +190,13 @@ JSON 设计分两档：
 建议：
 
 - 如果你只是想用仓库默认行为，不要写 `menu_overrides[]`。
-- 如果你要改模型、随机种子、jumble、outgroup、距离修正方式等，请直接按 PHYLIP 官方交互顺序写进 `menu_overrides[]`。
+- 当前已结构化的常用项包括：
+  - `dnadist_model`
+  - `dnadist_transition_transversion_ratio`
+  - `dnadist_empirical_base_frequencies`
+  - `neighbor_method`
+  - `neighbor_outgroup_index`
+- 如果你要改 `jumble`、更多距离修正方式或其他低频菜单项，再按 PHYLIP 官方交互顺序写进 `menu_overrides[]`。
 
 ### 3. IQ-TREE
 
@@ -188,7 +204,7 @@ JSON 设计分两档：
 
 | JSON 路径 | 官方参数 | 档位 | 说明 |
 | --- | --- | --- | --- |
-| `...iqtree.common.bootstrap_replicates` | `-bb` | 常用 | UFBoot 次数 |
+| `...iqtree.common.bootstrap_replicates` | `-bb` | 常用 | UFBoot 次数；GUI 会给出推荐/耗时提示 |
 | `...iqtree.common.model_strategy` | `-m` | 常用 | 如 `MFP` |
 | `...iqtree.common.model_set` | `-mset` | 常用 | 蛋白流程更常见 |
 | `...iqtree.advanced.threads` | `-nt` | 高级 | 线程数或 `AUTO` |
@@ -252,12 +268,21 @@ JSON 设计分两档：
 当前策略与距离法一致：
 
 - `enabled` 控制是否运行。
-- `protpars` / `dnapars` 的详细菜单项统一走 `menu_overrides[]`。
+- 高频常用项先走结构化字段。
+- 其余详细菜单项继续走 `menu_overrides[]`。
 
 默认菜单序列：
 
 - `protpars`: `4`, `5`, `Y`
 - `dnapars`: `Y`
+
+当前已结构化的常用项：
+
+- `protpars_outgroup_index`
+- `protpars_print_steps`
+- `protpars_print_sequences`
+- `dnapars_outgroup_index`
+- `dnapars_transversion_parsimony`
 
 如果你要控制：
 

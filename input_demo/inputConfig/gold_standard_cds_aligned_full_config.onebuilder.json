@@ -1,9 +1,9 @@
 {
   "run": {
-    "input_type": "PROTEIN",
-    "input_file": "/absolute/path/to/aligned_input.fasta",
-    "output_base_dir": "/absolute/path/to/output_root",
-    "output_prefix": "demo_run"
+    "input_type": "DNA_CDS",
+    "input_file": "../inputSeq/gold_standard_cds_aligned.fasta",
+    "output_base_dir": "../demo_outputs",
+    "output_prefix": "gold_standard_cds_aligned_demo"
   },
   "alignment": {
     "run_alignment_first": false,
@@ -83,10 +83,10 @@
           "protein_model_prior": "mixed",
           "nst": 6,
           "rates": "invgamma",
-          "ngen": 50000,
+          "ngen": 10000,
           "samplefreq": 100,
-          "printfreq": 1000,
-          "diagnfreq": 5000
+          "printfreq": 100,
+          "diagnfreq": 1000
         },
         "advanced": {
           "nruns": 2,

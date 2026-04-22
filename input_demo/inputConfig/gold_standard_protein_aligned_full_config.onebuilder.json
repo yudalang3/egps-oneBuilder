@@ -1,9 +1,9 @@
 {
   "run": {
     "input_type": "PROTEIN",
-    "input_file": "/absolute/path/to/aligned_input.fasta",
-    "output_base_dir": "/absolute/path/to/output_root",
-    "output_prefix": "demo_run"
+    "input_file": "../inputSeq/gold_standard_protein_aligned.fasta",
+    "output_base_dir": "../demo_outputs",
+    "output_prefix": "gold_standard_protein_aligned_demo"
   },
   "alignment": {
     "run_alignment_first": false,
@@ -56,7 +56,7 @@
         "common": {
           "bootstrap_replicates": 1000,
           "model_strategy": "MFP",
-          "model_set": ""
+          "model_set": "LG,WAG,JTT"
         },
         "advanced": {
           "threads": "AUTO",

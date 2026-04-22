@@ -64,11 +64,15 @@ def _build_protpars_menu_input(settings):
     if overrides:
         return _normalize_phylip_menu_input(overrides, "4\n5\nY\n")
 
-    lines = ["4", "5"]
+    lines = []
+    if settings.get("protpars_print_steps", True):
+        lines.append("4")
+    if settings.get("protpars_print_sequences", True):
+        lines.append("5")
     outgroup_index = settings.get("protpars_outgroup_index")
     if outgroup_index is not None:
         lines.extend(["O", str(outgroup_index)])
-    return _normalize_phylip_menu_input(lines, "4\n5\nY\n")
+    return _normalize_phylip_menu_input(lines, "Y\n")
 
 
 def _append_iqtree_args(cmd, settings):

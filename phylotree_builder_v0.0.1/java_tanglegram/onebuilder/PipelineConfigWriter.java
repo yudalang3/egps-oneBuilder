@@ -135,6 +135,8 @@ public final class PipelineConfigWriter {
         if (config.inputType() == InputType.PROTEIN) {
             JSONObject common = new JSONObject();
             putIfPresent(common, "protpars_outgroup_index", config.parsimony().protparsOutgroupIndex());
+            common.put("protpars_print_steps", config.parsimony().protparsPrintSteps());
+            common.put("protpars_print_sequences", config.parsimony().protparsPrintSequences());
             section.put("protpars", phylipProgramSection(common, config.parsimony().protparsMenuOverrides()));
         } else {
             JSONObject common = new JSONObject()

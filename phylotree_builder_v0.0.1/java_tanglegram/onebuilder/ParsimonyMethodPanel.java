@@ -17,6 +17,8 @@ final class ParsimonyMethodPanel extends JPanel {
     private final JCheckBox enabledCheckBox;
     private final JLabel outgroupLabel;
     private final JSpinner outgroupSpinner;
+    private final JCheckBox protparsPrintStepsCheckBox;
+    private final JCheckBox protparsPrintSequencesCheckBox;
     private final JCheckBox dnaparsTransversionCheckBox;
     private final JLabel methodOverrideLabel;
     private final JTextArea methodOverrideArea;
@@ -38,10 +40,12 @@ final class ParsimonyMethodPanel extends JPanel {
         add(header, BorderLayout.NORTH);
 
         JTextArea descriptionArea = WorkbenchStyles.createNoteArea(
-                "Parsimony mode runs the existing PHYLIP parsimony workflow. Advanced users can override protpars/dnapars menu choices directly.");
+                "Parsimony mode runs the existing PHYLIP parsimony workflow. Protein mode also exposes the stable protpars output toggles that were previously hard-coded as menu responses 4/5.");
 
         outgroupLabel = new JLabel("Outgroup index");
         outgroupSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 999999, 1));
+        protparsPrintStepsCheckBox = new JCheckBox("Print site steps (protpars 4)", true);
+        protparsPrintSequencesCheckBox = new JCheckBox("Print node sequences (protpars 5)", true);
         dnaparsTransversionCheckBox = new JCheckBox("Use transversion parsimony");
         methodOverrideLabel = new JLabel();
         methodOverrideArea = new JTextArea(6, 28);
@@ -64,6 +68,12 @@ final class ParsimonyMethodPanel extends JPanel {
         commonConstraints.gridx = 0;
         commonConstraints.gridy = 1;
         commonConstraints.gridwidth = 2;
+        commonForm.add(protparsPrintStepsCheckBox, commonConstraints);
+
+        commonConstraints.gridy = 2;
+        commonForm.add(protparsPrintSequencesCheckBox, commonConstraints);
+
+        commonConstraints.gridy = 3;
         commonForm.add(dnaparsTransversionCheckBox, commonConstraints);
 
         JPanel advancedForm = new JPanel(new GridBagLayout());
@@ -101,6 +111,8 @@ final class ParsimonyMethodPanel extends JPanel {
     void setInputType(InputType inputType) {
         this.inputType = inputType;
         methodOverrideLabel.setText(inputType == InputType.PROTEIN ? "protpars menu overrides" : "dnapars menu overrides");
+        protparsPrintStepsCheckBox.setVisible(inputType == InputType.PROTEIN);
+        protparsPrintSequencesCheckBox.setVisible(inputType == InputType.PROTEIN);
         dnaparsTransversionCheckBox.setVisible(inputType == InputType.DNA_CDS);
     }
 
@@ -109,6 +121,8 @@ final class ParsimonyMethodPanel extends JPanel {
         outgroupSpinner.setValue(Integer.valueOf(inputType == InputType.PROTEIN
                 ? (config.protparsOutgroupIndex() == null ? 0 : config.protparsOutgroupIndex().intValue())
                 : (config.dnaparsOutgroupIndex() == null ? 0 : config.dnaparsOutgroupIndex().intValue())));
+        protparsPrintStepsCheckBox.setSelected(config.protparsPrintSteps());
+        protparsPrintSequencesCheckBox.setSelected(config.protparsPrintSequences());
         dnaparsTransversionCheckBox.setSelected(config.dnaparsTransversionParsimony());
         methodOverrideArea.setText(TextListCodec.joinLines(inputType == InputType.PROTEIN
                 ? config.protparsMenuOverrides()
@@ -126,6 +140,8 @@ final class ParsimonyMethodPanel extends JPanel {
                 inputType == InputType.PROTEIN ? integerOrNull((Integer) outgroupSpinner.getValue()) : null,
                 inputType == InputType.DNA_CDS ? integerOrNull((Integer) outgroupSpinner.getValue()) : null,
                 inputType == InputType.DNA_CDS && dnaparsTransversionCheckBox.isSelected(),
+                inputType != InputType.PROTEIN || protparsPrintStepsCheckBox.isSelected(),
+                inputType != InputType.PROTEIN || protparsPrintSequencesCheckBox.isSelected(),
                 java.util.List.of(),
                 java.util.List.of(),
                 java.util.List.of(),

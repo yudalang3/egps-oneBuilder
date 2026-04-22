@@ -103,7 +103,21 @@ zsh phylotree_builder_v0.0.1/run_onebuilder_config.zsh /path/to/demo.onebuilder.
 
 底层的 `s1_quick_align.zsh`、`s2_phylo_4prot.zsh`、`s2_phylo_4dna.zsh` 仍然保留，但现在推荐的“GUI 导出后命令行复现”方式，就是直接使用 `run_onebuilder_config.zsh`。
 
-### 2.4 包装脚本参数
+### 2.4 整份 Config 直接运行
+
+现在也可以直接从一整份运行时 JSON 启动，而不必每次都先重新打开 GUI。这个用法适合把一份完整配置文件当作重复运行、共享或审计时的唯一真源。
+
+```bash
+zsh phylotree_builder_v0.0.1/run_onebuilder_config.zsh tree_build_full_config_template.json
+```
+
+实际使用时，建议先复制 `tree_build_full_config_template.json`，再把其中 `run` 段的路径和你关心的方法参数补全。
+
+完整模板现在允许同时保留 protein 和 DNA/CDS 两套方法块。运行时会先读取 `run.input_type`，然后自动选择匹配的那一套设置。
+
+例如当 `run.input_type` 为 `DNA_CDS` 时，即使同一份 JSON 里仍然保留了蛋白质专用块，实际运行也会只使用 `dnadist`、`dnapars`、DNA 的 MrBayes 参数，以及 DNA 安全的 IQ-TREE 设置。
+
+### 2.5 包装脚本参数
 
 现在这几个包装脚本已经把 GUI 会用到的参数接口公开出来了：
 
@@ -220,7 +234,9 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 - 如果输入 FASTA 还是原始序列、尚未完成多序列比对，就勾选 `Run multiple sequence alignment first`；在 Linux 下 GUI 会把参数转发给 `s1_quick_align.zsh`。
 - 输入页包含输入/输出路径、最近浏览目录记忆、MAFFT strategy、`Maxiterate`、sequence reorder 控制、`Advanced MAFFT`、`Export config file when running` 以及 `Export JSON`。
 - 高级参数区域默认折叠，并且现在在 4 个方法页里都统一放在主要参数区的正下方。
-- GUI 支持在启动 run 之前，按方法开启/关闭四种建树步骤，并调整公开出来的 ML 与贝叶斯参数。
+- GUI 支持在启动 run 之前，按方法开启/关闭四种建树步骤，并调整公开出来的 ML、贝叶斯以及结构化 PHYLIP 常用参数。
+- ML 页面现在会给出非阻断式的 Bootstrap 提示：`1000` 仍是推荐默认值，`0` 会明确表示跳过 `-bb`，而特别大的值只会提示运行时间风险，不会强制拦截。
+- PHYLIP 页面继续保留 `menu_overrides` 作为高级逃生口，同时把已经稳定的常用项直接结构化出来，例如 DNA 距离模型设置、neighbor 类型/外群、蛋白 `protpars` 的输出开关，以及 DNA `dnapars` 的外群/颠换简约法选项。
 - 窗口菜单中还提供 `Preference > Settings...`，可设置共享的全局字体族、全局字号、窗口大小恢复、默认的 tanglegram 标签字号，以及 `Show Windows oneBuilder startup warning`。
 - 这些 Preference 修改后会立即作用到当前已打开的 Java 窗口，并在下次启动时继续沿用。
 - 这些共享 GUI 偏好现在统一保存在 `~/.egps.onebuilder.prop`，不再依赖 Windows 注册表。

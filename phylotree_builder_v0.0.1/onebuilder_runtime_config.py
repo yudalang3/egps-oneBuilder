@@ -55,6 +55,8 @@ PROTEIN_DEFAULTS = {
     "parsimony": {
         "enabled": True,
         "protpars_outgroup_index": None,
+        "protpars_print_steps": True,
+        "protpars_print_sequences": True,
         "protpars_menu_overrides": [],
     },
 }
@@ -118,6 +120,10 @@ DNA_DEFAULTS = {
 }
 
 
+PROTEIN_FIXED_MODELS = {"LG", "WAG", "JTT"}
+DNA_FIXED_MODELS = {"GTR", "HKY", "JC"}
+
+
 def load_runtime_config(config_path):
     if config_path is None:
         return {}
@@ -137,14 +143,14 @@ def load_runtime_config(config_path):
 
 
 def protein_runtime_settings(runtime_config):
-    return _merged_settings(PROTEIN_DEFAULTS, runtime_config)
+    return _merged_settings(PROTEIN_DEFAULTS, runtime_config, "PROTEIN")
 
 
 def dna_runtime_settings(runtime_config):
-    return _merged_settings(DNA_DEFAULTS, runtime_config)
+    return _merged_settings(DNA_DEFAULTS, runtime_config, "DNA_CDS")
 
 
-def _merged_settings(defaults, runtime_config):
+def _merged_settings(defaults, runtime_config, input_type):
     merged = copy.deepcopy(defaults)
     methods = (runtime_config or {}).get("methods", {})
     if not isinstance(methods, dict):
@@ -164,7 +170,33 @@ def _merged_settings(defaults, runtime_config):
         else:
             _merge_scalar_overrides(merged[method_name], overrides)
 
+    _normalize_input_type_specific_settings(merged, input_type)
+
     return merged
+
+
+def _normalize_input_type_specific_settings(merged, input_type):
+    maximum_likelihood = merged.get("maximum_likelihood")
+    if not isinstance(maximum_likelihood, dict):
+        return
+
+    model_strategy = _normalize_tree_build_model_strategy(
+        maximum_likelihood.get("model_strategy")
+    )
+    maximum_likelihood["model_strategy"] = model_strategy
+    raw_model_set = str(maximum_likelihood.get("model_set") or "").strip()
+
+    if input_type == "DNA_CDS":
+        if model_strategy in DNA_FIXED_MODELS:
+            maximum_likelihood["model_set"] = ""
+            return
+        maximum_likelihood["model_set"] = _filter_model_set(raw_model_set, DNA_FIXED_MODELS)
+        return
+
+    if model_strategy in PROTEIN_FIXED_MODELS:
+        maximum_likelihood["model_set"] = ""
+        return
+    maximum_likelihood["model_set"] = raw_model_set
 
 
 def _merge_maximum_likelihood(target, overrides):
@@ -261,3 +293,17 @@ def _normalize_tree_build_model_strategy(value):
     if strategy == "TESTONLY":
         return "TEST"
     return strategy
+
+
+def _filter_model_set(raw_model_set, allowed_models):
+    if not raw_model_set:
+        return ""
+    tokens = []
+    seen = set()
+    for item in raw_model_set.split(","):
+        normalized = str(item).strip().upper()
+        if not normalized or normalized not in allowed_models or normalized in seen:
+            continue
+        seen.add(normalized)
+        tokens.append(normalized)
+    return ",".join(tokens)

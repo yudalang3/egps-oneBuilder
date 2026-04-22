@@ -314,6 +314,9 @@ final class InputAlignPanel extends JPanel {
         } catch (InvalidPathException exception) {
             return "Finish the required fields in Input / Align first: choose a valid input FASTA/MSA path.";
         }
+        if (containsInvalidPathControlCharacters(outputDirText)) {
+            return "Finish the required fields in Input / Align first: choose a valid output base directory path.";
+        }
         try {
             Paths.get(outputDirText).toAbsolutePath().normalize();
         } catch (InvalidPathException exception) {
@@ -444,6 +447,9 @@ final class InputAlignPanel extends JPanel {
             throw new IllegalArgumentException("Input file does not exist: " + inputPath);
         }
 
+        if (containsInvalidPathControlCharacters(outputDirectoryText)) {
+            throw new IllegalArgumentException("Output base directory path is invalid: " + outputDirectoryText);
+        }
         Path outputDirectory;
         try {
             outputDirectory = Paths.get(outputDirectoryText).toAbsolutePath().normalize();
@@ -595,6 +601,18 @@ final class InputAlignPanel extends JPanel {
         } catch (InvalidPathException exception) {
             return null;
         }
+    }
+
+    private static boolean containsInvalidPathControlCharacters(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        for (int index = 0; index < text.length(); index++) {
+            if (Character.isISOControl(text.charAt(index))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Path initialInputChooserPath() {

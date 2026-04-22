@@ -107,7 +107,21 @@ This script reads `run.input_type`, `run.input_file`, `run.output_base_dir`, `ru
 
 The lower-level wrappers remain available, but `run_onebuilder_config.zsh` is now the intended CLI entrypoint for replaying a GUI-exported configuration.
 
-### 2.4 Wrapper Options
+### 2.4 Full Config Import Run
+
+You can also start from one complete runtime JSON directly, without reopening the GUI first. This is useful when you want to keep one checked or shared config file as the single source of truth for repeated Linux runs.
+
+```bash
+zsh phylotree_builder_v0.0.1/run_onebuilder_config.zsh tree_build_full_config_template.json
+```
+
+In practice you should first copy `tree_build_full_config_template.json`, then fill in the `run` paths and the method settings you care about.
+
+The full template may include both protein-oriented and DNA/CDS-oriented method blocks at the same time. The runtime loader now resolves that by reading `run.input_type` first, then selecting the matching method settings automatically during execution.
+
+For example, with `run.input_type` set to `DNA_CDS`, the run will use `dnadist`, `dnapars`, DNA MrBayes settings, and DNA-safe IQ-TREE settings even if the same JSON still contains protein-only blocks for another job.
+
+### 2.5 Wrapper Options
 
 The wrappers now expose the options that the GUI uses internally:
 
@@ -224,7 +238,9 @@ Usage notes:
 - Enable `Run multiple sequence alignment first` if the input FASTA is raw and not aligned yet; on Linux the GUI forwards MAFFT settings into `s1_quick_align.zsh`.
 - The input page includes input/output paths, remembered browse locations, MAFFT strategy, `Maxiterate`, sequence reorder control, `Advanced MAFFT`, `Export config file when running`, and `Export JSON`.
 - Advanced parameter groups are collapsed by default with a shared task-pane style and now appear in a consistent position directly below the primary controls in each method page.
-- The GUI lets you disable individual tree-building methods and tune the exposed ML and Bayesian parameters before starting a run.
+- The GUI lets you disable individual tree-building methods and tune the exposed ML, Bayesian, and structured PHYLIP common parameters before starting a run.
+- The ML page now gives non-blocking bootstrap guidance: `1000` remains the recommended default, `0` explicitly means "skip -bb", and very large values show a runtime warning instead of hard-blocking the run.
+- The PHYLIP pages now keep `menu_overrides` as the advanced escape hatch, while exposing stable common controls such as DNA distance model settings, neighbor type/outgroup, protein `protpars` print toggles, and DNA `dnapars` outgroup/transversion options directly in the GUI.
 - The window also includes `Preference > Settings...` for shared UI preferences such as global font family, global font size, window-size restore, the default tanglegram label-font size, and `Show Windows oneBuilder startup warning`.
 - Preference changes are applied live to currently open Java windows and are reused on the next launch.
 - Shared GUI preferences are stored in `~/.egps.onebuilder.prop` instead of the Windows registry, so the same storage model is used on Linux and Windows.

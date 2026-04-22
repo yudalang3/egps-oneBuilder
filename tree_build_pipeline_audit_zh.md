@@ -8,6 +8,12 @@
 3. GUI -> JSON -> wrapper / Python pipeline -> 底层软件 的解析链是否正确
 4. 当前有哪些必须修的参数问题
 
+更新说明：
+
+- 下面的原始审计结论已经部分落实。
+- 当前代码已经补上 IQ-TREE `Bootstrap` 的推荐/耗时提示。
+- 当前代码也已经把一部分 PHYLIP 常用项结构化，尤其是 `dnadist / neighbor / protpars / dnapars` 的高频字段。
+
 ## 1. 版本基线
 
 当前版本基线来自 `phylotree_builder_v0.0.1/pixi.toml`：
@@ -90,7 +96,7 @@
 总体结论不是“全错”，而是“主干链路已经通了，但参数层面不均衡”：
 
 - `MAFFT`：基础链路正确，常用参数已经覆盖常见策略、迭代次数、线程和重排序。
-- `PHYLIP`：运行链路正确，但参数支持几乎全靠原始 `menu_overrides`，结构化支持明显不足。
+- `PHYLIP`：运行链路正确，且常用参数已经补了一层结构化支持，但整体仍明显弱于 IQ-TREE / MrBayes。
 - `IQ-TREE`：当前问题最多。部分基础参数是正确的，但 GUI 可选项和 flag 翻译里已经有会影响运行语义的错误。
 - `MrBayes`：基本链路可用，默认命令构造逻辑大致合理；`stoprule/stopval` 联动已经修正，剩余问题主要是提示和可用性收紧。
 
@@ -219,8 +225,14 @@ MAFFT 官方 manual 对这几个核心选项的语义是明确的：
 
 当前 GUI：
 
-- 基础参数只有 `Enable parsimony method`
-- 高级参数只有：
+- 基础参数包括：
+  - `Enable parsimony method`
+  - `protpars_outgroup_index`
+  - `protpars_print_steps`
+  - `protpars_print_sequences`
+  - `dnapars_outgroup_index`
+  - `dnapars_transversion_parsimony`
+- 高级参数仍保留：
   - `protpars menu_overrides[]`
   - `dnapars menu_overrides[]`
 
@@ -256,12 +268,12 @@ MAFFT 官方 manual 对这几个核心选项的语义是明确的：
 
 不足项：
 
-- 和距离法一样，结构化支持几乎没有。
-- 例如 `dnapars` 的 `transversion parsimony`、`outgroup`、`threshold`、`search option` 都没有结构化字段。
+- 和距离法一样，结构化支持仍然不完整。
+- 当前已经补了 `protpars` 输出开关、`protpars/dnapars` 外群和 `dnapars transversion parsimony`，但 `threshold`、`search option` 等仍然没有结构化字段。
 
 判断：
 
-- 基础参数：`严重不足`
+- 基础参数：`已有改进，但仍不完整`
 - 高级参数：`能用，但只是菜单透传`
 - 运行解析：`正确`
 
@@ -529,10 +541,9 @@ GUI 暴露：
 
 ## Medium
 
-1. IQ-TREE `Bootstrap` 缺少推荐范围验证
-2. DNA/CDS 模式下 `model_set` 被完全隐藏，虽然运行层支持
-3. PHYLIP 距离法 / 简约法缺少更多结构化基础参数
-4. MrBayes `burnin / burninfrac / relburnin` 缺少组合说明或进一步联动
+1. DNA/CDS 模式下 `model_set` 被完全隐藏，虽然运行层支持
+2. PHYLIP 距离法 / 简约法仍缺少更多结构化基础参数
+3. MrBayes `burnin / burninfrac / relburnin` 缺少组合说明或进一步联动
 
 ## Low
 
@@ -551,9 +562,8 @@ GUI 暴露：
 
 第二批应该补：
 
-1. 给 `Bootstrap` 加基本合法性 / 推荐范围提示
-2. 给 PHYLIP 增加一层真正的结构化常用参数，而不是只靠 `menu_overrides`
-3. 继续收紧 MrBayes 的 burnin 相关提示
+1. 继续给 PHYLIP 增加一层真正的结构化常用参数，而不是只靠 `menu_overrides`
+2. 继续收紧 MrBayes 的 burnin 相关提示
 
 第三批再做增强：
 

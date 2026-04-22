@@ -12,6 +12,8 @@ public final class SimpleMethodConfig {
     private final Integer protparsOutgroupIndex;
     private final Integer dnaparsOutgroupIndex;
     private final boolean dnaparsTransversionParsimony;
+    private final boolean protparsPrintSteps;
+    private final boolean protparsPrintSequences;
     private final List<String> protdistMenuOverrides;
     private final List<String> dnadistMenuOverrides;
     private final List<String> neighborMenuOverrides;
@@ -29,6 +31,8 @@ public final class SimpleMethodConfig {
                 null,
                 null,
                 false,
+                true,
+                true,
                 List.of(),
                 List.of(),
                 List.of(),
@@ -53,6 +57,8 @@ public final class SimpleMethodConfig {
                 null,
                 null,
                 false,
+                true,
+                true,
                 protdistMenuOverrides,
                 dnadistMenuOverrides,
                 neighborMenuOverrides,
@@ -75,6 +81,42 @@ public final class SimpleMethodConfig {
             List<String> neighborMenuOverrides,
             List<String> protparsMenuOverrides,
             List<String> dnaparsMenuOverrides) {
+        this(
+                enabled,
+                dnadistModel,
+                dnadistTransitionTransversionRatio,
+                dnadistEmpiricalBaseFrequencies,
+                neighborMethod,
+                neighborOutgroupIndex,
+                protparsOutgroupIndex,
+                dnaparsOutgroupIndex,
+                dnaparsTransversionParsimony,
+                true,
+                true,
+                protdistMenuOverrides,
+                dnadistMenuOverrides,
+                neighborMenuOverrides,
+                protparsMenuOverrides,
+                dnaparsMenuOverrides);
+    }
+
+    public SimpleMethodConfig(
+            boolean enabled,
+            String dnadistModel,
+            Double dnadistTransitionTransversionRatio,
+            boolean dnadistEmpiricalBaseFrequencies,
+            String neighborMethod,
+            Integer neighborOutgroupIndex,
+            Integer protparsOutgroupIndex,
+            Integer dnaparsOutgroupIndex,
+            boolean dnaparsTransversionParsimony,
+            boolean protparsPrintSteps,
+            boolean protparsPrintSequences,
+            List<String> protdistMenuOverrides,
+            List<String> dnadistMenuOverrides,
+            List<String> neighborMenuOverrides,
+            List<String> protparsMenuOverrides,
+            List<String> dnaparsMenuOverrides) {
         this.enabled = enabled;
         this.dnadistModel = dnadistModel == null || dnadistModel.isBlank() ? "F84" : dnadistModel;
         this.dnadistTransitionTransversionRatio = dnadistTransitionTransversionRatio;
@@ -84,6 +126,8 @@ public final class SimpleMethodConfig {
         this.protparsOutgroupIndex = protparsOutgroupIndex;
         this.dnaparsOutgroupIndex = dnaparsOutgroupIndex;
         this.dnaparsTransversionParsimony = dnaparsTransversionParsimony;
+        this.protparsPrintSteps = protparsPrintSteps;
+        this.protparsPrintSequences = protparsPrintSequences;
         this.protdistMenuOverrides = immutableCopy(protdistMenuOverrides);
         this.dnadistMenuOverrides = immutableCopy(dnadistMenuOverrides);
         this.neighborMenuOverrides = immutableCopy(neighborMenuOverrides);
@@ -125,6 +169,14 @@ public final class SimpleMethodConfig {
 
     public boolean dnaparsTransversionParsimony() {
         return dnaparsTransversionParsimony;
+    }
+
+    public boolean protparsPrintSteps() {
+        return protparsPrintSteps;
+    }
+
+    public boolean protparsPrintSequences() {
+        return protparsPrintSequences;
     }
 
     public List<String> protdistMenuOverrides() {
