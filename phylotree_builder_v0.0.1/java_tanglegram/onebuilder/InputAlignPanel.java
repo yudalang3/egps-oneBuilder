@@ -4,6 +4,9 @@ import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -22,11 +25,13 @@ import javax.swing.JSpinner;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import tanglegram.UiPreferenceStore;
 
 final class InputAlignPanel extends JPanel {
+    private static final int INPUT_TYPE_DETECTION_CHAR_LIMIT = 20000;
     private final JComboBox<InputType> inputTypeCombo;
     private final JTextField inputFileField;
     private final JTextField outputDirField;
@@ -38,6 +43,7 @@ final class InputAlignPanel extends JPanel {
     private final JSpinner alignThreadsSpinner;
     private final JCheckBox reorderCheckBox;
     private final JTextArea alignExtraArgsArea;
+    private final JLabel inputTypeHintLabel;
     private final JLabel alignedPreviewValue;
     private final PlatformSupport platformSupport;
     private final Runnable inputChangedCallback;
@@ -45,6 +51,8 @@ final class InputAlignPanel extends JPanel {
     private Path lastInputBrowseDir;
     private Path lastOutputBrowseDir;
     private boolean running;
+    private long inputTypeDetectionToken;
+    private Path lastScheduledInputTypeDetectionPath;
 
     InputAlignPanel(
             PlatformSupport platformSupport,
@@ -87,6 +95,7 @@ final class InputAlignPanel extends JPanel {
         alignExtraArgsArea.setBackground(WorkbenchStyles.SURFACE_BACKGROUND);
         alignExtraArgsArea.setForeground(WorkbenchStyles.TEXT_PRIMARY);
         alignExtraArgsArea.setLineWrap(false);
+        inputTypeHintLabel = WorkbenchStyles.createSubtitleLabel("Auto-detected: choose an input FASTA/MSA file first.");
         alignedPreviewValue = new JLabel("-");
 
         constraints.gridx = 0;
@@ -100,6 +109,16 @@ final class InputAlignPanel extends JPanel {
         constraints.gridx = 0;
         constraints.gridy = 1;
         constraints.weightx = 0.0;
+        formPanel.add(new JLabel(""), constraints);
+        constraints.gridx = 1;
+        constraints.gridwidth = 2;
+        constraints.weightx = 1.0;
+        formPanel.add(inputTypeHintLabel, constraints);
+        constraints.gridwidth = 1;
+
+        constraints.gridx = 0;
+        constraints.gridy = 2;
+        constraints.weightx = 0.0;
         formPanel.add(new JLabel("Input FASTA/MSA"), constraints);
         constraints.gridx = 1;
         constraints.weightx = 1.0;
@@ -111,7 +130,7 @@ final class InputAlignPanel extends JPanel {
         formPanel.add(inputBrowseButton, constraints);
 
         constraints.gridx = 0;
-        constraints.gridy = 2;
+        constraints.gridy = 3;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Output base dir"), constraints);
         constraints.gridx = 1;
@@ -124,7 +143,7 @@ final class InputAlignPanel extends JPanel {
         formPanel.add(outputBrowseButton, constraints);
 
         constraints.gridx = 0;
-        constraints.gridy = 3;
+        constraints.gridy = 4;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Output prefix"), constraints);
         constraints.gridx = 1;
@@ -134,7 +153,7 @@ final class InputAlignPanel extends JPanel {
         constraints.gridwidth = 1;
 
         constraints.gridx = 0;
-        constraints.gridy = 4;
+        constraints.gridy = 5;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Alignment"), constraints);
         constraints.gridx = 1;
@@ -144,7 +163,7 @@ final class InputAlignPanel extends JPanel {
         constraints.gridwidth = 1;
 
         constraints.gridx = 0;
-        constraints.gridy = 5;
+        constraints.gridy = 6;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("MAFFT strategy"), constraints);
         constraints.gridx = 1;
@@ -152,7 +171,7 @@ final class InputAlignPanel extends JPanel {
         formPanel.add(alignStrategyCombo, constraints);
 
         constraints.gridx = 0;
-        constraints.gridy = 6;
+        constraints.gridy = 7;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Maxiterate"), constraints);
         constraints.gridx = 1;
@@ -160,7 +179,7 @@ final class InputAlignPanel extends JPanel {
         formPanel.add(maxiterateSpinner, constraints);
 
         constraints.gridx = 0;
-        constraints.gridy = 7;
+        constraints.gridy = 8;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("MAFFT threads"), constraints);
         constraints.gridx = 1;
@@ -168,7 +187,7 @@ final class InputAlignPanel extends JPanel {
         formPanel.add(alignThreadsSpinner, constraints);
 
         constraints.gridx = 0;
-        constraints.gridy = 8;
+        constraints.gridy = 9;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Alignment flags"), constraints);
         constraints.gridx = 1;
@@ -178,7 +197,7 @@ final class InputAlignPanel extends JPanel {
         constraints.gridwidth = 1;
 
         constraints.gridx = 0;
-        constraints.gridy = 9;
+        constraints.gridy = 10;
         constraints.anchor = GridBagConstraints.NORTHWEST;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Advanced MAFFT"), constraints);
@@ -190,7 +209,7 @@ final class InputAlignPanel extends JPanel {
         constraints.anchor = GridBagConstraints.WEST;
 
         constraints.gridx = 0;
-        constraints.gridy = 10;
+        constraints.gridy = 11;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Config export"), constraints);
         constraints.gridx = 1;
@@ -200,7 +219,7 @@ final class InputAlignPanel extends JPanel {
         constraints.gridwidth = 1;
 
         constraints.gridx = 0;
-        constraints.gridy = 11;
+        constraints.gridy = 12;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Expected aligned file"), constraints);
         constraints.gridx = 1;
@@ -234,7 +253,23 @@ final class InputAlignPanel extends JPanel {
                 notifyInputChanged();
             }
         };
-        inputFileField.getDocument().addDocumentListener(documentListener);
+        DocumentListener inputFileDocumentListener = new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent event) {
+                handleInputFileChanged();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent event) {
+                handleInputFileChanged();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent event) {
+                handleInputFileChanged();
+            }
+        };
+        inputFileField.getDocument().addDocumentListener(inputFileDocumentListener);
         outputDirField.getDocument().addDocumentListener(documentListener);
         outputPrefixField.getDocument().addDocumentListener(documentListener);
         inputTypeCombo.addActionListener(event -> notifyInputChanged());
@@ -442,6 +477,43 @@ final class InputAlignPanel extends JPanel {
         return request;
     }
 
+    static InputType detectInputTypeFromFasta(Path inputPath) {
+        int informativeResidues = 0;
+        try (BufferedReader reader = Files.newBufferedReader(inputPath, StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null && informativeResidues < INPUT_TYPE_DETECTION_CHAR_LIMIT) {
+                String trimmed = line.trim();
+                if (trimmed.isEmpty() || trimmed.charAt(0) == '>') {
+                    continue;
+                }
+                for (int index = 0; index < trimmed.length() && informativeResidues < INPUT_TYPE_DETECTION_CHAR_LIMIT; index++) {
+                    char residue = Character.toUpperCase(trimmed.charAt(index));
+                    if (Character.isWhitespace(residue) || residue == '-' || residue == '.' || residue == '*' || residue == '?') {
+                        continue;
+                    }
+                    if (isDnaResidue(residue)) {
+                        informativeResidues++;
+                        continue;
+                    }
+                    if (Character.isLetter(residue)) {
+                        return InputType.PROTEIN;
+                    }
+                }
+            }
+        } catch (IOException exception) {
+            return null;
+        }
+        return informativeResidues > 0 ? InputType.DNA_CDS : null;
+    }
+
+    void autoDetectInputTypeForCurrentFileForTest() {
+        Path inputPath = resolvedInputPathOrNull();
+        if (inputPath == null || !Files.isRegularFile(inputPath)) {
+            return;
+        }
+        applyAutoDetectedInputType(inputPath, selectedInputType(), detectInputTypeFromFasta(inputPath));
+    }
+
     private static String defaultOutputPrefix(Path inputPath) {
         String fileName = inputPath.getFileName().toString();
         int extensionIndex = fileName.lastIndexOf('.');
@@ -458,6 +530,59 @@ final class InputAlignPanel extends JPanel {
                 ? null
                 : (runAlignmentCheckBox.isSelected() ? ExecutionPlanBuilder.alignedOutputPath(inputPath) : inputPath));
         inputChangedCallback.run();
+    }
+
+    private void handleInputFileChanged() {
+        scheduleInputTypeDetection();
+        notifyInputChanged();
+    }
+
+    private void scheduleInputTypeDetection() {
+        Path inputPath = resolvedInputPathOrNull();
+        if (inputPath == null || !Files.isRegularFile(inputPath)) {
+            lastScheduledInputTypeDetectionPath = null;
+            inputTypeHintLabel.setText("Auto-detected: choose an input FASTA/MSA file first.");
+            return;
+        }
+        if (inputPath.equals(lastScheduledInputTypeDetectionPath)) {
+            return;
+        }
+        lastScheduledInputTypeDetectionPath = inputPath;
+        inputTypeHintLabel.setText("Auto-detected: checking sequence content...");
+        long detectionToken = ++inputTypeDetectionToken;
+        InputType selectedAtSchedule = selectedInputType();
+        Thread detectionThread = new Thread(() -> {
+            InputType detectedInputType = detectInputTypeFromFasta(inputPath);
+            SwingUtilities.invokeLater(() -> {
+                if (detectionToken != inputTypeDetectionToken) {
+                    return;
+                }
+                if (!inputPath.equals(resolvedInputPathOrNull())) {
+                    return;
+                }
+                applyAutoDetectedInputType(inputPath, selectedAtSchedule, detectedInputType);
+            });
+        }, "onebuilder-input-type-detector");
+        detectionThread.setDaemon(true);
+        detectionThread.start();
+    }
+
+    private void applyAutoDetectedInputType(Path inputPath, InputType selectedAtSchedule, InputType detectedInputType) {
+        if (!inputPath.equals(resolvedInputPathOrNull())) {
+            return;
+        }
+        if (detectedInputType == null) {
+            inputTypeHintLabel.setText("Auto-detected: could not determine input type, keep manual selection.");
+            return;
+        }
+        if (selectedInputType() != selectedAtSchedule) {
+            inputTypeHintLabel.setText("Auto-detected: " + detectedInputType.displayName() + " (manual selection kept).");
+            return;
+        }
+        if (inputTypeCombo.isEnabled() && detectedInputType != selectedAtSchedule) {
+            inputTypeCombo.setSelectedItem(detectedInputType);
+        }
+        inputTypeHintLabel.setText("Auto-detected: " + detectedInputType.displayName());
     }
 
     private Path resolvedInputPathOrNull() {
@@ -538,6 +663,30 @@ final class InputAlignPanel extends JPanel {
 
     private static Integer integerOrNull(Integer value) {
         return value == null || value.intValue() <= 0 ? null : Integer.valueOf(value.intValue());
+    }
+
+    private static boolean isDnaResidue(char residue) {
+        switch (residue) {
+            case 'A':
+            case 'C':
+            case 'G':
+            case 'T':
+            case 'U':
+            case 'R':
+            case 'Y':
+            case 'S':
+            case 'W':
+            case 'K':
+            case 'M':
+            case 'B':
+            case 'D':
+            case 'H':
+            case 'V':
+            case 'N':
+                return true;
+            default:
+                return false;
+        }
     }
 
     private JPanel buildAdvancedAlignmentPanel() {

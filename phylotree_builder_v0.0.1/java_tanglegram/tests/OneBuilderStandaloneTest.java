@@ -29,6 +29,7 @@ public final class OneBuilderStandaloneTest {
         run("blocksNavigationUntilRequiredInputIsReady", OneBuilderStandaloneTest::blocksNavigationUntilRequiredInputIsReady);
         run("prefersInputParentDirectoryWhenInputPathIsAFile", OneBuilderStandaloneTest::prefersInputParentDirectoryWhenInputPathIsAFile);
         run("rejectsInvalidOutputDirectoryPath", OneBuilderStandaloneTest::rejectsInvalidOutputDirectoryPath);
+        run("autoDetectsDnaInputTypeForExportedConfig", OneBuilderStandaloneTest::autoDetectsDnaInputTypeForExportedConfig);
         run("adaptsMaximumLikelihoodStrategiesByInputType", OneBuilderStandaloneTest::adaptsMaximumLikelihoodStrategiesByInputType);
         run("preservesAlrtZeroInSerializedConfig", OneBuilderStandaloneTest::preservesAlrtZeroInSerializedConfig);
         run("omitsStopvalWhenStopruleIsDisabled", OneBuilderStandaloneTest::omitsStopvalWhenStopruleIsDisabled);
@@ -381,7 +382,7 @@ public final class OneBuilderStandaloneTest {
         Path tempInputFile = Files.createTempFile("onebuilder-input-", ".fasta");
         InputAlignPanel panel = new InputAlignPanel(PlatformSupport.LINUX, () -> { }, () -> PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN));
         setTextField(panel, "inputFileField", tempInputFile.toString());
-        setTextField(panel, "outputDirField", "bad|path");
+        setTextField(panel, "outputDirField", "bad\uD800path");
 
         try {
             panel.buildRunRequestForExport();
@@ -389,6 +390,36 @@ public final class OneBuilderStandaloneTest {
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains("Output"), "expected output-path validation message");
         }
+    }
+
+    private static void autoDetectsDnaInputTypeForExportedConfig() throws Exception {
+        Path tempInputFile = Files.createTempFile("onebuilder-dna-input-", ".fasta");
+        Path tempOutputDirectory = Files.createTempDirectory("onebuilder-dna-output-");
+        Path tempConfigFile = Files.createTempFile("onebuilder-dna-config-", ".json");
+        Files.writeString(tempInputFile, ">seq1\nATGCTANNN---ATGC\n>seq2\nATGCTARCGTATATGC\n", StandardCharsets.UTF_8);
+
+        final InputAlignPanel[] panelRef = new InputAlignPanel[1];
+        SwingUtilities.invokeAndWait(() -> panelRef[0] = new InputAlignPanel(
+                PlatformSupport.LINUX,
+                () -> { },
+                () -> PipelineRuntimeConfig.defaultsFor(panelRef[0] == null ? InputType.PROTEIN : panelRef[0].selectedInputType())));
+
+        final RunRequest[] requestRef = new RunRequest[1];
+        SwingUtilities.invokeAndWait(() -> {
+            InputAlignPanel panel = panelRef[0];
+            setTextFieldUnchecked(panel, "inputFileField", tempInputFile.toString());
+            setTextFieldUnchecked(panel, "outputDirField", tempOutputDirectory.toString());
+            panel.autoDetectInputTypeForCurrentFileForTest();
+            assertEquals(InputType.DNA_CDS, panel.selectedInputType(), "expected DNA input type to be auto-detected");
+            requestRef[0] = panel.buildRunRequestForExport();
+        });
+
+        new PipelineConfigWriter().write(tempConfigFile, requestRef[0]);
+        JSONObject root = new JSONObject(Files.readString(tempConfigFile, StandardCharsets.UTF_8));
+        assertEquals("DNA/CDS", root.getJSONObject("run").getString("input_type"), "unexpected exported input type");
+        assertTrue(root.getJSONObject("methods").getJSONObject("distance").has("dnadist"), "expected dna distance section");
+        assertTrue(root.getJSONObject("methods").getJSONObject("parsimony").has("dnapars"), "expected dna parsimony section");
+        assertTrue(!root.getJSONObject("methods").getJSONObject("distance").has("protdist"), "protein distance section should be absent");
     }
 
     private static void roundTripsAdvancedRuntimeConfigThroughPanels() throws Exception {
@@ -784,6 +815,14 @@ public final class OneBuilderStandaloneTest {
         field.setAccessible(true);
         javax.swing.JTextField textField = (javax.swing.JTextField) field.get(target);
         textField.setText(value);
+    }
+
+    private static void setTextFieldUnchecked(Object target, String fieldName, String value) {
+        try {
+            setTextField(target, fieldName, value);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
     }
 
     private static Path findRepoRoot() {

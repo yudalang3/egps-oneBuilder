@@ -2,6 +2,19 @@
 
 set -euo pipefail
 
+script_dir="${0:a:h}"
+pixi_exe="${PIXI_EXE:-/home/dell/.pixi/bin/pixi}"
+json_python_cmd=(python3.13)
+
+if ! command -v python3.13 >/dev/null 2>&1; then
+    if [[ -x "$pixi_exe" ]]; then
+        json_python_cmd=("$pixi_exe" run --manifest-path "$script_dir" python3.13)
+    else
+        echo "Error: python3.13 is not available and pixi was not found at '$pixi_exe'."
+        exit 1
+    fi
+fi
+
 usage() {
     echo "Usage: zsh $0 [--config runtime.json] <runtime.json>"
     echo "  or:  zsh $0 --config <runtime.json>"
@@ -22,7 +35,6 @@ aligned_output_path() {
     fi
 }
 
-script_dir="${0:a:h}"
 config_path=""
 positionals=()
 
@@ -72,7 +84,7 @@ if [[ ! -f "$config_path" ]]; then
 fi
 
 config_values=("${(@f)$(
-    python3.13 -c '
+    "${json_python_cmd[@]}" -c '
 import json
 import sys
 from pathlib import Path

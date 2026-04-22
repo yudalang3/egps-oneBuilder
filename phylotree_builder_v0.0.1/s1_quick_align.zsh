@@ -2,6 +2,19 @@
 
 set -euo pipefail
 
+script_dir="${0:a:h}"
+pixi_exe="${PIXI_EXE:-/home/dell/.pixi/bin/pixi}"
+json_python_cmd=(python3.13)
+
+if ! command -v python3.13 >/dev/null 2>&1; then
+    if [[ -x "$pixi_exe" ]]; then
+        json_python_cmd=("$pixi_exe" run --manifest-path "$script_dir" python3.13)
+    else
+        echo "错误: 找不到 python3.13，且 pixi 不存在于 '$pixi_exe'。"
+        exit 1
+    fi
+fi
+
 usage() {
     echo "用法: zsh $0 [--config runtime.json] [--strategy localpair|auto|globalpair] [--maxiterate N] [--reorder|--no-reorder] <input.fasta>"
 }
@@ -79,7 +92,7 @@ if [[ -n "$config_path" ]]; then
     fi
 
     config_values=("${(@f)$(
-        python3.13 -c '
+        "${json_python_cmd[@]}" -c '
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as handle:
     payload = json.load(handle)
@@ -138,10 +151,6 @@ else
 fi
 
 # 执行 mafft 命令
-# 获取脚本所在目录的绝对路径
-script_dir="${0:a:h}"
-pixi_exe="${PIXI_EXE:-/home/dell/.pixi/bin/pixi}"
-
 if [[ ! -x "$pixi_exe" ]]; then
     echo "错误: 找不到 pixi。请设置 PIXI_EXE，或安装到 /home/dell/.pixi/bin/pixi。"
     exit 1
