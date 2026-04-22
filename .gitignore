@@ -7,9 +7,8 @@
 /test2/
 /test3*/
 /test4*/
-/input_demo/demo_outputs/
+/dev_test/
 /launch.md
 /docs/
-*.fasta
 *.log
 *.class
