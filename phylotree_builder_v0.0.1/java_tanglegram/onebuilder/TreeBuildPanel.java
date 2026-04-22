@@ -110,6 +110,14 @@ final class TreeBuildPanel extends JPanel {
         return exportConfigButton.isEnabled();
     }
 
+    int caretPositionForTest() {
+        return detailsArea.getCaretPosition();
+    }
+
+    int documentLengthForTest() {
+        return detailsArea.getDocument().getLength();
+    }
+
     void applyPreferences() {
         revalidate();
         repaint();
@@ -326,7 +334,7 @@ final class TreeBuildPanel extends JPanel {
             builder.append(logBuffer);
         }
         detailsArea.setText(builder.toString());
-        detailsArea.setCaretPosition(0);
+        detailsArea.setCaretPosition(detailsArea.getDocument().getLength());
     }
 
     private static String methodLabel(TreeMethodKey methodKey) {

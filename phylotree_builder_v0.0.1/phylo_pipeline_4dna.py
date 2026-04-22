@@ -21,6 +21,7 @@ from Bio import SeqIO, Phylo
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from ete4 import Tree
+from onebuilder_localization import LocalizedLogger, RuntimeTranslator
 from onebuilder_runtime_config import dna_runtime_settings, load_runtime_config
 from tree_summary_plot import create_tree_distance_heatmaps
 
@@ -29,6 +30,9 @@ mpl.use("Agg", force=True)
 import warnings
 
 warnings.filterwarnings("ignore")
+
+
+MRBAYES_WRAP_WIDTH = 70
 
 
 def _normalize_phylip_menu_input(menu_overrides, default_input):
@@ -202,6 +206,7 @@ class PhylogeneticPipeline:
         self.new_name2ori_name_dict: Dict[str, str] = None
         self.output_dir = Path(output_dir).resolve()
         self.script_dir = Path(__file__).parent.resolve()
+        self.translator = RuntimeTranslator.from_runtime_config(runtime_config)
         self.runtime_settings = dna_runtime_settings(runtime_config)
         self.setup_logging()
         self.create_directories()
@@ -262,7 +267,7 @@ class PhylogeneticPipeline:
             format="%(asctime)s - %(levelname)s - %(message)s",
             handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
         )
-        self.logger = logging.getLogger(__name__)
+        self.logger = LocalizedLogger(logging.getLogger(__name__), self.translator)
 
     def create_directories(self):
         """创建输出目录结构"""
@@ -387,7 +392,7 @@ class PhylogeneticPipeline:
             self.logger.debug("==Stdout of PHYLIP==")
             self.logger.debug(stdout)
             if proc.returncode != 0:
-                print("标准错误:")
+                print(self.translator.text("Standard error:", "标准错误:"))
                 print(stderr)
                 sys.exit(1)
             # 2. 邻接法建树 (neighbor)
@@ -410,7 +415,7 @@ class PhylogeneticPipeline:
             self.logger.debug("==Stdout of PHYLIP==")
             self.logger.debug(stdout)
             if proc.returncode != 0:
-                print("标准错误:")
+                print(self.translator.text("Standard error:", "标准错误:"))
                 print(stderr)
                 sys.exit(1)
 
@@ -457,7 +462,7 @@ class PhylogeneticPipeline:
             self.logger.debug("==Stdout of PHYLIP==")
             self.logger.debug(stdout)
             if proc.returncode != 0:
-                print("标准错误:")
+                print(self.translator.text("Standard error:", "标准错误:"))
                 print(stderr)
                 sys.exit(1)
             # 重命名输出文件
@@ -539,7 +544,12 @@ class PhylogeneticPipeline:
         self.logger.info("开始贝叶斯法建树...")
 
         if not self.mrbayes_path:
-            self.logger.warning("MrBayes路径未显式指定，将尝试使用系统中的 `mb`")
+            self.logger.warning(
+                self.translator.text(
+                    "MrBayes path not explicitly set; will try to use system 'mb' executable",
+                    "MrBayes路径未显式指定，将尝试使用系统中的 `mb`",
+                )
+            )
             mb_exec = "mb"
         else:
             mb_exec = str(self.mrbayes_path)
@@ -576,7 +586,7 @@ class PhylogeneticPipeline:
             self.logger.debug("==Stdout of MrBayes==")
             self.logger.debug(stdout)
             if proc.returncode != 0:
-                print("标准错误:")
+                print(self.translator.text("Standard error:", "标准错误:"))
                 print(stderr)
                 sys.exit(1)
 
@@ -608,7 +618,7 @@ class PhylogeneticPipeline:
         """创建NEXUS格式文件供MrBayes使用"""
         sequences = list(SeqIO.parse(self.input_file, "fasta"))
 
-        with open(nexus_file, "w") as f:
+        with open(nexus_file, "w", encoding="utf-8") as f:
             f.write("#NEXUS\n\n")
             f.write("begin data;\n")
             f.write(
@@ -618,7 +628,14 @@ class PhylogeneticPipeline:
             f.write("    matrix\n")
 
             for seq in sequences:
-                f.write(f"    {seq.id:<20} {seq.seq}\n")
+                wrapped_sequence = str(seq.seq)
+                chunks = [
+                    wrapped_sequence[index : index + MRBAYES_WRAP_WIDTH]
+                    for index in range(0, len(wrapped_sequence), MRBAYES_WRAP_WIDTH)
+                ]
+                for index, chunk in enumerate(chunks):
+                    prefix = f"    {seq.id:<20} " if index == 0 else " " * 25
+                    f.write(f"{prefix}{chunk}\n")
 
             f.write("    ;\n")
             f.write("end;\n")
@@ -633,7 +650,7 @@ class PhylogeneticPipeline:
 
         # 设置中文字体（如果可用）
         try:
-            plt.rcParams["font.sans-serif"] = ["SimHei", "DejaVu Sans"]
+            plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "SimHei"]
             plt.rcParams["axes.unicode_minus"] = False
         except:
             self.logger.error("plt.rcParams setting error.")
@@ -647,12 +664,18 @@ class PhylogeneticPipeline:
                 try:
                     tree = Phylo.read(tree_file, "newick")
                     Phylo.draw(tree, axes=axes[i], do_show=False)
-                    axes[i].set_title(f"{method} Method", fontsize=14)
+                    axes[i].set_title(
+                        self.translator.text(f"{method} Method", f"{method}法") ,
+                        fontsize=14,
+                    )
                 except Exception as e:
                     axes[i].text(
                         0.5,
                         0.5,
-                        f"Fail to read the tree\n{method}",
+                        self.translator.text(
+                            f"Failed to read tree\n{method}",
+                            f"读取树失败\n{method}",
+                        ),
                         ha="center",
                         va="center",
                         transform=axes[i].transAxes,
@@ -661,7 +684,10 @@ class PhylogeneticPipeline:
                 axes[i].text(
                     0.5,
                     0.5,
-                    f"树文件不存在\n{method}",
+                    self.translator.text(
+                        f"Tree file not found\n{method}",
+                        f"树文件不存在\n{method}",
+                    ),
                     ha="center",
                     va="center",
                     transform=axes[i].transAxes,
@@ -722,7 +748,7 @@ class PhylogeneticPipeline:
                     tree_distance_completed = True
                     break
 
-                print("标准错误:")
+                print(self.translator.text("Standard error:", "标准错误:"))
                 print(stderr)
                 self.logger.warning(f"树距离计算失败，命令: {cmd[0]}")
             except Exception as e:
@@ -736,6 +762,14 @@ class PhylogeneticPipeline:
                 path_trees_summary / "rf_distance_matrix.tsv",
                 path_trees_summary / "tree_distance_heatmaps.png",
                 path_trees_summary / "tree_distance_heatmaps.pdf",
+                figure_title=self.translator.text(
+                    "Tree Distance Comparison Across Inference Methods",
+                    "不同建树方法的树距离比较",
+                ),
+                tree_title=self.translator.text("TreeDist Matrix", "TreeDist 矩阵"),
+                rf_title=self.translator.text("Robinson-Foulds Matrix", "Robinson-Foulds 矩阵"),
+                tree_colorbar_label=self.translator.text("TreeDist", "TreeDist"),
+                rf_colorbar_label=self.translator.text("RF Distance", "RF 距离"),
             )
             self.logger.info(
                 f"树距离热图已保存: {heatmap_paths[0]} 和 {heatmap_paths[1]}"
@@ -747,44 +781,57 @@ class PhylogeneticPipeline:
 
         with open(summary_file, "w", encoding="utf-8") as f:
             f.write("=" * 60 + "\n")
-            f.write("          进化树分析结果总结\n")
+            f.write(
+                self.translator.text(
+                    "          Phylogenetic analysis summary\n",
+                    "          进化树分析结果总结\n",
+                )
+            )
             f.write("=" * 60 + "\n\n")
 
-            f.write(f"分析时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"输入文件: {self.input_file}\n")
-            f.write(f"序列数量: {len(sequences)}\n")
-            f.write(f"序列长度: {len(sequences[0].seq)}\n\n")
+            f.write(
+                self.translator.text(
+                    f"Analysis time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
+                    f"分析时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
+                )
+            )
+            f.write(self.translator.text(f"Input file: {self.input_file}\n", f"输入文件: {self.input_file}\n"))
+            f.write(self.translator.text(f"Number of sequences: {len(sequences)}\n", f"序列数量: {len(sequences)}\n"))
+            f.write(self.translator.text(f"Sequence length: {len(sequences[0].seq)} nucleotides\n\n", f"序列长度: {len(sequences[0].seq)}\n\n"))
 
-            f.write("分析方法和结果:\n")
+            f.write(self.translator.text("Methods and results:\n", "分析方法和结果:\n"))
             f.write("-" * 40 + "\n")
 
             methods = [
-                ("距离法 (Distance Method)", tree_files[0]),
-                ("简约法 (Parsimony Method)", tree_files[1]),
-                ("极大似然法 (Maximum Likelihood)", tree_files[2]),
-                ("贝叶斯法 (Bayesian Method)", tree_files[3]),
+                (self.translator.text("Distance method (DNA/CDS)", "距离法 (Distance Method)"), tree_files[0]),
+                (self.translator.text("Maximum likelihood (DNA/CDS)", "极大似然法 (Maximum Likelihood)"), tree_files[1]),
+                (self.translator.text("Bayesian inference (DNA/CDS)", "贝叶斯法 (Bayesian Method)"), tree_files[2]),
+                (self.translator.text("Parsimony (DNA/CDS)", "简约法 (Parsimony Method)"), tree_files[3]),
             ]
 
             for method, tree_file in methods:
-                status = "✓ 成功" if tree_file and tree_file.exists() else "✗ 失败"
+                status = self.translator.text("OK", "✓ 成功") if tree_file and tree_file.exists() else self.translator.text("FAILED", "✗ 失败")
                 f.write(f"{method:<30} {status}\n")
                 if tree_file and tree_file.exists():
                     f.write(
-                        f"    输出文件: {tree_file.resolve().relative_to(self.output_dir.resolve())}\n"
+                        self.translator.text(
+                            f"    Output file: {tree_file.resolve().relative_to(self.output_dir.resolve())}\n",
+                            f"    输出文件: {tree_file.resolve().relative_to(self.output_dir.resolve())}\n",
+                        )
                     )
                 f.write("\n")
 
-            f.write("输出目录结构:\n")
+            f.write(self.translator.text("Output directory structure:\n", "输出目录结构:\n"))
             f.write("-" * 40 + "\n")
             f.write(f"{self.output_dir}/\n")
-            f.write("├── distance_method/        # 距离法结果\n")
-            f.write("├── parsimony_method/       # 简约法结果\n")
-            f.write("├── maximum_likelihood/     # 极大似然法结果\n")
-            f.write("├── bayesian_method/        # 贝叶斯法结果\n")
-            f.write("├── visualizations/         # 树图可视化\n")
-            f.write("└── tree_summary/           # 树距离矩阵与热图\n\n")
+            f.write(self.translator.text("├── distance_method/        # distance-based results\n", "├── distance_method/        # 距离法结果\n"))
+            f.write(self.translator.text("├── maximum_likelihood/     # maximum likelihood results\n", "├── maximum_likelihood/     # 极大似然法结果\n"))
+            f.write(self.translator.text("├── bayesian_method/        # Bayesian inference results\n", "├── bayesian_method/        # 贝叶斯法结果\n"))
+            f.write(self.translator.text("├── parsimony_method/       # parsimony results\n", "├── parsimony_method/       # 简约法结果\n"))
+            f.write(self.translator.text("├── visualizations/         # tree visualizations\n", "├── visualizations/         # 树图可视化\n"))
+            f.write(self.translator.text("└── tree_summary/           # tree distance analyses\n\n", "└── tree_summary/           # 树距离矩阵与热图\n\n"))
 
-            f.write("tree_summary 目录内容:\n")
+            f.write(self.translator.text("Tree summary outputs:\n", "tree_summary 目录内容:\n"))
             f.write("-" * 40 + "\n")
             f.write("- tree_meta_data.tsv\n")
             f.write("- tree_distance_matrix.tsv\n")
@@ -794,13 +841,13 @@ class PhylogeneticPipeline:
                 f.write("- tree_distance_heatmaps.pdf\n")
             f.write("- analysis_summary.txt\n\n")
 
-            f.write("注意事项:\n")
+            f.write(self.translator.text("Notes for DNA/CDS analyses:\n", "注意事项:\n"))
             f.write("-" * 40 + "\n")
-            f.write("1. 所有树文件均为Newick格式(.nwk)\n")
-            f.write("2. 可使用FigTree、iTOL等工具进一步查看和编辑\n")
-            f.write("3. 极大似然法结果包含bootstrap支持值\n")
-            f.write("4. 贝叶斯法结果包含后验概率支持值\n")
-            f.write("5. tree_summary 目录同时包含距离矩阵 TSV 和合并热图\n")
+            f.write(self.translator.text("1. All tree files are in Newick format (.nwk)\n", "1. 所有树文件均为Newick格式(.nwk)\n"))
+            f.write(self.translator.text("2. Use FigTree, iTOL, or other viewers to inspect and edit trees further\n", "2. 可使用FigTree、iTOL等工具进一步查看和编辑\n"))
+            f.write(self.translator.text("3. Maximum likelihood results include bootstrap support values\n", "3. 极大似然法结果包含bootstrap支持值\n"))
+            f.write(self.translator.text("4. Bayesian results include posterior probability support values\n", "4. 贝叶斯法结果包含后验概率支持值\n"))
+            f.write(self.translator.text("5. tree_summary includes both TSV distance matrices and a combined heatmap figure\n", "5. tree_summary 目录同时包含距离矩阵 TSV 和合并热图\n"))
 
         self.logger.info(f"结果总结已保存: {summary_file}")
 
@@ -817,7 +864,7 @@ class PhylogeneticPipeline:
             path_output = tree_file + ".rooted"
 
             if not Path(self.mad_method_path).exists():
-                self.logger.warning(f"MAD 工具未找到: {self.mad_method_path}")
+                self.logger.warning(f"MAD executable not found: {self.mad_method_path}")
                 ret_paths.append(Path(tree_file))
                 continue
 
@@ -838,7 +885,7 @@ class PhylogeneticPipeline:
             self.logger.debug("==Stdout of MAD rerooting==")
             self.logger.debug(stdout)
             if proc.returncode != 0:
-                print("标准错误:")
+                print(self.translator.text("Standard error:", "标准错误:"))
                 print(stderr)
                 self.logger.error(f"MAD 定根失败: {tree_file}")
                 ret_paths.append(Path(tree_file))
@@ -848,9 +895,9 @@ class PhylogeneticPipeline:
         return ret_paths
 
     def restore_names_in_trees(self, tree_files):
-        self.logger.info("恢复树文件中的原始序列名称...")
+        self.logger.info("Restoring original sequence names in trees...")
         if self.new_name2ori_name_dict is None:
-            self.logger.warning("没有可用的名称映射，跳过名称恢复")
+            self.logger.warning("No name mapping available; skipping name restoration in trees")
             return tree_files
 
         ret_paths: List[Path] = []
@@ -909,7 +956,7 @@ class PhylogeneticPipeline:
             self.logger.debug("==Stdout of Ktree dist==")
             self.logger.debug(stdout)
             if proc.returncode != 0:
-                print("标准错误:")
+                print(self.translator.text("Standard error:", "标准错误:"))
                 print(stderr)
                 sys.exit(1)
             else:
@@ -944,7 +991,7 @@ class PhylogeneticPipeline:
 
     def run_pipeline(self):
         """运行完整的分析管道"""
-        self.logger.info(f"开始进化树构建管道...This is: {Path.cwd()}")
+        self.logger.info(f"Starting phylogenetic pipeline...This is: {Path.cwd()}")
         """
         Statement: 注意你的fasta序列最好所有的字符串长度不大于10，这样才能得到成功让phylip转为它能够识别的格式
         """
@@ -969,37 +1016,45 @@ class PhylogeneticPipeline:
             os.chdir(entry_path)
             tree_files[0] = self.distance_method(phylip_file)
             self.logger.info(
-                "====Distance method complete==========================================================="
+                self.translator.marker_complete("distance")
+                if tree_files[0]
+                else self.translator.marker_failed("distance")
             )
         else:
-            self.logger.info("====Distance method skipped by runtime config====")
+            self.logger.info(self.translator.marker_skipped("distance"))
 
         if self.runtime_settings["maximum_likelihood"]["enabled"]:
             os.chdir(entry_path)
             tree_files[1] = self.maximum_likelihood_method()
             self.logger.info(
-                "====Maximum likelihood method complete==========================================================="
+                self.translator.marker_complete("maximum_likelihood")
+                if tree_files[1]
+                else self.translator.marker_failed("maximum_likelihood")
             )
         else:
-            self.logger.info("====Maximum likelihood method skipped by runtime config====")
+            self.logger.info(self.translator.marker_skipped("maximum_likelihood"))
 
         if self.runtime_settings["bayesian"]["enabled"]:
             os.chdir(entry_path)
             tree_files[2] = self.bayesian_method()
             self.logger.info(
-                "====Bayesian method complete==========================================================="
+                self.translator.marker_complete("bayesian")
+                if tree_files[2]
+                else self.translator.marker_failed("bayesian")
             )
         else:
-            self.logger.info("====Bayesian method skipped by runtime config====")
+            self.logger.info(self.translator.marker_skipped("bayesian"))
 
         if self.runtime_settings["parsimony"]["enabled"]:
             os.chdir(entry_path)
             tree_files[3] = self.parsimony_method(phylip_file)
             self.logger.info(
-                "====Parsimony method complete==========================================================="
+                self.translator.marker_complete("parsimony")
+                if tree_files[3]
+                else self.translator.marker_failed("parsimony")
             )
         else:
-            self.logger.info("====Parsimony method skipped by runtime config====")
+            self.logger.info(self.translator.marker_skipped("parsimony"))
 
         os.chdir(entry_path)
         rooted_tree_files = self.reroot_tree_by_MAD(tree_files)
@@ -1013,8 +1068,8 @@ class PhylogeneticPipeline:
 
         self.generate_summary(result_trees, sequences)
 
-        self.logger.info("进化树构建管道完成!")
-        self.logger.info(f"结果保存在: {self.output_dir}")
+        self.logger.info("Phylogenetic pipeline completed!")
+        self.logger.info(f"Results saved to: {self.output_dir}")
 
 
 def main():

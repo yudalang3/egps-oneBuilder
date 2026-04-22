@@ -40,6 +40,15 @@ final class TanglegramWelcomePanel extends JPanel {
     private final JToggleButton errorLogToggleButton;
     private final JPanel errorLogPanel;
     private final Consumer<LoadedImportSession> loadConsumer;
+    private JLabel titleLabel;
+    private JLabel subtitleLabel;
+    private JButton loadRunningResultButton;
+    private JButton loadTsvButton;
+    private JButton exportTsvButton;
+    private JButton addTreesButton;
+    private JButton browseSelectedButton;
+    private JButton removeSelectedButton;
+    private JButton loadButton;
     private Path lastRunningResultDir;
     private Path lastTsvConfigPath;
     private Path lastTreeFilePath;
@@ -51,7 +60,7 @@ final class TanglegramWelcomePanel extends JPanel {
         this.loadConsumer = loadConsumer;
         this.tableModel = createTableModel();
         this.table = new JTable(tableModel);
-        this.statusLabel = new JLabel("Add at least two trees, or import a running result / TSV config.");
+        this.statusLabel = new JLabel(defaultStatusText());
         this.errorLogArea = new JTextArea();
         this.errorLogToggleButton = new JToggleButton();
         this.errorLogPanel = new JPanel(new BorderLayout());
@@ -74,7 +83,7 @@ final class TanglegramWelcomePanel extends JPanel {
                     loadResult.availablePairs(),
                     loadResult.warnings());
         }, session -> {
-            setStatus("Loaded startup tree summary: " + treeSummaryDir);
+            setStatus(UiText.text("Loaded startup tree summary: ", "已加载启动树摘要: ") + treeSummaryDir);
             loadConsumer.accept(session);
         });
     }
@@ -90,12 +99,14 @@ final class TanglegramWelcomePanel extends JPanel {
 
         JPanel textPanel = new JPanel(new BorderLayout(0, 4));
         textPanel.setOpaque(false);
-        JLabel titleLabel = new JLabel("Import Tree Data");
+        titleLabel = new JLabel(UiText.text("Import Tree Data", "导入树数据"));
         Font baseFont = UIManager.getFont("Label.font");
         if (baseFont != null) {
             titleLabel.setFont(baseFont.deriveFont(Font.BOLD, baseFont.getSize2D() + 4f));
         }
-        JLabel subtitleLabel = new JLabel("Load running results, TSV configs, or custom tree files and open a result tab.");
+        subtitleLabel = new JLabel(UiText.text(
+                "Load running results, TSV configs, or custom tree files and open a result tab.",
+                "加载运行结果、TSV 配置或自定义树文件，并打开结果标签页。"));
         subtitleLabel.setForeground(new Color(94, 112, 137));
         textPanel.add(titleLabel, BorderLayout.NORTH);
         textPanel.add(subtitleLabel, BorderLayout.CENTER);
@@ -132,26 +143,28 @@ final class TanglegramWelcomePanel extends JPanel {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         buttonPanel.setOpaque(false);
 
-        JButton loadRunningResultButton = new JButton("Load Running Result");
+        loadRunningResultButton = new JButton(UiText.text("Load Running Result", "加载运行结果"));
         loadRunningResultButton.addActionListener(event -> chooseRunningResult());
 
-        JButton loadTsvButton = new JButton("Load Config File");
-        loadTsvButton.setToolTipText("Lines starting with # are comments. Column 1 is label name. Column 2 is the tree path.");
+        loadTsvButton = new JButton(UiText.text("Load Config File", "加载配置文件"));
+        loadTsvButton.setToolTipText(UiText.text(
+                "Lines starting with # are comments. Column 1 is label name. Column 2 is the tree path.",
+                "以 # 开头的行会被视为注释。第 1 列是标签名，第 2 列是树文件路径。"));
         loadTsvButton.addActionListener(event -> chooseTsvConfig());
 
-        JButton exportTsvButton = new JButton("Export Config File");
+        exportTsvButton = new JButton(UiText.text("Export Config File", "导出配置文件"));
         exportTsvButton.addActionListener(event -> exportTsvConfig());
 
-        JButton addTreesButton = new JButton("Add Trees...");
+        addTreesButton = new JButton(UiText.text("Add Trees...", "添加树文件..."));
         addTreesButton.addActionListener(event -> addTrees());
 
-        JButton browseSelectedButton = new JButton("Browse Selected...");
+        browseSelectedButton = new JButton(UiText.text("Browse Selected...", "浏览所选项..."));
         browseSelectedButton.addActionListener(event -> browseSelectedRow());
 
-        JButton removeSelectedButton = new JButton("Remove Selected");
+        removeSelectedButton = new JButton(UiText.text("Remove Selected", "移除所选项"));
         removeSelectedButton.addActionListener(event -> removeSelectedRows());
 
-        JButton loadButton = new JButton("Load Tree Data");
+        loadButton = new JButton(UiText.text("Load Tree Data", "加载树数据"));
         loadButton.addActionListener(event -> loadCurrentTable());
 
         buttonPanel.add(loadRunningResultButton);
@@ -174,7 +187,7 @@ final class TanglegramWelcomePanel extends JPanel {
         errorLogArea.setLineWrap(true);
         errorLogArea.setWrapStyleWord(true);
         errorLogArea.setRows(4);
-        errorLogArea.setText("No problems yet. If loading fails, this area will explain what happened and what to do next.");
+        errorLogArea.setText(defaultErrorLogText());
         JScrollPane errorLogScrollPane = new JScrollPane(errorLogArea);
 
         errorLogToggleButton.setFocusable(false);
@@ -192,7 +205,7 @@ final class TanglegramWelcomePanel extends JPanel {
         errorLogPanel.setOpaque(false);
         errorLogPanel.add(errorHeaderPanel, BorderLayout.NORTH);
         errorLogPanel.add(errorLogScrollPane, BorderLayout.CENTER);
-        updateErrorLogState(false, false, "No problems yet. If loading fails, this area will explain what happened and what to do next.");
+        updateErrorLogState(false, false, defaultErrorLogText());
 
         bottomPanel.add(actionRowPanel, BorderLayout.NORTH);
         bottomPanel.add(errorLogPanel, BorderLayout.CENTER);
@@ -200,9 +213,48 @@ final class TanglegramWelcomePanel extends JPanel {
         add(bottomPanel, BorderLayout.SOUTH);
     }
 
+    void applyPreferences(UiPreferences preferences) {
+        titleLabel.setText(UiText.text(preferences, "Import Tree Data", "导入树数据"));
+        subtitleLabel.setText(UiText.text(
+                preferences,
+                "Load running results, TSV configs, or custom tree files and open a result tab.",
+                "加载运行结果、TSV 配置或自定义树文件，并打开结果标签页。"));
+        loadRunningResultButton.setText(UiText.text(preferences, "Load Running Result", "加载运行结果"));
+        loadTsvButton.setText(UiText.text(preferences, "Load Config File", "加载配置文件"));
+        loadTsvButton.setToolTipText(UiText.text(
+                preferences,
+                "Lines starting with # are comments. Column 1 is label name. Column 2 is the tree path.",
+                "以 # 开头的行会被视为注释。第 1 列是标签名，第 2 列是树文件路径。"));
+        exportTsvButton.setText(UiText.text(preferences, "Export Config File", "导出配置文件"));
+        addTreesButton.setText(UiText.text(preferences, "Add Trees...", "添加树文件..."));
+        browseSelectedButton.setText(UiText.text(preferences, "Browse Selected...", "浏览所选项..."));
+        removeSelectedButton.setText(UiText.text(preferences, "Remove Selected", "移除所选项"));
+        loadButton.setText(UiText.text(preferences, "Load Tree Data", "加载树数据"));
+        if (statusLabel.getText() == null || statusLabel.getText().isBlank() || statusLabel.getText().equals(defaultStatusText())
+                || statusLabel.getText().equals(UiText.text(preferences, "Add at least two trees, or import a running result / TSV config.", "至少添加两棵树，或导入运行结果 / TSV 配置。"))) {
+            statusLabel.setText(UiText.text(preferences, "Add at least two trees, or import a running result / TSV config.", "至少添加两棵树，或导入运行结果 / TSV 配置。"));
+        }
+        if (errorLogArea.getText() == null || errorLogArea.getText().isBlank() || errorLogArea.getText().equals(defaultErrorLogText())) {
+            errorLogArea.setText(UiText.text(preferences,
+                    "No problems yet. If loading fails, this area will explain what happened and what to do next.",
+                    "目前没有问题。如果加载失败，这里会说明发生了什么以及下一步该怎么做。"));
+        }
+        updateErrorLogVisibility();
+    }
+
+    private static String defaultStatusText() {
+        return UiText.text("Add at least two trees, or import a running result / TSV config.", "至少添加两棵树，或导入运行结果 / TSV 配置。");
+    }
+
+    private static String defaultErrorLogText() {
+        return UiText.text(
+                "No problems yet. If loading fails, this area will explain what happened and what to do next.",
+                "目前没有问题。如果加载失败，这里会说明发生了什么以及下一步该怎么做。");
+    }
+
     private void chooseRunningResult() {
         JFileChooser fileChooser = new JFileChooser(lastRunningResultDir == null ? null : lastRunningResultDir.toFile());
-        fileChooser.setDialogTitle("Select running result folder");
+        fileChooser.setDialogTitle(UiText.text("Select running result folder", "选择运行结果目录"));
         fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         fileChooser.setAcceptAllFileFilterUsed(false);
         int selection = fileChooser.showOpenDialog(this);
@@ -220,13 +272,13 @@ final class TanglegramWelcomePanel extends JPanel {
             Path fileName = lastRunningResultDir.getFileName();
             currentSourceName = fileName == null ? lastRunningResultDir.toString() : fileName.toString();
             replaceRows(importedTrees);
-            showSuccess("Loaded running result config from " + lastRunningResultDir + ".");
+            showSuccess(UiText.text("Loaded running result config from ", "已加载运行结果配置: ") + lastRunningResultDir + ".");
         });
     }
 
     private void chooseTsvConfig() {
         JFileChooser fileChooser = new JFileChooser(lastTsvConfigPath == null ? null : lastTsvConfigPath.toFile());
-        fileChooser.setDialogTitle("Open config file");
+        fileChooser.setDialogTitle(UiText.text("Open config file", "打开配置文件"));
         fileChooser.setAcceptAllFileFilterUsed(false);
         fileChooser.setFileFilter(createConfigFileFilter());
         int selection = fileChooser.showOpenDialog(this);
@@ -241,13 +293,13 @@ final class TanglegramWelcomePanel extends JPanel {
             Path fileName = lastTsvConfigPath.getFileName();
             currentSourceName = fileName == null ? lastTsvConfigPath.toString() : fileName.toString();
             replaceRows(importedTrees);
-            showSuccess("Loaded TSV config from " + lastTsvConfigPath + ".");
+            showSuccess(UiText.text("Loaded TSV config from ", "已加载 TSV 配置: ") + lastTsvConfigPath + ".");
         });
     }
 
     private void exportTsvConfig() {
         JFileChooser fileChooser = new JFileChooser(lastTsvConfigPath == null ? null : lastTsvConfigPath.toFile());
-        fileChooser.setDialogTitle("Export config file");
+        fileChooser.setDialogTitle(UiText.text("Export config file", "导出配置文件"));
         fileChooser.setAcceptAllFileFilterUsed(false);
         fileChooser.setFileFilter(createConfigFileFilter());
         int selection = fileChooser.showSaveDialog(this);
@@ -259,7 +311,7 @@ final class TanglegramWelcomePanel extends JPanel {
         try {
             importedTrees = collectImportedTreesFromTable();
         } catch (Exception exception) {
-            showUserError("Could not export the TSV file.", exception.getMessage());
+            showUserError(UiText.text("Could not export the TSV file.", "无法导出 TSV 文件。"), exception.getMessage());
             return;
         }
         runInBackground("Exporting TSV config", () -> {
@@ -268,13 +320,13 @@ final class TanglegramWelcomePanel extends JPanel {
         }, exportedPath -> {
             lastTsvConfigPath = exportedPath;
             UiPreferenceStore.saveRecentConfigFile(lastTsvConfigPath);
-            showSuccess("Exported TSV config to " + exportedPath + ".");
+            showSuccess(UiText.text("Exported TSV config to ", "已导出 TSV 配置到 ") + exportedPath + ".");
         });
     }
 
     private void addTrees() {
         JFileChooser fileChooser = new JFileChooser(lastTreeFilePath == null ? null : lastTreeFilePath.toFile());
-        fileChooser.setDialogTitle("Choose Newick tree files");
+        fileChooser.setDialogTitle(UiText.text("Choose Newick tree files", "选择 Newick 树文件"));
         fileChooser.setMultiSelectionEnabled(true);
         fileChooser.setFileFilter(new FileNameExtensionFilter("Tree files", "nwk", "tree", "tre", "newick", "txt"));
         int selection = fileChooser.showOpenDialog(this);
@@ -289,21 +341,23 @@ final class TanglegramWelcomePanel extends JPanel {
         }
         currentSourceKind = ImportSourceKind.MANUAL;
         currentSourceName = "manual";
-        showSuccess("Added " + fileChooser.getSelectedFiles().length + " tree file(s).");
+        showSuccess(UiText.text("Added ", "已添加 ") + fileChooser.getSelectedFiles().length + UiText.text(" tree file(s).", " 个树文件。"));
     }
 
     private void browseSelectedRow() {
         int selectedRow = table.getSelectedRow();
         if (selectedRow < 0) {
             showUserError(
-                    "No row is selected.",
-                    "Select one row first, then click Browse Selected... or double-click the Tree Path cell you want to fill.");
+                    UiText.text("No row is selected.", "尚未选择任何行。"),
+                    UiText.text(
+                            "Select one row first, then click Browse Selected... or double-click the Tree Path cell you want to fill.",
+                            "请先选择一行，再点击“浏览所选项...”，或双击你要填写的 Tree Path 单元格。"));
             return;
         }
         String currentPathText = TreeImportConfigIO.normalizePathText(valueAt(selectedRow, 1));
         Path initialPath = initialTreeChooserPath(currentPathText);
         JFileChooser fileChooser = new JFileChooser(initialPath == null ? null : initialPath.toFile());
-        fileChooser.setDialogTitle("Choose tree file for selected row");
+        fileChooser.setDialogTitle(UiText.text("Choose tree file for selected row", "为所选行选择树文件"));
         fileChooser.setFileFilter(new FileNameExtensionFilter("Tree files", "nwk", "tree", "tre", "newick", "txt"));
         int selection = fileChooser.showOpenDialog(this);
         if (selection != JFileChooser.APPROVE_OPTION) {
@@ -319,7 +373,8 @@ final class TanglegramWelcomePanel extends JPanel {
         }
         currentSourceKind = ImportSourceKind.MANUAL;
         currentSourceName = "manual";
-        showSuccess("Updated row " + (selectedRow + 1) + " with " + selectedPath.getFileName() + ".");
+        showSuccess(UiText.text("Updated row ", "已更新第 ") + (selectedRow + 1)
+                + UiText.text(" with ", " 行，文件为 ") + selectedPath.getFileName() + ".");
     }
 
     private Path initialTreeChooserPath(String currentPathText) {
@@ -341,13 +396,14 @@ final class TanglegramWelcomePanel extends JPanel {
     private void removeSelectedRows() {
         int[] selectedRows = table.getSelectedRows();
         if (selectedRows.length == 0) {
-            showUserError("Nothing was removed.", "Select one or more rows, then click Remove Selected.");
+            showUserError(UiText.text("Nothing was removed.", "没有移除任何内容。"),
+                    UiText.text("Select one or more rows, then click Remove Selected.", "请选择一行或多行，然后点击“移除所选项”。"));
             return;
         }
         for (int index = selectedRows.length - 1; index >= 0; index--) {
             tableModel.removeRow(selectedRows[index]);
         }
-        showSuccess("Removed " + selectedRows.length + " row(s).");
+        showSuccess(UiText.text("Removed ", "已移除 ") + selectedRows.length + UiText.text(" row(s).", " 行。"));
     }
 
     private void loadCurrentTable() {
@@ -355,7 +411,7 @@ final class TanglegramWelcomePanel extends JPanel {
         try {
             importedTrees = collectImportedTreesFromTable();
         } catch (Exception exception) {
-            showUserError("Tree data could not be loaded.", exception.getMessage());
+            showUserError(UiText.text("Tree data could not be loaded.", "无法加载树数据。"), exception.getMessage());
             return;
         }
         if (importedTrees.size() < 2) {
@@ -495,7 +551,9 @@ final class TanglegramWelcomePanel extends JPanel {
 
     private void showSuccess(String message) {
         setStatus(message);
-        updateErrorLogState(false, false, "No problems found.\n\nYou can continue with the next step.");
+        updateErrorLogState(false, false, UiText.text(
+                "No problems found.\n\nYou can continue with the next step.",
+                "未发现问题。\n\n你可以继续下一步。"));
     }
 
     private void showUserError(String title, String rawMessage) {
@@ -515,7 +573,7 @@ final class TanglegramWelcomePanel extends JPanel {
         boolean expanded = errorLogToggleButton.isSelected();
         boolean hasError = new Color(184, 41, 41).equals(errorLogToggleButton.getForeground());
         String indicator = hasError ? "  ●" : "";
-        errorLogToggleButton.setText((expanded ? "▼" : "▶") + " Error Log" + indicator);
+        errorLogToggleButton.setText((expanded ? "▼" : "▶") + " " + UiText.text("Error Log", "错误日志") + indicator);
         if (errorLogPanel.getComponentCount() > 1) {
             errorLogPanel.getComponent(1).setVisible(expanded);
         }
@@ -544,7 +602,7 @@ final class TanglegramWelcomePanel extends JPanel {
 
             @Override
             public String getDescription() {
-                return "Config files (*.tsv, *.txt, or files without extension)";
+                return UiText.text("Config files (*.tsv, *.txt, or files without extension)", "配置文件 (*.tsv, *.txt，或无扩展名文件)");
             }
         };
     }

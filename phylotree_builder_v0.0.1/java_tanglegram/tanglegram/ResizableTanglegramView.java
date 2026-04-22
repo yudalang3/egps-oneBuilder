@@ -108,14 +108,14 @@ public final class ResizableTanglegramView extends JPanel {
 
     private static JPanel errorPanel(String message) {
         JPanel panel = new JPanel(new BorderLayout());
-        panel.add(new JLabel(message == null ? "Failed to render tanglegram." : message, SwingConstants.CENTER),
+        panel.add(new JLabel(message == null ? UiText.text("Failed to render tanglegram.", "缠结图渲染失败。") : message, SwingConstants.CENTER),
                 BorderLayout.CENTER);
         return panel;
     }
 
     private static JPanel loadingPanel() {
         JPanel panel = new JPanel(new BorderLayout());
-        panel.add(new JLabel("Loading tanglegram...", SwingConstants.CENTER), BorderLayout.CENTER);
+        panel.add(new JLabel(UiText.text("Loading tanglegram...", "正在加载缠结图..."), SwingConstants.CENTER), BorderLayout.CENTER);
         return panel;
     }
 }

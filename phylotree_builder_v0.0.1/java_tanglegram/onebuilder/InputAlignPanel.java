@@ -467,6 +467,7 @@ final class InputAlignPanel extends JPanel {
                 .inputFile(inputPath)
                 .outputDirectory(outputDirectory)
                 .outputPrefix(prefix)
+                .language(UiPreferenceStore.load().uiLanguage())
                 .exportConfigFile(exportConfigFile)
                 .runAlignmentFirst(runAlignmentCheckBox.isSelected())
                 .alignOptions(new AlignmentOptions(

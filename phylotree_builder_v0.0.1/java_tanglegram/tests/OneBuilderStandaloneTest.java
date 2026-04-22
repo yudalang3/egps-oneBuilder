@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 import javax.swing.SwingUtilities;
 import org.json.JSONObject;
+import tanglegram.UiLanguage;
 import tanglegram.UiPreferenceStore;
 import tanglegram.UiPreferences;
 
@@ -39,6 +40,8 @@ public final class OneBuilderStandaloneTest {
         run("loadsCurrentRunTanglegramTabs", OneBuilderStandaloneTest::loadsCurrentRunTanglegramTabs);
         run("detectsCurrentRunTanglegramArtifacts", OneBuilderStandaloneTest::detectsCurrentRunTanglegramArtifacts);
         run("interpretsMethodProgressFromLogs", OneBuilderStandaloneTest::interpretsMethodProgressFromLogs);
+        run("keepsTreeBuildCaretAtEndAfterAppendingLogs", OneBuilderStandaloneTest::keepsTreeBuildCaretAtEndAfterAppendingLogs);
+        run("storesLanguageInExportedConfig", OneBuilderStandaloneTest::storesLanguageInExportedConfig);
         run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
     }
 
@@ -217,6 +220,7 @@ public final class OneBuilderStandaloneTest {
 
         assertTrue(json.contains("\"run\""), "expected run section");
         assertTrue(json.contains("\"output_prefix\": \"protein_demo\""), "expected output prefix");
+        assertTrue(json.contains("\"language\": \"english\""), "expected default UI language in run section");
         assertTrue(json.contains("\"alignment\""), "expected alignment section");
         assertTrue(json.contains("\"run_alignment_first\": false"), "expected alignment flag");
         assertTrue(json.contains("\"mafft\""), "expected MAFFT section");
@@ -811,9 +815,49 @@ public final class OneBuilderStandaloneTest {
                 MethodProgressEvent.skipped(TreeMethodKey.PARSIMONY),
                 interpreter.interpret(InputType.PROTEIN, "====Parsimony method skipped by runtime config===="),
                 "unexpected skipped event");
+        assertEquals(
+                MethodProgressEvent.failed(TreeMethodKey.BAYESIAN),
+                interpreter.interpret(InputType.DNA_CDS, "====贝叶斯法失败================"),
+                "unexpected failed event");
         assertNull(
                 interpreter.interpret(InputType.PROTEIN, "2026-04-12 INFO nothing to map"),
                 "unexpected event for unrelated log output");
+    }
+
+    private static void keepsTreeBuildCaretAtEndAfterAppendingLogs() throws Exception {
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
+        SwingUtilities.invokeAndWait(() -> {
+            TreeBuildPanel panel = new TreeBuildPanel(PlatformSupport.LINUX, () -> { }, () -> { }, () -> { });
+            panel.appendLog("first line");
+            panel.appendLog("second line");
+            assertEquals(Integer.valueOf(panel.documentLengthForTest()), Integer.valueOf(panel.caretPositionForTest()),
+                    "caret should stay at the end of the log area");
+        });
+    }
+
+    private static void storesLanguageInExportedConfig() throws Exception {
+        Path tempFile = Files.createTempFile("onebuilder-language-", ".json");
+        try {
+            RunRequest request = RunRequest.builder()
+                    .inputType(InputType.PROTEIN)
+                    .inputFile(Paths.get("/data/input/aligned.fasta"))
+                    .outputDirectory(Paths.get("/data/output"))
+                    .outputPrefix("protein_demo")
+                    .language(UiLanguage.CHINESE)
+                    .exportConfigFile(true)
+                    .runAlignmentFirst(false)
+                    .alignOptions(AlignmentOptions.defaults())
+                    .runtimeConfig(PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN))
+                    .build();
+
+            new PipelineConfigWriter().write(tempFile, request);
+            JSONObject run = new JSONObject(Files.readString(tempFile, StandardCharsets.UTF_8)).getJSONObject("run");
+            assertEquals("chinese", run.getString("language"), "expected language in exported run section");
+        } finally {
+            Files.deleteIfExists(tempFile);
+        }
     }
 
     private static void run(String name, ThrowingRunnable test) throws Exception {

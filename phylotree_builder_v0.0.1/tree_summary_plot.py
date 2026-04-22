@@ -148,6 +148,11 @@ def create_tree_distance_heatmaps(
     rf_distance_matrix: Path | str,
     output_png: Path | str,
     output_pdf: Path | str,
+    figure_title: str = "Tree Distance Comparison Across Inference Methods",
+    tree_title: str = "TreeDist Matrix",
+    rf_title: str = "Robinson-Foulds Matrix",
+    tree_colorbar_label: str = "TreeDist",
+    rf_colorbar_label: str = "RF Distance",
 ) -> Tuple[Path, Path]:
     tree_distance_matrix = Path(tree_distance_matrix)
     rf_distance_matrix = Path(rf_distance_matrix)
@@ -166,7 +171,7 @@ def create_tree_distance_heatmaps(
     fig, axes = plt.subplots(1, 2, figsize=(15, 7.8), constrained_layout=True)
     fig.patch.set_facecolor("#fcfcfd")
     fig.suptitle(
-        "Tree Distance Comparison Across Inference Methods",
+        figure_title,
         fontsize=18,
         fontweight="bold",
         y=1.02,
@@ -176,16 +181,16 @@ def create_tree_distance_heatmaps(
     rf_cmap = _build_cmap(["#ede9fe", "#8b5cf6", "#4c1d95"])
 
     tree_image = _draw_single_heatmap(
-        axes[0], labels, tree_distance, "TreeDist Matrix", tree_cmap
+        axes[0], labels, tree_distance, tree_title, tree_cmap
     )
     rf_image = _draw_single_heatmap(
-        axes[1], labels, rf_distance, "Robinson-Foulds Matrix", rf_cmap
+        axes[1], labels, rf_distance, rf_title, rf_cmap
     )
 
     tree_colorbar = fig.colorbar(tree_image, ax=axes[0], shrink=0.82, pad=0.02)
-    tree_colorbar.set_label("TreeDist", fontsize=10)
+    tree_colorbar.set_label(tree_colorbar_label, fontsize=10)
     rf_colorbar = fig.colorbar(rf_image, ax=axes[1], shrink=0.82, pad=0.02)
-    rf_colorbar.set_label("RF Distance", fontsize=10)
+    rf_colorbar.set_label(rf_colorbar_label, fontsize=10)
 
     output_png.parent.mkdir(parents=True, exist_ok=True)
     output_pdf.parent.mkdir(parents=True, exist_ok=True)

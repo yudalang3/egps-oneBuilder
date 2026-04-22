@@ -31,13 +31,15 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
     private final TanglegramWelcomePanel welcomePanel;
     private final JButton exportButton;
     private final JButton propertiesButton;
+    private String welcomeTabTitle;
 
     TanglegramFrame() {
-        super("Tanglegram");
+        super(UiText.text("Tanglegram", "缠结图"));
         this.workspaceTabs = new JideTabbedPane(JTabbedPane.TOP, JTabbedPane.SCROLL_TAB_LAYOUT);
         this.welcomePanel = new TanglegramWelcomePanel(this::openImportedSession);
         this.exportButton = createExportButton();
         this.propertiesButton = createPropertiesButton();
+        this.welcomeTabTitle = UiText.text("Welcome", "欢迎");
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
@@ -70,7 +72,7 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
         workspaceTabs.setTabShape(JideTabbedPane.SHAPE_OFFICE2003);
         workspaceTabs.setColorTheme(JideTabbedPane.COLOR_THEME_WINXP);
         workspaceTabs.setTabResizeMode(JideTabbedPane.RESIZE_MODE_FIT);
-        workspaceTabs.addTab("Welcome", welcomePanel);
+        workspaceTabs.addTab(welcomeTabTitle, welcomePanel);
         workspaceTabs.setTabClosableAt(0, false);
         workspaceTabs.setBorder(BorderFactory.createEmptyBorder());
         workspaceTabs.setOpaque(false);
@@ -92,6 +94,16 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
         if (preferences.restoreLastWindowSize()) {
             UiPreferenceStore.saveWindowSize(WINDOW_KEY, getSize());
         }
+        setTitle(UiText.text(preferences, "Tanglegram", "缠结图"));
+        exportButton.setText(UiText.text(preferences, "Export", "导出"));
+        exportButton.setToolTipText(UiText.text(preferences, "Export the current view as bitmap or vector graphics", "将当前视图导出为位图或矢量图形"));
+        propertiesButton.setText(UiText.text(preferences, "Preference", "偏好"));
+        propertiesButton.setToolTipText(UiText.text(preferences, "Open global properties", "打开全局偏好设置"));
+        welcomeTabTitle = UiText.text(preferences, "Welcome", "欢迎");
+        if (workspaceTabs.getTabCount() > 0) {
+            workspaceTabs.setTitleAt(0, welcomeTabTitle);
+        }
+        welcomePanel.applyPreferences(preferences);
         repaint();
     }
 
@@ -103,7 +115,7 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
                 session.pairSpecs(),
                 session.warnings(),
                 () -> openThreeDAlignmentTab(session.sourceName(), session.importedTrees()));
-        String tabTitle = "Imported: " + session.sourceName();
+        String tabTitle = UiText.text("Imported: ", "已导入: ") + session.sourceName();
         workspaceTabs.addTab(tabTitle, resultPanel);
         int tabIndex = workspaceTabs.getTabCount() - 1;
         workspaceTabs.setTabClosableAt(tabIndex, true);
@@ -112,7 +124,7 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
 
     private void openThreeDAlignmentTab(String sourceName, java.util.List<ImportedTreeSpec> importedTrees) {
         ThreeDTreeAlignmentView alignmentView = new ThreeDTreeAlignmentView(importedTrees);
-        String tabTitle = "3D Alignment: " + sourceName;
+        String tabTitle = UiText.text("3D Alignment: ", "3D 对齐: ") + sourceName;
         workspaceTabs.addTab(tabTitle, alignmentView);
         int tabIndex = workspaceTabs.getTabCount() - 1;
         workspaceTabs.setTabClosableAt(tabIndex, true);
@@ -128,20 +140,20 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
     }
 
     private JButton createExportButton() {
-        JButton button = new JButton("Export", loadExportIcon());
+        JButton button = new JButton(UiText.text("Export", "导出"), loadExportIcon());
         button.setFocusable(false);
         button.setMargin(new Insets(0, 6, 0, 6));
-        button.setToolTipText("Export the current view as bitmap or vector graphics");
+        button.setToolTipText(UiText.text("Export the current view as bitmap or vector graphics", "将当前视图导出为位图或矢量图形"));
         button.addActionListener(event -> exportCurrentView());
         return button;
     }
 
     private JButton createPropertiesButton() {
-        JButton propertiesButton = new JButton("Preference", loadPropertiesIcon());
+        JButton propertiesButton = new JButton(UiText.text("Preference", "偏好"), loadPropertiesIcon());
         propertiesButton.setFocusable(false);
         propertiesButton.setFocusPainted(false);
         propertiesButton.setMargin(new Insets(0, 6, 0, 6));
-        propertiesButton.setToolTipText("Open global properties");
+        propertiesButton.setToolTipText(UiText.text("Open global properties", "打开全局偏好设置"));
         propertiesButton.addActionListener(event -> PreferenceDialog.showDialog(this));
         return propertiesButton;
     }
@@ -151,16 +163,18 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
         if (exportableView == null) {
             JOptionPane.showMessageDialog(
                     this,
-                    "Nothing to export on the Welcome page. Open a result tab or a 3D Alignment tab first.",
-                    "No Export Content",
+                    UiText.text("Nothing to export on the Welcome page. Open a result tab or a 3D Alignment tab first.",
+                            "欢迎页没有可导出的内容。请先打开结果标签页或 3D 对齐标签页。"),
+                    UiText.text("No Export Content", "没有可导出的内容"),
                     JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         if (!exportableView.canExport()) {
             JOptionPane.showMessageDialog(
                     this,
-                    "The current view is still rendering or has no exportable content yet.",
-                    "Export Unavailable",
+                    UiText.text("The current view is still rendering or has no exportable content yet.",
+                            "当前视图仍在渲染，或暂时没有可导出的内容。"),
+                    UiText.text("Export Unavailable", "暂时无法导出"),
                     JOptionPane.INFORMATION_MESSAGE);
             return;
         }
@@ -181,7 +195,7 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
             return;
         }
         String currentTitle = workspaceTabs.getTitleAt(tabIndex);
-        String newTitle = JOptionPane.showInputDialog(this, "Rename tab", currentTitle);
+        String newTitle = JOptionPane.showInputDialog(this, UiText.text("Rename tab", "重命名标签页"), currentTitle);
         if (newTitle == null) {
             return;
         }

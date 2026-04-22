@@ -21,6 +21,7 @@ import argparse
 from Bio import SeqIO, Phylo
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from onebuilder_localization import LocalizedLogger, RuntimeTranslator
 from onebuilder_runtime_config import load_runtime_config, protein_runtime_settings
 from tree_summary_plot import create_tree_distance_heatmaps
 
@@ -30,6 +31,9 @@ import warnings
 from ete4 import Tree
 
 warnings.filterwarnings("ignore")
+
+
+MRBAYES_WRAP_WIDTH = 70
 
 
 def _normalize_phylip_menu_input(menu_overrides, default_input):
@@ -183,6 +187,7 @@ class ProteinPhylogeneticPipeline:
         self.new_name2ori_name_dict: Dict[str, str] = None
         self.output_dir = Path(output_dir).resolve()
         self.script_dir = Path(__file__).parent.resolve()
+        self.translator = RuntimeTranslator.from_runtime_config(runtime_config)
         self.runtime_settings = protein_runtime_settings(runtime_config)
 
         # initialize logging and output directories
@@ -227,7 +232,7 @@ class ProteinPhylogeneticPipeline:
             format="%(asctime)s - %(levelname)s - %(message)s",
             handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
         )
-        self.logger = logging.getLogger(__name__)
+        self.logger = LocalizedLogger(logging.getLogger(__name__), self.translator)
 
     def name_convention(self):
         """Set name convention for input sequences.
@@ -641,7 +646,7 @@ class ProteinPhylogeneticPipeline:
         """Create a NEXUS file for MrBayes (protein data)"""
         sequences = list(SeqIO.parse(self.input_file, "fasta"))
 
-        with open(nexus_file, "w") as f:
+        with open(nexus_file, "w", encoding="utf-8") as f:
             f.write("#NEXUS\n\n")
             f.write("begin data;\n")
             f.write(
@@ -651,7 +656,14 @@ class ProteinPhylogeneticPipeline:
             f.write("    matrix\n")
 
             for seq in sequences:
-                f.write(f"    {seq.id:<20} {seq.seq}\n")
+                wrapped_sequence = str(seq.seq)
+                chunks = [
+                    wrapped_sequence[index : index + MRBAYES_WRAP_WIDTH]
+                    for index in range(0, len(wrapped_sequence), MRBAYES_WRAP_WIDTH)
+                ]
+                for index, chunk in enumerate(chunks):
+                    prefix = f"    {seq.id:<20} " if index == 0 else " " * 25
+                    f.write(f"{prefix}{chunk}\n")
 
             f.write("    ;\n")
             f.write("end;\n")
@@ -712,7 +724,7 @@ class ProteinPhylogeneticPipeline:
 
         # Configure fonts (include Sino-fonts as fallback if available)
         try:
-            plt.rcParams["font.sans-serif"] = ["SimHei", "DejaVu Sans"]
+            plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "SimHei"]
             plt.rcParams["axes.unicode_minus"] = False
         except:
             self.logger.error("plt.rcParams setting error.")
@@ -728,9 +740,15 @@ class ProteinPhylogeneticPipeline:
                     trees = list(list_trees)
                     Phylo.draw(trees[0], axes=axes[i], do_show=False)
                     if method.startswith("Parsimony"):
-                        title = f"{method} Method (unrooted), # of trees: {len(trees)}"
+                        title = self.translator.text(
+                            f"{method} Method (unrooted), # of trees: {len(trees)}",
+                            f"{method}法（未定根），树数量: {len(trees)}",
+                        )
                     else:
-                        title = f"{method} Method (protein)"
+                        title = self.translator.text(
+                            f"{method} Method (protein)",
+                            f"{method}法（蛋白质）",
+                        )
                     axes[i].set_title(title, fontsize=14)
                 except Exception as e:
                     axes[i].text(
@@ -828,6 +846,14 @@ class ProteinPhylogeneticPipeline:
                         path_trees_summary / "rf_distance_matrix.tsv",
                         path_trees_summary / "tree_distance_heatmaps.png",
                         path_trees_summary / "tree_distance_heatmaps.pdf",
+                        figure_title=self.translator.text(
+                            "Tree Distance Comparison Across Inference Methods",
+                            "不同建树方法的树距离比较",
+                        ),
+                        tree_title=self.translator.text("TreeDist Matrix", "TreeDist 矩阵"),
+                        rf_title=self.translator.text("Robinson-Foulds Matrix", "Robinson-Foulds 矩阵"),
+                        tree_colorbar_label=self.translator.text("TreeDist", "TreeDist"),
+                        rf_colorbar_label=self.translator.text("RF Distance", "RF 距离"),
                     )
                     self.logger.info(
                         f"Tree distance heatmaps saved: {heatmap_paths[0]} and {heatmap_paths[1]}"
@@ -845,48 +871,58 @@ class ProteinPhylogeneticPipeline:
 
         with open(summary_file, "w", encoding="utf-8") as f:
             f.write("=" * 60 + "\n")
-            f.write("          Protein phylogenetic analysis summary\n")
+            f.write(
+                self.translator.text(
+                    "          Protein phylogenetic analysis summary\n",
+                    "          蛋白质系统发育分析结果总结\n",
+                )
+            )
             f.write("=" * 60 + "\n\n")
 
-            f.write(f"Analysis time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Input file: {self.input_file}\n")
-            f.write(f"Number of sequences: {len(sequences)}\n")
-            f.write(f"Sequence length: {len(sequences[0].seq)} amino acid residues\n\n")
+            f.write(
+                self.translator.text(
+                    f"Analysis time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
+                    f"分析时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
+                )
+            )
+            f.write(self.translator.text(f"Input file: {self.input_file}\n", f"输入文件: {self.input_file}\n"))
+            f.write(self.translator.text(f"Number of sequences: {len(sequences)}\n", f"序列数量: {len(sequences)}\n"))
+            f.write(self.translator.text(f"Sequence length: {len(sequences[0].seq)} amino acid residues\n\n", f"序列长度: {len(sequences[0].seq)} 个氨基酸位点\n\n"))
 
-            f.write("Methods and results:\n")
+            f.write(self.translator.text("Methods and results:\n", "分析方法和结果:\n"))
             f.write("-" * 40 + "\n")
 
             methods = [
-                ("Distance method (Protein)", tree_files[0]),
-                ("Maximum likelihood (Protein)", tree_files[1]),
-                ("Bayesian inference (Protein)", tree_files[2]),
-                ("Parsimony (Protein)", tree_files[3]),
+                (self.translator.text("Distance method (Protein)", "距离法 (Protein)"), tree_files[0]),
+                (self.translator.text("Maximum likelihood (Protein)", "极大似然法 (Protein)"), tree_files[1]),
+                (self.translator.text("Bayesian inference (Protein)", "贝叶斯法 (Protein)"), tree_files[2]),
+                (self.translator.text("Parsimony (Protein)", "简约法 (Protein)"), tree_files[3]),
             ]
 
             for method, tree_file in methods:
-                status = "OK" if tree_file and tree_file.exists() else "FAILED"
+                status = self.translator.text("OK", "✓ 成功") if tree_file and tree_file.exists() else self.translator.text("FAILED", "✗ 失败")
                 f.write(f"{method:<40} {status}\n")
                 if tree_file and tree_file.exists():
                     try:
                         rel_path = tree_file.resolve().relative_to(
                             self.output_dir.resolve()
                         )
-                        f.write(f"    Output file: {rel_path}\n")
+                        f.write(self.translator.text(f"    Output file: {rel_path}\n", f"    输出文件: {rel_path}\n"))
                     except ValueError:
-                        f.write(f"    Output file: {tree_file}\n")
+                        f.write(self.translator.text(f"    Output file: {tree_file}\n", f"    输出文件: {tree_file}\n"))
                 f.write("\n")
 
-            f.write("Output directory structure:\n")
+            f.write(self.translator.text("Output directory structure:\n", "输出目录结构:\n"))
             f.write("-" * 40 + "\n")
             f.write(f"{self.output_dir}/\n")
-            f.write("├── distance_method/        # distance-based results\n")
-            f.write("├── parsimony_method/       # parsimony results\n")
-            f.write("├── maximum_likelihood/     # maximum likelihood results\n")
-            f.write("├── bayesian_method/        # Bayesian inference results\n")
-            f.write("├── visualizations/         # tree visualizations\n")
-            f.write("└── tree_summary/           # tree distance analyses\n\n")
+            f.write(self.translator.text("├── distance_method/        # distance-based results\n", "├── distance_method/        # 距离法结果\n"))
+            f.write(self.translator.text("├── maximum_likelihood/     # maximum likelihood results\n", "├── maximum_likelihood/     # 极大似然法结果\n"))
+            f.write(self.translator.text("├── bayesian_method/        # Bayesian inference results\n", "├── bayesian_method/        # 贝叶斯法结果\n"))
+            f.write(self.translator.text("├── parsimony_method/       # parsimony results\n", "├── parsimony_method/       # 简约法结果\n"))
+            f.write(self.translator.text("├── visualizations/         # tree visualizations\n", "├── visualizations/         # 树图可视化\n"))
+            f.write(self.translator.text("└── tree_summary/           # tree distance analyses\n\n", "└── tree_summary/           # 树距离矩阵与热图\n\n"))
 
-            f.write("Tree summary outputs:\n")
+            f.write(self.translator.text("Tree summary outputs:\n", "tree_summary 目录内容:\n"))
             f.write("-" * 40 + "\n")
             f.write("- tree_meta_data.tsv\n")
             f.write("- tree_distance_matrix.tsv\n")
@@ -896,24 +932,39 @@ class ProteinPhylogeneticPipeline:
                 f.write("- tree_distance_heatmaps.pdf\n")
             f.write("- analysis_summary.txt\n\n")
 
-            f.write("Notes for protein analyses:\n")
+            f.write(self.translator.text("Notes for protein analyses:\n", "蛋白质分析注意事项:\n"))
             f.write("-" * 40 + "\n")
-            f.write("1. All tree files are in Newick format (.nwk)\n")
+            f.write(self.translator.text("1. All tree files are in Newick format (.nwk)\n", "1. 所有树文件均为Newick格式(.nwk)\n"))
             f.write(
-                "2. Distance method computes a protein distance matrix using protdist\n"
+                self.translator.text(
+                    "2. Distance method computes a protein distance matrix using protdist\n",
+                    "2. 距离法使用 protdist 计算蛋白距离矩阵\n",
+                )
             )
-            f.write("3. Parsimony uses protpars (protein parsimony)\n")
+            f.write(self.translator.text("3. Parsimony uses protpars (protein parsimony)\n", "3. 简约法使用 protpars (protein parsimony)\n"))
             f.write(
-                "4. IQ-TREE will auto-select the best-fitting protein substitution model\n"
+                self.translator.text(
+                    "4. IQ-TREE will auto-select the best-fitting protein substitution model\n",
+                    "4. IQ-TREE 会自动选择最适合的蛋白替换模型\n",
+                )
             )
             f.write(
-                "5. MrBayes runs with a mixed amino-acid prior for model averaging\n"
+                self.translator.text(
+                    "5. MrBayes runs with a mixed amino-acid prior for model averaging\n",
+                    "5. MrBayes 使用 mixed amino-acid prior 进行模型平均\n",
+                )
             )
             f.write(
-                "6. tree_summary includes both TSV distance matrices and a combined heatmap figure\n"
+                self.translator.text(
+                    "6. tree_summary includes both TSV distance matrices and a combined heatmap figure\n",
+                    "6. tree_summary 同时包含距离矩阵 TSV 和合并热图\n",
+                )
             )
             f.write(
-                "7. Use FigTree, iTOL, or other viewers to inspect and edit trees further\n"
+                self.translator.text(
+                    "7. Use FigTree, iTOL, or other viewers to inspect and edit trees further\n",
+                    "7. 可使用 FigTree、iTOL 等工具进一步查看和编辑\n",
+                )
             )
 
         self.logger.info(f"Summary saved: {summary_file}")
@@ -1031,38 +1082,46 @@ class ProteinPhylogeneticPipeline:
             os.chdir(entry_path)
             tree_files[0] = self.distance_method(phylip_file)
             self.logger.info(
-                "====Distance method complete==========================================================="
+                self.translator.marker_complete("distance")
+                if tree_files[0]
+                else self.translator.marker_failed("distance")
             )
         else:
-            self.logger.info("====Distance method skipped by runtime config====")
+            self.logger.info(self.translator.marker_skipped("distance"))
 
         if self.runtime_settings["maximum_likelihood"]["enabled"]:
             os.chdir(entry_path)
             tree_files[1] = self.maximum_likelihood_method()
             self.logger.info(
-                "====Maximum likelihood method complete==========================================================="
+                self.translator.marker_complete("maximum_likelihood")
+                if tree_files[1]
+                else self.translator.marker_failed("maximum_likelihood")
             )
         else:
-            self.logger.info("====Maximum likelihood method skipped by runtime config====")
+            self.logger.info(self.translator.marker_skipped("maximum_likelihood"))
 
         if self.runtime_settings["bayesian"]["enabled"]:
             os.chdir(entry_path)
             tree_files[2] = self.bayesian_method()
             self.logger.info(
-                "====Bayesian method complete==========================================================="
+                self.translator.marker_complete("bayesian")
+                if tree_files[2]
+                else self.translator.marker_failed("bayesian")
             )
         else:
-            self.logger.info("====Bayesian method skipped by runtime config====")
+            self.logger.info(self.translator.marker_skipped("bayesian"))
 
         # Parsimony for proteins does not have branch length information
         if self.runtime_settings["parsimony"]["enabled"]:
             os.chdir(entry_path)
             tree_files[3] = self.parsimony_method(phylip_file)
             self.logger.info(
-                "====Parsimony method complete==========================================================="
+                self.translator.marker_complete("parsimony")
+                if tree_files[3]
+                else self.translator.marker_failed("parsimony")
             )
         else:
-            self.logger.info("====Parsimony method skipped by runtime config====")
+            self.logger.info(self.translator.marker_skipped("parsimony"))
 
         # 5. Rerooting and ladderizing
         # Parsimony trees typically lack branch lengths and may not need rerooting/ladderizing

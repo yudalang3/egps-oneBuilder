@@ -37,7 +37,7 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
             this.pairTabs.addTab(pairSpec.tabName(), new ResizableTanglegramView(pairSpec, panelFactory));
         }
 
-        JButton treeAlignmentButton = new JButton("3D Tree Alignment");
+        JButton treeAlignmentButton = new JButton(UiText.text("3D Tree Alignment", "3D 树对齐"));
         treeAlignmentButton.addActionListener(event -> openThreeDAlignmentAction.run());
         this.pairTabs.setTabTrailingComponent(treeAlignmentButton);
 
@@ -92,17 +92,17 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
             List<TreePairSpec> pairSpecs,
             List<String> warnings) {
         StringBuilder summary = new StringBuilder();
-        summary.append("Source type: ").append(sourceKind.displayName()).append('\n');
-        summary.append("Source name: ").append(sourceName).append('\n');
-        summary.append("Created at: ").append(TIMESTAMP_FORMAT.format(LocalDateTime.now())).append('\n');
-        summary.append("Tree count: ").append(importedTrees.size()).append('\n');
-        summary.append("Pair count: ").append(pairSpecs.size()).append('\n');
-        summary.append('\n').append("Imported trees:").append('\n');
+        summary.append(UiText.text("Source type: ", "来源类型: ")).append(sourceKind.displayName()).append('\n');
+        summary.append(UiText.text("Source name: ", "来源名称: ")).append(sourceName).append('\n');
+        summary.append(UiText.text("Created at: ", "创建时间: ")).append(TIMESTAMP_FORMAT.format(LocalDateTime.now())).append('\n');
+        summary.append(UiText.text("Tree count: ", "树数量: ")).append(importedTrees.size()).append('\n');
+        summary.append(UiText.text("Pair count: ", "比较对数量: ")).append(pairSpecs.size()).append('\n');
+        summary.append('\n').append(UiText.text("Imported trees:", "已导入的树:")).append('\n');
         for (ImportedTreeSpec importedTree : importedTrees) {
             summary.append("- ").append(importedTree.label()).append(" -> ").append(importedTree.path()).append('\n');
         }
         if (!warnings.isEmpty()) {
-            summary.append('\n').append("Warnings:").append('\n');
+            summary.append('\n').append(UiText.text("Warnings:", "警告:")).append('\n');
             for (String warning : warnings) {
                 summary.append("- ").append(warning).append('\n');
             }

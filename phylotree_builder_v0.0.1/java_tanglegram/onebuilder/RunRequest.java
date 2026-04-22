@@ -1,6 +1,7 @@
 package onebuilder;
 
 import java.nio.file.Path;
+import tanglegram.UiLanguage;
 
 public final class RunRequest {
     private final InputType inputType;
@@ -11,6 +12,7 @@ public final class RunRequest {
     private final boolean runAlignmentFirst;
     private final AlignmentOptions alignOptions;
     private final PipelineRuntimeConfig runtimeConfig;
+    private final UiLanguage language;
 
     private RunRequest(Builder builder) {
         this.inputType = builder.inputType;
@@ -21,6 +23,7 @@ public final class RunRequest {
         this.runAlignmentFirst = builder.runAlignmentFirst;
         this.alignOptions = builder.alignOptions;
         this.runtimeConfig = builder.runtimeConfig;
+        this.language = builder.language == null ? UiLanguage.ENGLISH : builder.language;
     }
 
     public static Builder builder() {
@@ -59,6 +62,10 @@ public final class RunRequest {
         return runtimeConfig;
     }
 
+    public UiLanguage language() {
+        return language;
+    }
+
     public Path exportConfigPath() {
         return ConfigExportPaths.defaultJsonPath(outputDirectory, outputPrefix);
     }
@@ -72,6 +79,7 @@ public final class RunRequest {
         private boolean runAlignmentFirst;
         private AlignmentOptions alignOptions = AlignmentOptions.defaults();
         private PipelineRuntimeConfig runtimeConfig;
+        private UiLanguage language = UiLanguage.ENGLISH;
 
         public Builder inputType(InputType inputType) {
             this.inputType = inputType;
@@ -110,6 +118,11 @@ public final class RunRequest {
 
         public Builder runtimeConfig(PipelineRuntimeConfig runtimeConfig) {
             this.runtimeConfig = runtimeConfig;
+            return this;
+        }
+
+        public Builder language(UiLanguage language) {
+            this.language = language;
             return this;
         }
 

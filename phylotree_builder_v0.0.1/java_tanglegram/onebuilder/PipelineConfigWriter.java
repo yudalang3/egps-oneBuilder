@@ -29,7 +29,8 @@ public final class PipelineConfigWriter {
                 .put("input_type", request.inputType().toString())
                 .put("input_file", request.inputFile().toString())
                 .put("output_base_dir", request.outputDirectory().toString())
-                .put("output_prefix", request.outputPrefix());
+                .put("output_prefix", request.outputPrefix())
+                .put("language", request.language().storageValue());
     }
 
     private static JSONObject buildAlignmentSection(RunRequest request) {

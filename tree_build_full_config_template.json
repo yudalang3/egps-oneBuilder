@@ -3,7 +3,8 @@
     "input_type": "PROTEIN",
     "input_file": "/absolute/path/to/aligned_input.fasta",
     "output_base_dir": "/absolute/path/to/output_root",
-    "output_prefix": "demo_run"
+    "output_prefix": "demo_run",
+    "language": "english"
   },
   "alignment": {
     "run_alignment_first": false,

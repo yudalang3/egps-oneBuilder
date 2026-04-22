@@ -16,6 +16,7 @@ public final class UiPreferenceStore {
     private static final String KEY_RESTORE_WINDOW_SIZE = "ui.restoreWindowSize";
     private static final String KEY_TANGLEGRAM_LABEL_FONT_SIZE = "ui.tanglegram.labelFontSize";
     private static final String KEY_SHOW_WINDOWS_ONEBUILDER_WARNING = "ui.onebuilder.showWindowsWarning";
+    private static final String KEY_UI_LANGUAGE = "ui.language";
     private static final String KEY_WINDOW_PREFIX = "window.";
     private static final String KEY_WIDTH_SUFFIX = ".width";
     private static final String KEY_HEIGHT_SUFFIX = ".height";
@@ -47,7 +48,7 @@ public final class UiPreferenceStore {
 
     public static UiPreferences defaultPreferences() {
         captureLookAndFeelDefaults();
-        return new UiPreferences(defaultFontFamily, defaultFontSize.intValue(), true, 12, true);
+        return new UiPreferences(defaultFontFamily, defaultFontSize.intValue(), true, 12, true, UiLanguage.ENGLISH);
     }
 
     public static UiPreferences load() {
@@ -58,7 +59,8 @@ public final class UiPreferenceStore {
                 parseInt(properties, KEY_FONT_SIZE, defaults.uiFontSize()),
                 parseBoolean(properties, KEY_RESTORE_WINDOW_SIZE, defaults.restoreLastWindowSize()),
                 parseInt(properties, KEY_TANGLEGRAM_LABEL_FONT_SIZE, defaults.defaultTanglegramLabelFontSize()),
-                parseBoolean(properties, KEY_SHOW_WINDOWS_ONEBUILDER_WARNING, defaults.showWindowsOneBuilderWarning()));
+                parseBoolean(properties, KEY_SHOW_WINDOWS_ONEBUILDER_WARNING, defaults.showWindowsOneBuilderWarning()),
+                UiLanguage.fromStoredValue(properties.getProperty(KEY_UI_LANGUAGE, defaults.uiLanguage().storageValue())));
     }
 
     public static void save(UiPreferences preferences) {
@@ -68,6 +70,7 @@ public final class UiPreferenceStore {
         properties.setProperty(KEY_RESTORE_WINDOW_SIZE, Boolean.toString(preferences.restoreLastWindowSize()));
         properties.setProperty(KEY_TANGLEGRAM_LABEL_FONT_SIZE, Integer.toString(preferences.defaultTanglegramLabelFontSize()));
         properties.setProperty(KEY_SHOW_WINDOWS_ONEBUILDER_WARNING, Boolean.toString(preferences.showWindowsOneBuilderWarning()));
+        properties.setProperty(KEY_UI_LANGUAGE, preferences.uiLanguage().storageValue());
         saveProperties(properties);
     }
 

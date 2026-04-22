@@ -66,7 +66,7 @@ public final class TanglegramStandaloneTest {
         UiPreferenceStore.clearNodeForTests();
         UiPreferenceStore.captureLookAndFeelDefaults();
 
-        UiPreferences preferences = new UiPreferences("Dialog", 18, true, 21, true);
+        UiPreferences preferences = new UiPreferences("Dialog", 18, true, 21, true, UiLanguage.CHINESE);
         UiPreferenceStore.save(preferences);
         UiPreferences loaded = UiPreferenceStore.load();
 
@@ -76,6 +76,7 @@ public final class TanglegramStandaloneTest {
         assertEquals(Integer.valueOf(21), Integer.valueOf(loaded.defaultTanglegramLabelFontSize()),
                 "unexpected default tanglegram label size");
         assertTrue(loaded.showWindowsOneBuilderWarning(), "expected Windows startup warning to be enabled");
+        assertEquals(UiLanguage.CHINESE, loaded.uiLanguage(), "expected stored UI language");
 
         UiPreferenceStore.resetNodeForTests();
     }

@@ -25,9 +25,10 @@ public final class PreferenceDialog extends JDialog {
     private final JCheckBox restoreWindowSizeCheckBox;
     private final JSpinner defaultTanglegramLabelSpinner;
     private final JCheckBox showWindowsOneBuilderWarningCheckBox;
+    private final JComboBox<UiLanguage> languageCombo;
 
     private PreferenceDialog(Frame owner) {
-        super(owner, "Preferences", true);
+        super(owner, UiText.text("Preferences", "偏好设置"), true);
         setLayout(new BorderLayout(12, 12));
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
@@ -37,22 +38,24 @@ public final class PreferenceDialog extends JDialog {
 
         fontFamilyCombo = new JComboBox<>(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
         fontSizeSpinner = new JSpinner(new SpinnerNumberModel(12, 8, 48, 1));
-        restoreWindowSizeCheckBox = new JCheckBox("Restore last window size", true);
+        restoreWindowSizeCheckBox = new JCheckBox(UiText.text("Restore last window size", "恢复上次窗口大小"), true);
         defaultTanglegramLabelSpinner = new JSpinner(new SpinnerNumberModel(12, 8, 48, 1));
-        showWindowsOneBuilderWarningCheckBox = new JCheckBox("Show Windows oneBuilder startup warning", true);
+        showWindowsOneBuilderWarningCheckBox = new JCheckBox(UiText.text("Show Windows oneBuilder startup warning", "显示 Windows oneBuilder 启动提示"), true);
+        languageCombo = new JComboBox<>(UiLanguage.values());
 
-        JPanel generalPanel = createSectionPanel("General");
+        JPanel generalPanel = createSectionPanel(UiText.text("General", "常规"));
         GridBagConstraints generalConstraints = baseConstraints();
-        addRow(generalPanel, generalConstraints, 0, "UI font family", fontFamilyCombo);
-        addRow(generalPanel, generalConstraints, 1, "UI font size", fontSizeSpinner);
+        addRow(generalPanel, generalConstraints, 0, UiText.text("Language", "语言"), languageCombo);
+        addRow(generalPanel, generalConstraints, 1, UiText.text("UI font family", "界面字体"), fontFamilyCombo);
+        addRow(generalPanel, generalConstraints, 2, UiText.text("UI font size", "界面字号"), fontSizeSpinner);
         generalConstraints.gridx = 0;
-        generalConstraints.gridy = 2;
+        generalConstraints.gridy = 3;
         generalConstraints.gridwidth = 2;
         generalPanel.add(restoreWindowSizeCheckBox, generalConstraints);
         generalConstraints.gridwidth = 1;
-        addRow(generalPanel, generalConstraints, 3, "Default tanglegram label font size", defaultTanglegramLabelSpinner);
+        addRow(generalPanel, generalConstraints, 4, UiText.text("Default tanglegram label font size", "默认缠结图标签字号"), defaultTanglegramLabelSpinner);
 
-        JPanel platformPanel = createSectionPanel("Platform Notices");
+        JPanel platformPanel = createSectionPanel(UiText.text("Platform Notices", "平台提示"));
         GridBagConstraints platformConstraints = baseConstraints();
         platformConstraints.gridx = 0;
         platformConstraints.gridy = 0;
@@ -60,7 +63,9 @@ public final class PreferenceDialog extends JDialog {
         platformPanel.add(showWindowsOneBuilderWarningCheckBox, platformConstraints);
         platformConstraints.gridy = 1;
         platformPanel.add(
-                noteLabel("Show a startup warning on Windows to explain that oneBuilder can export configs there, but the pipeline itself still needs Linux to run."),
+                noteLabel(UiText.text(
+                        "Show a startup warning on Windows to explain that oneBuilder can export configs there, but the pipeline itself still needs Linux to run.",
+                        "在 Windows 上显示启动提示，说明 oneBuilder 可以导出配置，但真正的 pipeline 仍需要在 Linux 上运行。")),
                 platformConstraints);
 
         contentPanel.add(generalPanel);
@@ -68,10 +73,10 @@ public final class PreferenceDialog extends JDialog {
         add(contentPanel, BorderLayout.CENTER);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton resetButton = new JButton("Reset to Defaults");
-        JButton applyButton = new JButton("Apply");
+        JButton resetButton = new JButton(UiText.text("Reset to Defaults", "恢复默认"));
+        JButton applyButton = new JButton(UiText.text("Apply", "应用"));
         JButton okButton = new JButton("OK");
-        JButton cancelButton = new JButton("Cancel");
+        JButton cancelButton = new JButton(UiText.text("Cancel", "取消"));
 
         resetButton.addActionListener(event -> populate(UiPreferenceStore.defaultPreferences()));
         applyButton.addActionListener(event -> applyAndKeepOpen());
@@ -99,6 +104,7 @@ public final class PreferenceDialog extends JDialog {
     }
 
     private void populate(UiPreferences preferences) {
+        languageCombo.setSelectedItem(preferences.uiLanguage());
         fontFamilyCombo.setSelectedItem(preferences.uiFontFamily());
         fontSizeSpinner.setValue(Integer.valueOf(preferences.uiFontSize()));
         restoreWindowSizeCheckBox.setSelected(preferences.restoreLastWindowSize());
@@ -112,7 +118,8 @@ public final class PreferenceDialog extends JDialog {
                 ((Integer) fontSizeSpinner.getValue()).intValue(),
                 restoreWindowSizeCheckBox.isSelected(),
                 ((Integer) defaultTanglegramLabelSpinner.getValue()).intValue(),
-                showWindowsOneBuilderWarningCheckBox.isSelected());
+                showWindowsOneBuilderWarningCheckBox.isSelected(),
+                (UiLanguage) languageCombo.getSelectedItem());
         UiPreferenceStore.save(preferences);
         GlobalUiPreferenceController.applyToOpenWindows(preferences);
     }
