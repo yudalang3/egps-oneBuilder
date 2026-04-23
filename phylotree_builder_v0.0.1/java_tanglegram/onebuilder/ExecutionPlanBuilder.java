@@ -12,7 +12,7 @@ public final class ExecutionPlanBuilder {
     }
 
     public ExecutionPlan build(RunRequest request, Path configPath) {
-        Path pipelineOutputDir = request.outputDirectory().resolve(request.outputPrefix()).normalize();
+        Path pipelineOutputDir = request.pipelineOutputDir();
         Path effectiveInputFile = request.runAlignmentFirst()
                 ? alignedOutputPath(request.inputFile())
                 : request.inputFile().normalize();
@@ -30,6 +30,9 @@ public final class ExecutionPlanBuilder {
         List<String> buildCommand = new ArrayList<>();
         buildCommand.add("/bin/zsh");
         buildCommand.add(scriptDir.resolve(request.inputType().buildScriptName()).toString());
+        if (request.overwriteExistingOutput()) {
+            buildCommand.add("--force-overwrite");
+        }
         buildCommand.add("--config");
         buildCommand.add(configPath.toString());
         buildCommand.add(effectiveInputFile.toString());

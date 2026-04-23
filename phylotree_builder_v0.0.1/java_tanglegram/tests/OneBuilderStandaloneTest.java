@@ -20,6 +20,7 @@ public final class OneBuilderStandaloneTest {
 
     public static void main(String[] args) throws Exception {
         run("buildsProteinExecutionPlanWithoutAlignment", OneBuilderStandaloneTest::buildsProteinExecutionPlanWithoutAlignment);
+        run("buildsExecutionPlanWithOverwriteFlag", OneBuilderStandaloneTest::buildsExecutionPlanWithOverwriteFlag);
         run("buildsDnaExecutionPlanWithAlignment", OneBuilderStandaloneTest::buildsDnaExecutionPlanWithAlignment);
         run("serializesPipelineRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesPipelineRuntimeConfigAsJson);
         run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
@@ -40,6 +41,7 @@ public final class OneBuilderStandaloneTest {
         run("loadsCurrentRunTanglegramTabs", OneBuilderStandaloneTest::loadsCurrentRunTanglegramTabs);
         run("detectsCurrentRunTanglegramArtifacts", OneBuilderStandaloneTest::detectsCurrentRunTanglegramArtifacts);
         run("interpretsMethodProgressFromLogs", OneBuilderStandaloneTest::interpretsMethodProgressFromLogs);
+        run("tracksTreeBuildOverallProgressFromEnabledMethodsAndLogs", OneBuilderStandaloneTest::tracksTreeBuildOverallProgressFromEnabledMethodsAndLogs);
         run("keepsTreeBuildCaretAtEndAfterAppendingLogs", OneBuilderStandaloneTest::keepsTreeBuildCaretAtEndAfterAppendingLogs);
         run("storesLanguageInExportedConfig", OneBuilderStandaloneTest::storesLanguageInExportedConfig);
         run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
@@ -79,6 +81,39 @@ public final class OneBuilderStandaloneTest {
                 outputDir.resolve("protein_demo"),
                 executionPlan.pipelineOutputDir(),
                 "unexpected protein output directory");
+    }
+
+    private static void buildsExecutionPlanWithOverwriteFlag() {
+        Path scriptDir = Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1");
+        Path inputFile = Paths.get("/data/input/aligned.fasta");
+        Path outputDir = Paths.get("/data/output");
+        Path configPath = Paths.get("/tmp/run-config.json");
+
+        RunRequest request = RunRequest.builder()
+                .inputType(InputType.PROTEIN)
+                .inputFile(inputFile)
+                .outputDirectory(outputDir)
+                .outputPrefix("protein_demo")
+                .exportConfigFile(true)
+                .overwriteExistingOutput(true)
+                .runAlignmentFirst(false)
+                .alignOptions(AlignmentOptions.defaults())
+                .runtimeConfig(PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN))
+                .build();
+
+        ExecutionPlan executionPlan = new ExecutionPlanBuilder(scriptDir).build(request, configPath);
+
+        assertEquals(
+                Arrays.asList(
+                        "/bin/zsh",
+                        scriptDir.resolve("s2_phylo_4prot.zsh").toString(),
+                        "--force-overwrite",
+                        "--config",
+                        configPath.toString(),
+                        inputFile.toString(),
+                        outputDir.resolve("protein_demo").toString()),
+                executionPlan.buildCommand(),
+                "unexpected overwrite-enabled build command");
     }
 
     private static void buildsDnaExecutionPlanWithAlignment() {
@@ -834,6 +869,77 @@ public final class OneBuilderStandaloneTest {
             panel.appendLog("second line");
             assertEquals(Integer.valueOf(panel.documentLengthForTest()), Integer.valueOf(panel.caretPositionForTest()),
                     "caret should stay at the end of the log area");
+        });
+    }
+
+    private static void tracksTreeBuildOverallProgressFromEnabledMethodsAndLogs() throws Exception {
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
+        SwingUtilities.invokeAndWait(() -> {
+            TreeBuildPanel panel = new TreeBuildPanel(PlatformSupport.LINUX, () -> { }, () -> { }, () -> { });
+            PipelineRuntimeConfig runtimeConfig = new PipelineRuntimeConfig(
+                    InputType.DNA_CDS,
+                    new SimpleMethodConfig(true),
+                    new MaximumLikelihoodConfig(
+                            true,
+                            1000,
+                            "MFP",
+                            "",
+                            null,
+                            null,
+                            null,
+                            false,
+                            false,
+                            true,
+                            false,
+                            true,
+                            null,
+                            null,
+                            null,
+                            null,
+                            false,
+                            List.of()),
+                    new BayesianConfig(false, null, "invgamma", 10000, 100, 100, 1000, Integer.valueOf(6)),
+                    new SimpleMethodConfig(true));
+
+            panel.configureOverallProgress(runtimeConfig);
+            panel.resetForRun(null);
+            assertEquals(Integer.valueOf(9), Integer.valueOf(panel.overallProgressMaximumForTest()),
+                    "unexpected total progress step count");
+            assertEquals("Preparing run (0/9)", panel.overallProgressTextForTest(), "unexpected initial progress text");
+
+            panel.setMethodStatus(TreeMethodKey.DISTANCE, "Running");
+            assertEquals("Running Distance Method (0/9)", panel.overallProgressTextForTest(),
+                    "unexpected distance running text");
+            panel.setMethodStatus(TreeMethodKey.DISTANCE, "Completed");
+            panel.setMethodStatus(TreeMethodKey.MAXIMUM_LIKELIHOOD, "Completed");
+            panel.setMethodStatus(TreeMethodKey.BAYESIAN, "Skipped");
+            panel.setMethodStatus(TreeMethodKey.PARSIMONY, "Completed");
+            assertEquals(Integer.valueOf(3), Integer.valueOf(panel.overallProgressValueForTest()),
+                    "disabled bayesian method should not count toward completed progress");
+
+            panel.notePipelineOutput("2026-04-23 INFO Rerooting completed: /tmp/tree.nwk\n");
+            panel.notePipelineOutput("2026-04-23 INFO Restored names in tree: /tmp/tree.nwk\n");
+            panel.notePipelineOutput("2026-04-23 INFO Generating tree visualizations...\n");
+            assertEquals("Generating tree visualizations (5/9)", panel.overallProgressTextForTest(),
+                    "unexpected visualization progress text");
+            panel.notePipelineOutput("2026-04-23 INFO Visualization completed\n");
+            panel.notePipelineOutput("2026-04-23 INFO ['Rscript', '/tmp/cal_pair_wise_tree_dist.R', '/tmp/tree_meta_data.tsv']\n");
+            assertEquals("Calculating tree distances (6/9)", panel.overallProgressTextForTest(),
+                    "unexpected tree distance progress text");
+            panel.notePipelineOutput("2026-04-23 INFO Tree distance calculation completed\n");
+            panel.notePipelineOutput("2026-04-23 INFO Tree distance heatmaps saved: /tmp/a.png and /tmp/a.pdf\n");
+            panel.notePipelineOutput("2026-04-23 INFO Summary saved: /tmp/analysis_summary.txt\n");
+
+            assertEquals(Integer.valueOf(9), Integer.valueOf(panel.overallProgressValueForTest()),
+                    "unexpected completed progress value");
+            assertEquals("Finalizing analysis summary (9/9)", panel.overallProgressTextForTest(),
+                    "unexpected final progress text before completion");
+
+            panel.finishRun("Completed");
+            assertEquals("Completed (9/9)", panel.overallProgressTextForTest(),
+                    "unexpected completed progress text");
         });
     }
 

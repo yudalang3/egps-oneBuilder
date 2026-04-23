@@ -246,15 +246,21 @@ final class OneBuilderWorkspacePanel extends JPanel {
             return;
         }
 
+        RunRequest preparedRequest = confirmOverwriteIfNeeded(request);
+        if (preparedRequest == null) {
+            return;
+        }
+
         latestCompletedOutputDirectory = null;
         currentRunTanglegramPanel.loadRunResults(null);
         workflowTabsState = workflowTabsState.markInputConfigured().markRunStarted();
         syncWorkflowTabs();
         inputAlignPanel.setRunning(true);
-        treeBuildPanel.setDraftSummary(inputAlignPanel.buildRunDraftSummary(request.runtimeConfig()));
+        treeBuildPanel.setDraftSummary(inputAlignPanel.buildRunDraftSummary(preparedRequest.runtimeConfig()));
+        treeBuildPanel.configureOverallProgress(preparedRequest.runtimeConfig());
 
         try {
-            pipelineRunner.start(request);
+            pipelineRunner.start(preparedRequest);
         } catch (IllegalStateException exception) {
             inputAlignPanel.setRunning(false);
             treeBuildPanel.setRunning(false);
@@ -263,6 +269,18 @@ final class OneBuilderWorkspacePanel extends JPanel {
     }
 
     private void handleExportRequested(RunRequest request) {
+        if (Files.exists(request.exportConfigPath())) {
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    "Config file already exists:\n" + request.exportConfigPath()
+                            + "\n\nOverwrite it, or cancel this export?",
+                    "Overwrite Existing Config?",
+                    JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+            if (choice != JOptionPane.OK_OPTION) {
+                return;
+            }
+        }
         inputAlignPanel.setRunning(true);
         treeBuildPanel.setExporting(true);
         Thread exportThread = new Thread(() -> {
@@ -300,6 +318,24 @@ final class OneBuilderWorkspacePanel extends JPanel {
 
     private void refreshTreeBuildDraft() {
         treeBuildPanel.setDraftSummary(inputAlignPanel.buildRunDraftSummary(treeParametersPanel.runtimeConfig()));
+    }
+
+    private RunRequest confirmOverwriteIfNeeded(RunRequest request) {
+        Path pipelineOutputDir = request.pipelineOutputDir();
+        if (!Files.exists(pipelineOutputDir)) {
+            return request;
+        }
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Output directory already exists:\n" + pipelineOutputDir
+                        + "\n\nOverwrite its current contents, or cancel this run?",
+                "Overwrite Existing Output?",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        if (choice != JOptionPane.OK_OPTION) {
+            return null;
+        }
+        return request.withOverwriteExistingOutput(true);
     }
 
     private void syncWorkflowTabs() {
@@ -373,6 +409,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
 
         @Override
         public void onProcessOutput(String line) {
+            treeBuildPanel.notePipelineOutput(line);
             treeBuildPanel.appendLog(line);
         }
 

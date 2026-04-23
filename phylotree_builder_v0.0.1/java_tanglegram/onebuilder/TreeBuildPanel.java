@@ -11,10 +11,13 @@ import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.nio.file.Path;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingConstants;
@@ -33,11 +36,16 @@ final class TreeBuildPanel extends JPanel {
     private final Map<TreeMethodKey, StatusDot> methodStatusDots;
     private final JLabel proteinStructureStatusLabel;
     private final StatusDot proteinStructureStatusDot;
+    private final JProgressBar overallProgressBar;
+    private final EnumSet<TreeMethodKey> enabledProgressMethods;
+    private final EnumSet<TreeMethodKey> completedProgressMethods;
+    private final EnumSet<PostBuildStep> completedPostBuildSteps;
     private String draftSummary;
     private String overallStatus;
     private String currentStage;
     private Path alignedOutputPath;
     private Path outputDirectoryPath;
+    private int totalProgressSteps;
 
     TreeBuildPanel(
             PlatformSupport platformSupport,
@@ -51,9 +59,13 @@ final class TreeBuildPanel extends JPanel {
         this.methodOutputs = new EnumMap<>(TreeMethodKey.class);
         this.methodStatusLabels = new EnumMap<>(TreeMethodKey.class);
         this.methodStatusDots = new EnumMap<>(TreeMethodKey.class);
+        this.enabledProgressMethods = EnumSet.noneOf(TreeMethodKey.class);
+        this.completedProgressMethods = EnumSet.noneOf(TreeMethodKey.class);
+        this.completedPostBuildSteps = EnumSet.noneOf(PostBuildStep.class);
         this.draftSummary = "Input type: -" + System.lineSeparator() + "Input FASTA/MSA: -";
         this.overallStatus = "Idle";
         this.currentStage = "-";
+        this.totalProgressSteps = 0;
         WorkbenchStyles.applyCanvas(this);
 
         add(buildHeader(), BorderLayout.NORTH);
@@ -70,10 +82,19 @@ final class TreeBuildPanel extends JPanel {
         proteinStructureStatusLabel = createStatusValueLabel("Reserved");
         proteinStructureStatusDot = new StatusDot();
         updateStatusVisuals(proteinStructureStatusLabel, proteinStructureStatusDot, "Reserved");
+        overallProgressBar = new JProgressBar();
+        overallProgressBar.setStringPainted(true);
+        overallProgressBar.setMinimum(0);
+        overallProgressBar.setMaximum(1);
+        overallProgressBar.setValue(0);
+        overallProgressBar.setString("Idle");
+        overallProgressBar.setForeground(WorkbenchStyles.ACCENT);
+        overallProgressBar.setBackground(WorkbenchStyles.SURFACE_BACKGROUND);
+        overallProgressBar.setBorder(BorderFactory.createLineBorder(WorkbenchStyles.ACCENT_BORDER, 1, true));
 
         JPanel bodyPanel = WorkbenchStyles.createCanvasPanel(new BorderLayout(0, 12));
         bodyPanel.add(detailsCard, BorderLayout.CENTER);
-        bodyPanel.add(buildMethodStatusCard(), BorderLayout.SOUTH);
+        bodyPanel.add(buildStatusSection(), BorderLayout.SOUTH);
         add(bodyPanel, BorderLayout.CENTER);
 
         runButton = new JButton("Run");
@@ -94,6 +115,7 @@ final class TreeBuildPanel extends JPanel {
         add(actionCard, BorderLayout.SOUTH);
 
         resetMethodStatusesToIdle();
+        updateOverallProgressDisplay("Idle");
         setRunning(false);
         refreshDetailsText();
     }
@@ -118,9 +140,43 @@ final class TreeBuildPanel extends JPanel {
         return detailsArea.getDocument().getLength();
     }
 
+    int overallProgressValueForTest() {
+        return overallProgressBar.getValue();
+    }
+
+    int overallProgressMaximumForTest() {
+        return overallProgressBar.getMaximum();
+    }
+
+    String overallProgressTextForTest() {
+        return overallProgressBar.getString();
+    }
+
     void applyPreferences() {
         revalidate();
         repaint();
+    }
+
+    void configureOverallProgress(PipelineRuntimeConfig runtimeConfig) {
+        enabledProgressMethods.clear();
+        completedProgressMethods.clear();
+        completedPostBuildSteps.clear();
+        if (runtimeConfig != null) {
+            if (runtimeConfig.distance().enabled()) {
+                enabledProgressMethods.add(TreeMethodKey.DISTANCE);
+            }
+            if (runtimeConfig.maximumLikelihood().enabled()) {
+                enabledProgressMethods.add(TreeMethodKey.MAXIMUM_LIKELIHOOD);
+            }
+            if (runtimeConfig.bayesian().enabled()) {
+                enabledProgressMethods.add(TreeMethodKey.BAYESIAN);
+            }
+            if (runtimeConfig.parsimony().enabled()) {
+                enabledProgressMethods.add(TreeMethodKey.PARSIMONY);
+            }
+        }
+        totalProgressSteps = enabledProgressMethods.size() + PostBuildStep.values().length;
+        updateOverallProgressDisplay("Ready to run");
     }
 
     void setDraftSummary(String draftSummary) {
@@ -134,6 +190,12 @@ final class TreeBuildPanel extends JPanel {
         currentStage = "Preparing";
         alignedOutputPath = executionPlan == null ? null : executionPlan.effectiveInputFile();
         outputDirectoryPath = executionPlan == null ? null : executionPlan.pipelineOutputDir();
+        completedProgressMethods.clear();
+        completedPostBuildSteps.clear();
+        if (totalProgressSteps == 0) {
+            totalProgressSteps = TreeMethodKey.values().length + PostBuildStep.values().length;
+        }
+        updateOverallProgressDisplay("Preparing run");
         for (TreeMethodKey methodKey : TreeMethodKey.values()) {
             methodStatuses.put(methodKey, "Queued");
             methodOutputs.put(methodKey, null);
@@ -163,6 +225,7 @@ final class TreeBuildPanel extends JPanel {
         String normalizedStatus = statusText == null || statusText.isBlank() ? "-" : statusText;
         methodStatuses.put(methodKey, normalizedStatus);
         updateMethodIndicator(methodKey, normalizedStatus);
+        updateOverallProgressForMethod(methodKey, normalizedStatus);
         refreshDetailsText();
     }
 
@@ -175,17 +238,30 @@ final class TreeBuildPanel extends JPanel {
         overallStatus = finalStatus == null || finalStatus.isBlank() ? "Idle" : finalStatus;
         if ("Completed".equalsIgnoreCase(overallStatus)) {
             currentStage = "Complete";
+            markAllProgressUnitsComplete();
+            updateOverallProgressDisplay("Completed");
         } else if ("Failed".equalsIgnoreCase(overallStatus)) {
             currentStage = "Failed";
             replaceRemainingMethodStates("Running", "Failed");
             replaceRemainingMethodStates("Queued", "Stopped");
+            updateOverallProgressDisplay("Failed");
         } else if ("Interrupted".equalsIgnoreCase(overallStatus) || "Stopped".equalsIgnoreCase(overallStatus)) {
             currentStage = "Stopped";
             replaceRemainingMethodStates("Running", "Stopped");
             replaceRemainingMethodStates("Queued", "Stopped");
+            updateOverallProgressDisplay("Stopped");
         }
         setRunning(false);
         refreshDetailsText();
+    }
+
+    void notePipelineOutput(String outputChunk) {
+        if (outputChunk == null || outputChunk.isBlank()) {
+            return;
+        }
+        for (String line : outputChunk.split("\\R")) {
+            notePipelineOutputLine(line);
+        }
     }
 
     void setRunning(boolean running) {
@@ -224,6 +300,22 @@ final class TreeBuildPanel extends JPanel {
 
         statusCard.add(statusGrid, BorderLayout.CENTER);
         return statusCard;
+    }
+
+    private JPanel buildStatusSection() {
+        JPanel section = WorkbenchStyles.createCanvasPanel(new BorderLayout(0, 10));
+        section.setOpaque(false);
+        section.add(buildMethodStatusCard(), BorderLayout.NORTH);
+        section.add(buildOverallProgressPanel(), BorderLayout.SOUTH);
+        return section;
+    }
+
+    private JPanel buildOverallProgressPanel() {
+        JPanel panel = WorkbenchStyles.createCanvasPanel(new BorderLayout());
+        panel.setOpaque(false);
+        panel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 4));
+        panel.add(overallProgressBar, BorderLayout.CENTER);
+        return panel;
     }
 
     private JPanel createMethodStatusTile(String labelText, TreeMethodKey methodKey) {
@@ -299,6 +391,107 @@ final class TreeBuildPanel extends JPanel {
         }
     }
 
+    private void updateOverallProgressForMethod(TreeMethodKey methodKey, String statusText) {
+        if (methodKey == null || !enabledProgressMethods.contains(methodKey)) {
+            return;
+        }
+        String normalizedStatus = statusText == null || statusText.isBlank() ? "-" : statusText.trim();
+        if ("Running".equalsIgnoreCase(normalizedStatus)) {
+            updateOverallProgressDisplay("Running " + methodLabel(methodKey));
+            return;
+        }
+        if ("Completed".equalsIgnoreCase(normalizedStatus)) {
+            completedProgressMethods.add(methodKey);
+            updateOverallProgressDisplay("Completed " + methodLabel(methodKey));
+            return;
+        }
+        if ("Skipped".equalsIgnoreCase(normalizedStatus)) {
+            completedProgressMethods.add(methodKey);
+            updateOverallProgressDisplay("Skipped " + methodLabel(methodKey));
+            return;
+        }
+        if ("Failed".equalsIgnoreCase(normalizedStatus)) {
+            completedProgressMethods.add(methodKey);
+            updateOverallProgressDisplay("Failed " + methodLabel(methodKey));
+        }
+    }
+
+    private void notePipelineOutputLine(String line) {
+        if (line == null || line.isBlank()) {
+            return;
+        }
+        if (containsAny(line, "Rerooting completed:", "定根完成")) {
+            markPostBuildStepComplete(PostBuildStep.REROOTING, "Rerooting trees");
+            return;
+        }
+        if (containsAny(line, "Restoring original sequence names in trees", "恢复原始序列名称")) {
+            updateOverallProgressDisplay("Restoring sequence names");
+            return;
+        }
+        if (containsAny(line, "Restored names in tree:", "已恢复树名称")) {
+            markPostBuildStepComplete(PostBuildStep.RESTORE_NAMES, "Restoring sequence names");
+            return;
+        }
+        if (containsAny(line, "Generating tree visualizations", "生成进化树可视化")) {
+            updateOverallProgressDisplay("Generating tree visualizations");
+            return;
+        }
+        if (containsAny(line, "Visualization completed", "可视化完成")) {
+            markPostBuildStepComplete(PostBuildStep.VISUALIZATION, "Generating tree visualizations");
+            return;
+        }
+        if (containsAny(line, "cal_pair_wise_tree_dist.R", "tree distance calculation")) {
+            updateOverallProgressDisplay("Calculating tree distances");
+            return;
+        }
+        if (containsAny(line, "Tree distance calculation completed", "树距离计算完成")) {
+            markPostBuildStepComplete(PostBuildStep.TREE_DISTANCE, "Calculating tree distances");
+            return;
+        }
+        if (containsAny(line, "Tree distance heatmaps saved", "热图已保存")) {
+            markPostBuildStepComplete(PostBuildStep.HEATMAPS, "Exporting tree distance heatmaps");
+            return;
+        }
+        if (containsAny(line, "Summary saved", "摘要已保存")) {
+            markPostBuildStepComplete(PostBuildStep.SUMMARY, "Finalizing analysis summary");
+        }
+    }
+
+    private void markPostBuildStepComplete(PostBuildStep step, String message) {
+        if (step == null) {
+            return;
+        }
+        completedPostBuildSteps.add(step);
+        updateOverallProgressDisplay(message);
+    }
+
+    private void markAllProgressUnitsComplete() {
+        completedProgressMethods.addAll(enabledProgressMethods);
+        for (PostBuildStep step : PostBuildStep.values()) {
+            completedPostBuildSteps.add(step);
+        }
+        if (totalProgressSteps == 0) {
+            totalProgressSteps = completedProgressMethods.size() + completedPostBuildSteps.size();
+        }
+    }
+
+    private void updateOverallProgressDisplay(String message) {
+        int completedSteps = completedProgressMethods.size() + completedPostBuildSteps.size();
+        int safeTotal = Math.max(1, totalProgressSteps);
+        overallProgressBar.setMaximum(safeTotal);
+        overallProgressBar.setValue(Math.min(completedSteps, safeTotal));
+        if (totalProgressSteps <= 0) {
+            overallProgressBar.setString(message == null || message.isBlank() ? "Idle" : message.trim());
+            return;
+        }
+        String safeMessage = message == null || message.isBlank() ? "Idle" : message.trim();
+        overallProgressBar.setString(safeMessage + " (" + Math.min(completedSteps, totalProgressSteps) + "/" + totalProgressSteps + ")");
+    }
+
+    private static boolean containsAny(String line, String first, String second) {
+        return line.contains(first) || line.contains(second);
+    }
+
     private void refreshDetailsText() {
         StringBuilder builder = new StringBuilder();
         builder.append("Configuration").append(System.lineSeparator());
@@ -350,6 +543,15 @@ final class TreeBuildPanel extends JPanel {
             default:
                 throw new IllegalStateException("Unexpected method key: " + methodKey);
         }
+    }
+
+    private enum PostBuildStep {
+        REROOTING,
+        RESTORE_NAMES,
+        VISUALIZATION,
+        TREE_DISTANCE,
+        HEATMAPS,
+        SUMMARY
     }
 
     private static final class StatusDot extends JPanel {

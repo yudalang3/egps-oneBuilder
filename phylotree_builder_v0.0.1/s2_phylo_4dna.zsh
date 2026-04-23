@@ -6,6 +6,7 @@ script_dir="${0:a:h}"
 pixi_exe="${PIXI_EXE:-/home/dell/.pixi/bin/pixi}"
 pixi_lib_dir="$script_dir/.pixi/envs/default/lib"
 config_path=""
+force_overwrite=0
 
 if [[ ! -x "$pixi_exe" ]]; then
     echo "Error: pixi executable not found. Set PIXI_EXE or install pixi at /home/dell/.pixi/bin/pixi."
@@ -13,11 +14,40 @@ if [[ ! -x "$pixi_exe" ]]; then
 fi
 
 usage() {
-    echo "Usage: zsh $0 [--config runtime.json] <input.fasta> [output_prefix]"
+    echo "Usage: zsh $0 [--force-overwrite] [--config runtime.json] <input.fasta> [output_prefix]"
     echo "  - If only input.fasta is provided, the output prefix is automatically set to '<input>_tree' (extension removed)."
+    echo "  - If the output path already exists, the script asks whether to overwrite it unless --force-overwrite is supplied."
     echo "  - Examples:"
     echo "      zsh $0 cds_aligned.fasta        -> output prefix: cds_aligned_tree"
     echo "      zsh $0 cds_aligned.fasta mytree -> output prefix: mytree"
+}
+
+confirm_overwrite_if_needed() {
+    local output_path="$1"
+    if [[ ! -e "$output_path" ]]; then
+        return 0
+    fi
+    if [[ "$force_overwrite" -eq 1 ]]; then
+        rm -rf -- "$output_path"
+        return 0
+    fi
+    if [[ ! -t 0 ]]; then
+        echo "Error: output path '$output_path' already exists. Re-run with --force-overwrite to replace it."
+        exit 1
+    fi
+
+    local reply
+    printf "Output path '%s' already exists. Overwrite it? [y/N]: " "$output_path"
+    read -r reply
+    case "$reply" in
+        [Yy]|[Yy][Ee][Ss])
+            rm -rf -- "$output_path"
+            ;;
+        *)
+            echo "Cancelled. Existing output was left unchanged."
+            exit 1
+            ;;
+    esac
 }
 
 positionals=()
@@ -27,6 +57,10 @@ while [[ $# -gt 0 ]]; do
             [[ $# -ge 2 ]] || { usage; exit 1; }
             config_path="$2"
             shift 2
+            ;;
+        --force-overwrite)
+            force_overwrite=1
+            shift
             ;;
         -h|--help)
             usage
@@ -66,6 +100,8 @@ else
     fi
     output="${base}_tree"
 fi
+
+confirm_overwrite_if_needed "$output"
 
 pipeline_cmd=("$pixi_exe" run --manifest-path "$script_dir" python3.13 "$script_dir/phylo_pipeline_4dna.py")
 if [[ -n "$config_path" ]]; then

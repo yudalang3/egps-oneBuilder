@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
-"""
-解析 MrBayes 生成的 nexus 树文件并转换为 newick 格式
-使用 ete4 库进行树的处理
-"""
+"""Parse MrBayes NEXUS trees and export Newick output."""
 
 import re
 from ete4 import Tree
 
-def parse_nexus_tree(nexus_file_path, output_nwk_path=None):
-    """
-    解析 nexus 格式的树文件并转换为 newick 格式
 
-    Args:
-        nexus_file_path (str): nexus 文件路径
-        output_nwk_path (str): 输出的 newick 文件路径，如果为 None 则自动生成
+def _is_chinese(language):
+    return str(language or "").strip().lower() in {"zh", "zh-cn", "zh_cn", "chinese", "中文", "cn"}
 
-    Returns:
-        Tree: ete4 Tree 对象
-    """
+
+def _runtime_text(language, english, chinese):
+    return chinese if _is_chinese(language) else english
+
+
+def parse_nexus_tree(nexus_file_path, output_nwk_path=None, language="english"):
+    """Parse a NEXUS tree file and optionally export a Newick copy."""
 
     # 读取 nexus 文件
     with open(nexus_file_path, 'r', encoding='utf-8') as f:
@@ -29,7 +26,7 @@ def parse_nexus_tree(nexus_file_path, output_nwk_path=None):
     tree_block_match = re.search(tree_block_pattern, content, re.DOTALL | re.IGNORECASE)
 
     if not tree_block_match:
-        raise ValueError("未找到 TREES 块")
+        raise ValueError(_runtime_text(language, "TREES block not found", "未找到 TREES 块"))
 
     tree_block = tree_block_match.group(1)
 
@@ -55,7 +52,7 @@ def parse_nexus_tree(nexus_file_path, output_nwk_path=None):
     tree_match = re.search(tree_pattern, tree_block, re.DOTALL | re.IGNORECASE)
 
     if not tree_match:
-        raise ValueError("未找到树的定义")
+        raise ValueError(_runtime_text(language, "Tree definition not found", "未找到树的定义"))
 
     # 获取 newick 字符串
     newick_string = tree_match.group(1).strip()
@@ -85,9 +82,9 @@ def parse_nexus_tree(nexus_file_path, output_nwk_path=None):
     # 导出为 newick 格式
     tree.write(outfile=output_nwk_path)
 
-    print(f"成功解析 nexus 文件: {nexus_file_path}")
-    print(f"树已导出为 newick 格式: {output_nwk_path}")
-    print(f"树包含 {len(list(tree.leaves()))} 个叶节点")
+    print(_runtime_text(language, f"Successfully parsed nexus file: {nexus_file_path}", f"成功解析 nexus 文件: {nexus_file_path}"))
+    print(_runtime_text(language, f"Tree exported in Newick format: {output_nwk_path}", f"树已导出为 newick 格式: {output_nwk_path}"))
+    print(_runtime_text(language, f"Tree contains {len(list(tree.leaves()))} leaf nodes", f"树包含 {len(list(tree.leaves()))} 个叶节点"))
 
     return tree
 

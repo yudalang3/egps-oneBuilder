@@ -5,6 +5,7 @@ set -euo pipefail
 script_dir="${0:a:h}"
 pixi_exe="${PIXI_EXE:-/home/dell/.pixi/bin/pixi}"
 json_python_cmd=(python3.13)
+force_overwrite=0
 
 if ! command -v python3.13 >/dev/null 2>&1; then
     if [[ -x "$pixi_exe" ]]; then
@@ -16,12 +17,13 @@ if ! command -v python3.13 >/dev/null 2>&1; then
 fi
 
 usage() {
-    echo "Usage: zsh $0 [--config runtime.json] <runtime.json>"
-    echo "  or:  zsh $0 --config <runtime.json>"
+    echo "Usage: zsh $0 [--force-overwrite] [--config runtime.json] <runtime.json>"
+    echo "  or:  zsh $0 [--force-overwrite] --config <runtime.json>"
     echo ""
     echo "The config file must be a JSON exported by onebuilder.launcher."
     echo "The script reads run.input_type, run.input_file, run.output_base_dir,"
     echo "run.output_prefix, and alignment.run_alignment_first from that JSON."
+    echo "If the pipeline output directory already exists, the called build wrapper asks whether to overwrite it unless --force-overwrite is supplied."
 }
 
 aligned_output_path() {
@@ -44,6 +46,10 @@ while [[ $# -gt 0 ]]; do
             [[ $# -ge 2 ]] || { usage; exit 1; }
             config_path="$2"
             shift 2
+            ;;
+        --force-overwrite)
+            force_overwrite=1
+            shift
             ;;
         -h|--help)
             usage
@@ -193,6 +199,11 @@ if [[ "$run_alignment_first" -eq 1 ]]; then
 fi
 
 echo "Step $([[ "$run_alignment_first" -eq 1 ]] && echo "2/2" || echo "1/1"): running phylogeny wrapper..."
-zsh "$build_script" --config "$config_path" "$effective_input_file" "$pipeline_output_prefix"
+build_cmd=(zsh "$build_script")
+if [[ "$force_overwrite" -eq 1 ]]; then
+    build_cmd+=(--force-overwrite)
+fi
+build_cmd+=(--config "$config_path" "$effective_input_file" "$pipeline_output_prefix")
+"${build_cmd[@]}"
 
 echo "Completed oneBuilder config run."

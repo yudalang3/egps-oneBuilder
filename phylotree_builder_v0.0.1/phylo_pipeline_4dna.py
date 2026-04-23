@@ -597,7 +597,11 @@ class PhylogeneticPipeline:
                 from help_utils import parse_nexus_tree
 
                 out_file = Path(str(consensus_tree) + ".nwk")
-                parse_nexus_tree(consensus_tree, out_file)
+                parse_nexus_tree(
+                    consensus_tree,
+                    out_file,
+                    language=self.translator.language,
+                )
                 consensus_tree = out_file
                 break
 
@@ -717,7 +721,7 @@ class PhylogeneticPipeline:
 
         heatmap_paths = []
         r_commands = [
-            ["Rscript", self.cal_treedist_method_path, str(path_tree_info)],
+            ["Rscript", self.cal_treedist_method_path, str(path_tree_info), self.translator.language],
             [
                 "R",
                 "--slave",
@@ -725,6 +729,7 @@ class PhylogeneticPipeline:
                 self.cal_treedist_method_path,
                 "--args",
                 str(path_tree_info),
+                self.translator.language,
             ],
         ]
 
