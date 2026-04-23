@@ -1,6 +1,7 @@
 package onebuilder;
 
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -30,8 +31,9 @@ final class NavigationRailPanel extends JComponent {
 
         ButtonGroup group = new ButtonGroup();
         for (WorkspaceSection section : WorkspaceSection.values()) {
-            JToggleButton button = new JToggleButton(section.label());
+            JToggleButton button = new JToggleButton(section.navigationLabel());
             WorkbenchStyles.styleRailButton(button);
+            button.setAlignmentX(Component.LEFT_ALIGNMENT);
             button.addActionListener(event -> handleSectionClick(section, selectionHandler));
             group.add(button);
             buttons.put(section, button);
@@ -39,6 +41,7 @@ final class NavigationRailPanel extends JComponent {
             add(button);
             add(Box.createVerticalStrut(8));
         }
+        normalizeButtonSizes();
         add(Box.createVerticalGlue());
     }
 
@@ -157,6 +160,22 @@ final class NavigationRailPanel extends JComponent {
                             1,
                             true),
                     javax.swing.BorderFactory.createEmptyBorder(10, 14, 10, 14)));
+        }
+    }
+
+    private void normalizeButtonSizes() {
+        int maxWidth = 0;
+        int maxHeight = 0;
+        for (JToggleButton button : buttons.values()) {
+            Dimension preferredSize = button.getPreferredSize();
+            maxWidth = Math.max(maxWidth, preferredSize.width);
+            maxHeight = Math.max(maxHeight, preferredSize.height);
+        }
+        Dimension uniformSize = new Dimension(maxWidth + 24, maxHeight);
+        for (JToggleButton button : buttons.values()) {
+            button.setPreferredSize(uniformSize);
+            button.setMinimumSize(uniformSize);
+            button.setMaximumSize(uniformSize);
         }
     }
 }

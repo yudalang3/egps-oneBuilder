@@ -305,7 +305,7 @@ public final class OneBuilderStandaloneTest {
                     Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"),
                     PlatformSupport.LINUX);
             assertEquals(
-                    Arrays.asList("Input / Align", "Tree Parameters", "Tree Build", "Tanglegram"),
+                    Arrays.asList("1. Input / Align", "2. Tree Parameters", "3. Tree Build", "4. Tanglegram"),
                     workspacePanel.navigationLabels(),
                     "unexpected left navigation labels");
             assertEquals("Input / Align", workspacePanel.selectedSectionLabel(), "unexpected initial section");

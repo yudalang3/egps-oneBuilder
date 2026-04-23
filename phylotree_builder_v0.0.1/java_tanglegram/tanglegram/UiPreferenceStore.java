@@ -25,6 +25,10 @@ public final class UiPreferenceStore {
     private static final String KEY_RECENT_TREE_FILE_DIR = "recent.treeFileDir";
     private static final String KEY_RECENT_ONEBUILDER_INPUT_DIR = "recent.onebuilder.inputDir";
     private static final String KEY_RECENT_ONEBUILDER_OUTPUT_DIR = "recent.onebuilder.outputDir";
+    private static final String KEY_LAST_ONEBUILDER_INPUT_FILE = "last.onebuilder.inputFile";
+    private static final String KEY_LAST_ONEBUILDER_OUTPUT_DIR = "last.onebuilder.outputDir";
+    private static final String KEY_LAST_ONEBUILDER_OUTPUT_PREFIX = "last.onebuilder.outputPrefix";
+    private static final String KEY_LAST_ONEBUILDER_INPUT_TYPE = "last.onebuilder.inputType";
     private static final Object STORE_LOCK = new Object();
 
     private static Path propertiesFile = defaultPropertiesPath();
@@ -138,6 +142,38 @@ public final class UiPreferenceStore {
         savePath(KEY_RECENT_ONEBUILDER_OUTPUT_DIR, path);
     }
 
+    public static Path loadLastOneBuilderInputFile() {
+        return loadPath(KEY_LAST_ONEBUILDER_INPUT_FILE);
+    }
+
+    public static void saveLastOneBuilderInputFile(Path path) {
+        savePath(KEY_LAST_ONEBUILDER_INPUT_FILE, path);
+    }
+
+    public static Path loadLastOneBuilderOutputDir() {
+        return loadPath(KEY_LAST_ONEBUILDER_OUTPUT_DIR);
+    }
+
+    public static void saveLastOneBuilderOutputDir(Path path) {
+        savePath(KEY_LAST_ONEBUILDER_OUTPUT_DIR, path);
+    }
+
+    public static String loadLastOneBuilderOutputPrefix() {
+        return loadString(KEY_LAST_ONEBUILDER_OUTPUT_PREFIX);
+    }
+
+    public static void saveLastOneBuilderOutputPrefix(String value) {
+        saveString(KEY_LAST_ONEBUILDER_OUTPUT_PREFIX, value);
+    }
+
+    public static String loadLastOneBuilderInputType() {
+        return loadString(KEY_LAST_ONEBUILDER_INPUT_TYPE);
+    }
+
+    public static void saveLastOneBuilderInputType(String value) {
+        saveString(KEY_LAST_ONEBUILDER_INPUT_TYPE, value);
+    }
+
     public static void useTestNode(String nodePath) {
         propertiesFile = testPropertiesPath(nodePath);
     }
@@ -179,6 +215,21 @@ public final class UiPreferenceStore {
             properties.remove(key);
         } else {
             properties.setProperty(key, path.toAbsolutePath().normalize().toString());
+        }
+        saveProperties(properties);
+    }
+
+    private static String loadString(String key) {
+        String value = loadProperties().getProperty(key);
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static void saveString(String key, String value) {
+        Properties properties = loadProperties();
+        if (value == null || value.isBlank()) {
+            properties.remove(key);
+        } else {
+            properties.setProperty(key, value.trim());
         }
         saveProperties(properties);
     }

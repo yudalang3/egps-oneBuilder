@@ -53,6 +53,7 @@ final class TreeParametersPanel extends JPanel {
 
         cardLayout = new CardLayout();
         cardPanel = WorkbenchStyles.createCanvasPanel(cardLayout);
+        cardPanel.setMinimumSize(new Dimension(240, 240));
         proteinStructureNote = WorkbenchStyles.createNoteArea("");
         buildCards();
 
@@ -139,7 +140,7 @@ final class TreeParametersPanel extends JPanel {
         splitPane.setBorder(null);
         splitPane.setResizeWeight(0.24d);
         splitPane.setContinuousLayout(true);
-        splitPane.setDividerSize(10);
+        splitPane.setDividerSize(16);
         splitPane.setOpaque(false);
         add(splitPane, BorderLayout.CENTER);
 

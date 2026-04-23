@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Toolkit;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -45,6 +46,7 @@ final class InputAlignPanel extends JPanel {
     private final JTextArea alignExtraArgsArea;
     private final JLabel inputTypeHintLabel;
     private final JLabel alignedPreviewValue;
+    private final JButton reuseLastButton;
     private final PlatformSupport platformSupport;
     private final Runnable inputChangedCallback;
     private final Supplier<PipelineRuntimeConfig> runtimeConfigSupplier;
@@ -77,6 +79,7 @@ final class InputAlignPanel extends JPanel {
         constraints.fill = GridBagConstraints.HORIZONTAL;
 
         inputTypeCombo = new JComboBox<>(InputType.values());
+        reuseLastButton = new JButton("Reuse Last");
         inputFileField = new JTextField();
         outputDirField = new JTextField();
         outputPrefixField = new JTextField();
@@ -105,6 +108,12 @@ final class InputAlignPanel extends JPanel {
         constraints.gridx = 1;
         constraints.weightx = 1.0;
         formPanel.add(inputTypeCombo, constraints);
+        constraints.gridx = 2;
+        constraints.weightx = 0.0;
+        reuseLastButton.setToolTipText(
+                "Reuse the most recent Input / Align setup saved by oneBuilder. This restores the last input FASTA/MSA file, output base directory, output prefix, and input type so repeated testing can start from the same paths without typing them again. After restoring, you can still use Browse or edit any field normally before running or exporting.");
+        reuseLastButton.addActionListener(event -> reuseLastInputs());
+        formPanel.add(reuseLastButton, constraints);
 
         constraints.gridx = 0;
         constraints.gridy = 1;
@@ -281,6 +290,7 @@ final class InputAlignPanel extends JPanel {
         alignExtraArgsArea.getDocument().addDocumentListener(documentListener);
         exportConfigCheckBox.addActionListener(event -> notifyInputChanged());
         toggleAlignmentControls();
+        refreshReuseLastButtonState();
         WorkbenchStyles.applyPanelTreeBackground(this);
     }
 
@@ -370,6 +380,7 @@ final class InputAlignPanel extends JPanel {
     void setRunning(boolean running) {
         this.running = running;
         inputTypeCombo.setEnabled(!running);
+        reuseLastButton.setEnabled(!running && hasReusableLastInputs());
         inputFileField.setEnabled(!running);
         outputDirField.setEnabled(!running);
         outputPrefixField.setEnabled(!running);
@@ -396,9 +407,12 @@ final class InputAlignPanel extends JPanel {
             inputFileField.setText(selectedInput.toString());
             lastInputBrowseDir = selectedInput.getParent();
             UiPreferenceStore.saveRecentOneBuilderInputDir(lastInputBrowseDir);
+            UiPreferenceStore.saveLastOneBuilderInputFile(selectedInput);
+            UiPreferenceStore.saveLastOneBuilderInputType(selectedInputType().name());
             if (outputPrefixField.getText().trim().isEmpty()) {
                 outputPrefixField.setText(defaultOutputPrefix(Paths.get(inputFileField.getText().trim())));
             }
+            saveLastUsedInputSettings();
         }
     }
 
@@ -412,6 +426,8 @@ final class InputAlignPanel extends JPanel {
             outputDirField.setText(selectedOutputDir.toString());
             lastOutputBrowseDir = selectedOutputDir;
             UiPreferenceStore.saveRecentOneBuilderOutputDir(lastOutputBrowseDir);
+            UiPreferenceStore.saveLastOneBuilderOutputDir(selectedOutputDir);
+            saveLastUsedInputSettings();
         }
     }
 
@@ -478,10 +494,35 @@ final class InputAlignPanel extends JPanel {
                         TextListCodec.splitLines(alignExtraArgsArea.getText())))
                 .runtimeConfig(runtimeConfigSupplier.get())
                 .build();
+        saveLastUsedInputSettings();
         setAlignedPreview(request.runAlignmentFirst()
                 ? ExecutionPlanBuilder.alignedOutputPath(request.inputFile())
                 : request.inputFile());
         return request;
+    }
+
+    private void reuseLastInputs() {
+        StoredInputSelection lastSelection = loadLastInputSelection();
+        if (lastSelection == null) {
+            Toolkit.getDefaultToolkit().beep();
+            refreshReuseLastButtonState();
+            return;
+        }
+        if (lastSelection.inputType != null && inputTypeCombo.isEnabled()) {
+            inputTypeCombo.setSelectedItem(lastSelection.inputType);
+        }
+        if (lastSelection.inputFile != null) {
+            inputFileField.setText(lastSelection.inputFile.toString());
+            lastInputBrowseDir = lastSelection.inputFile.getParent();
+            UiPreferenceStore.saveRecentOneBuilderInputDir(lastInputBrowseDir);
+        }
+        if (lastSelection.outputDir != null) {
+            outputDirField.setText(lastSelection.outputDir.toString());
+            lastOutputBrowseDir = lastSelection.outputDir;
+            UiPreferenceStore.saveRecentOneBuilderOutputDir(lastOutputBrowseDir);
+        }
+        outputPrefixField.setText(lastSelection.outputPrefix == null ? "" : lastSelection.outputPrefix);
+        saveLastUsedInputSettings();
     }
 
     static InputType detectInputTypeFromFasta(Path inputPath) {
@@ -655,6 +696,74 @@ final class InputAlignPanel extends JPanel {
         reorderCheckBox.setEnabled(alignmentEnabled && !running);
         alignExtraArgsArea.setEnabled(!running);
         alignExtraArgsArea.setEditable(!running);
+    }
+
+    private void refreshReuseLastButtonState() {
+        reuseLastButton.setEnabled(!running && hasReusableLastInputs());
+        if (reuseLastButton.isEnabled()) {
+            reuseLastButton.setToolTipText(
+                    "Reuse the most recent Input / Align setup saved by oneBuilder. This restores the last input FASTA/MSA file, output base directory, output prefix, and input type so repeated testing can start from the same paths without typing them again. After restoring, you can still use Browse or edit any field normally before running or exporting.");
+            return;
+        }
+        reuseLastButton.setToolTipText(
+                "Reuse the most recent Input / Align setup saved by oneBuilder. No previous input file and output directory pair has been saved yet, so there is nothing to restore right now.");
+    }
+
+    private boolean hasReusableLastInputs() {
+        StoredInputSelection lastSelection = loadLastInputSelection();
+        return lastSelection != null;
+    }
+
+    private StoredInputSelection loadLastInputSelection() {
+        Path inputFile = UiPreferenceStore.loadLastOneBuilderInputFile();
+        Path outputDir = UiPreferenceStore.loadLastOneBuilderOutputDir();
+        if (inputFile == null || outputDir == null) {
+            return null;
+        }
+        String storedInputType = UiPreferenceStore.loadLastOneBuilderInputType();
+        InputType inputType = null;
+        if (storedInputType != null) {
+            try {
+                inputType = InputType.valueOf(storedInputType);
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        return new StoredInputSelection(
+                inputType,
+                inputFile,
+                outputDir,
+                UiPreferenceStore.loadLastOneBuilderOutputPrefix());
+    }
+
+    private void saveLastUsedInputSettings() {
+        Path inputPath = resolvedInputPathOrNull();
+        if (inputPath != null) {
+            UiPreferenceStore.saveLastOneBuilderInputFile(inputPath);
+            UiPreferenceStore.saveLastOneBuilderInputType(selectedInputType().name());
+        }
+        String outputDirText = outputDirField.getText().trim();
+        if (!outputDirText.isEmpty() && !containsInvalidPathControlCharacters(outputDirText)) {
+            try {
+                UiPreferenceStore.saveLastOneBuilderOutputDir(Paths.get(outputDirText).toAbsolutePath().normalize());
+            } catch (InvalidPathException ignored) {
+            }
+        }
+        UiPreferenceStore.saveLastOneBuilderOutputPrefix(outputPrefixField.getText().trim());
+        refreshReuseLastButtonState();
+    }
+
+    private static final class StoredInputSelection {
+        private final InputType inputType;
+        private final Path inputFile;
+        private final Path outputDir;
+        private final String outputPrefix;
+
+        private StoredInputSelection(InputType inputType, Path inputFile, Path outputDir, String outputPrefix) {
+            this.inputType = inputType;
+            this.inputFile = inputFile;
+            this.outputDir = outputDir;
+            this.outputPrefix = outputPrefix;
+        }
     }
 
     boolean isRunSupported() {
