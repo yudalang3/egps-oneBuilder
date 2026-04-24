@@ -55,7 +55,7 @@ final class MaximumLikelihoodPanel extends JPanel {
         header.setOpaque(false);
         header.add(enabledCheckBox, BorderLayout.WEST);
         header.add(
-                WorkbenchStyles.createSubtitleLabel("Keep the common IQ-TREE workflow visible and tuck deep search/runtime flags into the advanced drawer."),
+                WorkbenchStyles.createNoteArea("Keep the common IQ-TREE workflow visible and tuck deep search/runtime flags into the advanced drawer."),
                 BorderLayout.CENTER);
         add(header, BorderLayout.NORTH);
 

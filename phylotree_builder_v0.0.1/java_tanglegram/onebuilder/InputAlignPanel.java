@@ -44,6 +44,7 @@ final class InputAlignPanel extends JPanel {
     private final JSpinner alignThreadsSpinner;
     private final JCheckBox reorderCheckBox;
     private final JTextArea alignExtraArgsArea;
+    private final JTextArea alignmentGuidanceArea;
     private final JLabel inputTypeHintLabel;
     private final JLabel alignedPreviewValue;
     private final JButton reuseLastButton;
@@ -53,6 +54,7 @@ final class InputAlignPanel extends JPanel {
     private Path lastInputBrowseDir;
     private Path lastOutputBrowseDir;
     private boolean running;
+    private boolean alignmentSelectionAutoControlled = true;
     private long inputTypeDetectionToken;
     private Path lastScheduledInputTypeDetectionPath;
 
@@ -83,11 +85,11 @@ final class InputAlignPanel extends JPanel {
         inputFileField = new JTextField();
         outputDirField = new JTextField();
         outputPrefixField = new JTextField();
-        runAlignmentCheckBox = new JCheckBox(
-                "Run multiple sequence alignment first (turn this on when the input FASTA contains raw sequences and is not aligned yet)",
-                false);
+        runAlignmentCheckBox = new JCheckBox("Run multiple sequence alignment first", false);
         runAlignmentCheckBox.setToolTipText(
                 "Enable this when your input file contains raw sequences that still need MAFFT alignment before tree building. Leave it off when the file is already an aligned MSA.");
+        alignmentGuidanceArea = WorkbenchStyles.createNoteArea(
+                "Turn this on when the input FASTA contains raw sequences and is not aligned yet. oneBuilder auto-enables it when multiple sequences have different lengths.");
         exportConfigCheckBox = new JCheckBox("Export config file when running", true);
         alignStrategyCombo = new JComboBox<>(new String[] {"localpair", "genafpair", "auto", "globalpair"});
         maxiterateSpinner = new JSpinner(new SpinnerNumberModel(1000, 0, 1000000, 100));
@@ -168,7 +170,7 @@ final class InputAlignPanel extends JPanel {
         constraints.gridx = 1;
         constraints.gridwidth = 2;
         constraints.weightx = 1.0;
-        formPanel.add(runAlignmentCheckBox, constraints);
+        formPanel.add(buildAlignmentSelectionPanel(), constraints);
         constraints.gridwidth = 1;
 
         constraints.gridx = 0;
@@ -282,7 +284,10 @@ final class InputAlignPanel extends JPanel {
         outputDirField.getDocument().addDocumentListener(documentListener);
         outputPrefixField.getDocument().addDocumentListener(documentListener);
         inputTypeCombo.addActionListener(event -> notifyInputChanged());
-        runAlignmentCheckBox.addActionListener(event -> notifyInputChanged());
+        runAlignmentCheckBox.addActionListener(event -> {
+            alignmentSelectionAutoControlled = false;
+            notifyInputChanged();
+        });
         alignStrategyCombo.addActionListener(event -> notifyInputChanged());
         maxiterateSpinner.addChangeListener(event -> notifyInputChanged());
         alignThreadsSpinner.addChangeListener(event -> notifyInputChanged());
@@ -439,6 +444,10 @@ final class InputAlignPanel extends JPanel {
         inputFileField.setText(value);
     }
 
+    boolean isRunAlignmentSelectedForTest() {
+        return runAlignmentCheckBox.isSelected();
+    }
+
     Path initialOutputChooserPathForTest() {
         return initialOutputChooserPath();
     }
@@ -526,17 +535,47 @@ final class InputAlignPanel extends JPanel {
     }
 
     static InputType detectInputTypeFromFasta(Path inputPath) {
+        return detectSequenceContentFromFasta(inputPath).inputType();
+    }
+
+    private static SequenceContentDetection detectSequenceContentFromFasta(Path inputPath) {
         int informativeResidues = 0;
+        int sequenceCount = 0;
+        int currentSequenceLength = 0;
+        int firstSequenceLength = -1;
+        boolean sequenceLengthsDiffer = false;
+        boolean insideSequence = false;
+        boolean proteinResidueSeen = false;
         try (BufferedReader reader = Files.newBufferedReader(inputPath, StandardCharsets.UTF_8)) {
             String line;
             while ((line = reader.readLine()) != null && informativeResidues < INPUT_TYPE_DETECTION_CHAR_LIMIT) {
                 String trimmed = line.trim();
-                if (trimmed.isEmpty() || trimmed.charAt(0) == '>') {
+                if (trimmed.isEmpty()) {
                     continue;
                 }
+                if (trimmed.charAt(0) == '>') {
+                    if (insideSequence) {
+                        sequenceLengthsDiffer = updateSequenceLengthDifference(
+                                firstSequenceLength,
+                                currentSequenceLength,
+                                sequenceLengthsDiffer);
+                        if (firstSequenceLength < 0) {
+                            firstSequenceLength = currentSequenceLength;
+                        }
+                    }
+                    insideSequence = true;
+                    sequenceCount++;
+                    currentSequenceLength = 0;
+                    continue;
+                }
+                insideSequence = true;
                 for (int index = 0; index < trimmed.length() && informativeResidues < INPUT_TYPE_DETECTION_CHAR_LIMIT; index++) {
                     char residue = Character.toUpperCase(trimmed.charAt(index));
-                    if (Character.isWhitespace(residue) || residue == '-' || residue == '.' || residue == '*' || residue == '?') {
+                    if (Character.isWhitespace(residue)) {
+                        continue;
+                    }
+                    currentSequenceLength++;
+                    if (residue == '-' || residue == '.' || residue == '*' || residue == '?') {
                         continue;
                     }
                     if (isDnaResidue(residue)) {
@@ -544,14 +583,22 @@ final class InputAlignPanel extends JPanel {
                         continue;
                     }
                     if (Character.isLetter(residue)) {
-                        return InputType.PROTEIN;
+                        proteinResidueSeen = true;
                     }
                 }
             }
+            if (insideSequence) {
+                sequenceLengthsDiffer = updateSequenceLengthDifference(
+                        firstSequenceLength,
+                        currentSequenceLength,
+                        sequenceLengthsDiffer);
+            }
         } catch (IOException exception) {
-            return null;
+            return new SequenceContentDetection(null, false);
         }
-        return informativeResidues > 0 ? InputType.DNA_CDS : null;
+        return new SequenceContentDetection(
+                proteinResidueSeen ? InputType.PROTEIN : (informativeResidues > 0 ? InputType.DNA_CDS : null),
+                sequenceCount > 1 && sequenceLengthsDiffer);
     }
 
     void autoDetectInputTypeForCurrentFileForTest() {
@@ -559,7 +606,7 @@ final class InputAlignPanel extends JPanel {
         if (inputPath == null || !Files.isRegularFile(inputPath)) {
             return;
         }
-        applyAutoDetectedInputType(inputPath, selectedInputType(), detectInputTypeFromFasta(inputPath));
+        applyAutoDetectedSequenceContent(inputPath, selectedInputType(), detectSequenceContentFromFasta(inputPath));
     }
 
     private static String defaultOutputPrefix(Path inputPath) {
@@ -596,11 +643,12 @@ final class InputAlignPanel extends JPanel {
             return;
         }
         lastScheduledInputTypeDetectionPath = inputPath;
+        alignmentSelectionAutoControlled = true;
         inputTypeHintLabel.setText("Auto-detected: checking sequence content...");
         long detectionToken = ++inputTypeDetectionToken;
         InputType selectedAtSchedule = selectedInputType();
         Thread detectionThread = new Thread(() -> {
-            InputType detectedInputType = detectInputTypeFromFasta(inputPath);
+            SequenceContentDetection detection = detectSequenceContentFromFasta(inputPath);
             SwingUtilities.invokeLater(() -> {
                 if (detectionToken != inputTypeDetectionToken) {
                     return;
@@ -608,17 +656,18 @@ final class InputAlignPanel extends JPanel {
                 if (!inputPath.equals(resolvedInputPathOrNull())) {
                     return;
                 }
-                applyAutoDetectedInputType(inputPath, selectedAtSchedule, detectedInputType);
+                applyAutoDetectedSequenceContent(inputPath, selectedAtSchedule, detection);
             });
         }, "onebuilder-input-type-detector");
         detectionThread.setDaemon(true);
         detectionThread.start();
     }
 
-    private void applyAutoDetectedInputType(Path inputPath, InputType selectedAtSchedule, InputType detectedInputType) {
+    private void applyAutoDetectedSequenceContent(Path inputPath, InputType selectedAtSchedule, SequenceContentDetection detection) {
         if (!inputPath.equals(resolvedInputPathOrNull())) {
             return;
         }
+        InputType detectedInputType = detection.inputType();
         if (detectedInputType == null) {
             inputTypeHintLabel.setText("Auto-detected: could not determine input type, keep manual selection.");
             return;
@@ -630,7 +679,19 @@ final class InputAlignPanel extends JPanel {
         if (inputTypeCombo.isEnabled() && detectedInputType != selectedAtSchedule) {
             inputTypeCombo.setSelectedItem(detectedInputType);
         }
-        inputTypeHintLabel.setText("Auto-detected: " + detectedInputType.displayName());
+        if (alignmentSelectionAutoControlled) {
+            runAlignmentCheckBox.setSelected(detection.needsAlignment());
+            notifyInputChanged();
+        }
+        inputTypeHintLabel.setText("Auto-detected: " + detectedInputType.displayName()
+                + (detection.needsAlignment() ? "; raw sequence lengths differ, alignment enabled." : "; alignment status not forced."));
+    }
+
+    private static boolean updateSequenceLengthDifference(
+            int firstSequenceLength,
+            int currentSequenceLength,
+            boolean sequenceLengthsDiffer) {
+        return sequenceLengthsDiffer || (firstSequenceLength >= 0 && currentSequenceLength != firstSequenceLength);
     }
 
     private Path resolvedInputPathOrNull() {
@@ -831,6 +892,14 @@ final class InputAlignPanel extends JPanel {
         return TaskPaneFactory.createBlueTaskPane("Advanced Parameters", content, true);
     }
 
+    private JPanel buildAlignmentSelectionPanel() {
+        JPanel panel = new JPanel(new BorderLayout(0, 2));
+        panel.setOpaque(false);
+        panel.add(runAlignmentCheckBox, BorderLayout.NORTH);
+        panel.add(alignmentGuidanceArea, BorderLayout.CENTER);
+        return panel;
+    }
+
     private JPanel buildConfigExportPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 8));
         panel.setOpaque(false);
@@ -840,5 +909,23 @@ final class InputAlignPanel extends JPanel {
                         "When this option is enabled, clicking Run will also write a reusable JSON config file for the current job. That file records the selected input, alignment setup, output prefix, and all tree-method parameters so the same workflow can be rerun later from the command line on Linux, shared with collaborators, or kept as an exact record of how this analysis was configured."),
                 BorderLayout.CENTER);
         return panel;
+    }
+
+    private static final class SequenceContentDetection {
+        private final InputType inputType;
+        private final boolean needsAlignment;
+
+        private SequenceContentDetection(InputType inputType, boolean needsAlignment) {
+            this.inputType = inputType;
+            this.needsAlignment = needsAlignment;
+        }
+
+        private InputType inputType() {
+            return inputType;
+        }
+
+        private boolean needsAlignment() {
+            return needsAlignment;
+        }
     }
 }

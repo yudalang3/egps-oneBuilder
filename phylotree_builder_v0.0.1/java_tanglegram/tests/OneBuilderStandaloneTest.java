@@ -32,6 +32,7 @@ public final class OneBuilderStandaloneTest {
         run("prefersInputParentDirectoryWhenInputPathIsAFile", OneBuilderStandaloneTest::prefersInputParentDirectoryWhenInputPathIsAFile);
         run("rejectsInvalidOutputDirectoryPath", OneBuilderStandaloneTest::rejectsInvalidOutputDirectoryPath);
         run("autoDetectsDnaInputTypeForExportedConfig", OneBuilderStandaloneTest::autoDetectsDnaInputTypeForExportedConfig);
+        run("autoEnablesAlignmentForUnequalSequenceLengths", OneBuilderStandaloneTest::autoEnablesAlignmentForUnequalSequenceLengths);
         run("adaptsMaximumLikelihoodStrategiesByInputType", OneBuilderStandaloneTest::adaptsMaximumLikelihoodStrategiesByInputType);
         run("showsBootstrapGuidanceForTypicalAndExtremeValues", OneBuilderStandaloneTest::showsBootstrapGuidanceForTypicalAndExtremeValues);
         run("preservesAlrtZeroInSerializedConfig", OneBuilderStandaloneTest::preservesAlrtZeroInSerializedConfig);
@@ -464,6 +465,30 @@ public final class OneBuilderStandaloneTest {
         assertTrue(root.getJSONObject("methods").getJSONObject("distance").has("dnadist"), "expected dna distance section");
         assertTrue(root.getJSONObject("methods").getJSONObject("parsimony").has("dnapars"), "expected dna parsimony section");
         assertTrue(!root.getJSONObject("methods").getJSONObject("distance").has("protdist"), "protein distance section should be absent");
+    }
+
+    private static void autoEnablesAlignmentForUnequalSequenceLengths() throws Exception {
+        Path tempInputFile = Files.createTempFile("onebuilder-raw-input-", ".fasta");
+        Path tempOutputDirectory = Files.createTempDirectory("onebuilder-raw-output-");
+        Files.writeString(tempInputFile, ">seq1\nATGCTA\n>seq2\nATGCTAGCTA\n", StandardCharsets.UTF_8);
+
+        final InputAlignPanel[] panelRef = new InputAlignPanel[1];
+        SwingUtilities.invokeAndWait(() -> panelRef[0] = new InputAlignPanel(
+                PlatformSupport.LINUX,
+                () -> { },
+                () -> PipelineRuntimeConfig.defaultsFor(panelRef[0] == null ? InputType.PROTEIN : panelRef[0].selectedInputType())));
+
+        final RunRequest[] requestRef = new RunRequest[1];
+        SwingUtilities.invokeAndWait(() -> {
+            InputAlignPanel panel = panelRef[0];
+            setTextFieldUnchecked(panel, "inputFileField", tempInputFile.toString());
+            setTextFieldUnchecked(panel, "outputDirField", tempOutputDirectory.toString());
+            panel.autoDetectInputTypeForCurrentFileForTest();
+            assertTrue(panel.isRunAlignmentSelectedForTest(), "unequal sequence lengths should enable alignment automatically");
+            requestRef[0] = panel.buildRunRequestForExport();
+        });
+
+        assertTrue(requestRef[0].runAlignmentFirst(), "exported request should preserve auto-enabled alignment");
     }
 
     private static void roundTripsAdvancedRuntimeConfigThroughPanels() throws Exception {

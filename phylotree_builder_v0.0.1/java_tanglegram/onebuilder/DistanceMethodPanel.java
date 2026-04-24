@@ -42,7 +42,7 @@ final class DistanceMethodPanel extends JPanel {
         header.setOpaque(false);
         header.add(enabledCheckBox, BorderLayout.WEST);
         header.add(
-                WorkbenchStyles.createSubtitleLabel("Default use is usually just enable/disable plus optional raw PHYLIP menu responses."),
+                WorkbenchStyles.createNoteArea("Default use is usually just enable/disable plus optional raw PHYLIP menu responses."),
                 BorderLayout.CENTER);
         add(header, BorderLayout.NORTH);
 

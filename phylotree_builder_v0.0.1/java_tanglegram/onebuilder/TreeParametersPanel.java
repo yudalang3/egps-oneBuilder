@@ -2,6 +2,7 @@ package onebuilder;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Rectangle;
 import java.awt.event.MouseEvent;
@@ -16,6 +17,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
 import javax.swing.JTree;
+import javax.swing.Scrollable;
+import javax.swing.SwingConstants;
 import javax.swing.Timer;
 import javax.swing.ToolTipManager;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -237,12 +240,46 @@ final class TreeParametersPanel extends JPanel {
         header.add(WorkbenchStyles.createSubtitleLabel(subtitle), BorderLayout.CENTER);
         card.add(header, BorderLayout.NORTH);
 
-        JScrollPane scrollPane = new JScrollPane(content);
+        JScrollPane scrollPane = new JScrollPane(new ViewportWidthTrackingPanel(content));
         scrollPane.setBorder(null);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scrollPane.getViewport().setBackground(WorkbenchStyles.SURFACE_BACKGROUND);
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         card.add(scrollPane, BorderLayout.CENTER);
         return card;
+    }
+
+    private static final class ViewportWidthTrackingPanel extends JPanel implements Scrollable {
+        private ViewportWidthTrackingPanel(Component content) {
+            super(new BorderLayout());
+            setOpaque(false);
+            add(content, BorderLayout.NORTH);
+        }
+
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return 16;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return Math.max(16, orientation == SwingConstants.VERTICAL ? visibleRect.height - 16 : visibleRect.width - 16);
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return true;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
+        }
     }
 
     private JPanel createPlaceholderCard() {

@@ -35,7 +35,7 @@ final class ParsimonyMethodPanel extends JPanel {
         header.setOpaque(false);
         header.add(enabledCheckBox, BorderLayout.WEST);
         header.add(
-                WorkbenchStyles.createSubtitleLabel("Keep routine runs simple and expose raw PHYLIP menu responses only on demand."),
+                WorkbenchStyles.createNoteArea("Keep routine runs simple and expose raw PHYLIP menu responses only on demand."),
                 BorderLayout.CENTER);
         add(header, BorderLayout.NORTH);
 

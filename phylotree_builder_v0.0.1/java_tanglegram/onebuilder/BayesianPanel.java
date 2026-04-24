@@ -59,7 +59,7 @@ final class BayesianPanel extends JPanel {
         header.setOpaque(false);
         header.add(enabledCheckBox, BorderLayout.WEST);
         header.add(
-                WorkbenchStyles.createSubtitleLabel("Keep the common MrBayes chain settings visible and hide raw command blocks until needed."),
+                WorkbenchStyles.createNoteArea("Keep the common MrBayes chain settings visible and hide raw command blocks until needed."),
                 BorderLayout.CENTER);
         add(header, BorderLayout.NORTH);
 
