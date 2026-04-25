@@ -377,8 +377,17 @@ final class InputAlignPanel extends JPanel {
         builder.append("- Bayes Method: ").append(runtimeConfig.bayesian().enabled() ? "Enabled" : "Disabled").append(System.lineSeparator());
         builder.append("- Maximum Parsimony: ").append(runtimeConfig.parsimony().enabled() ? "Enabled" : "Disabled").append(System.lineSeparator());
         builder.append("- Protein Structure: ")
-                .append(selectedInputType() == InputType.PROTEIN ? "Placeholder available" : "Protein only")
+                .append(selectedInputType() == InputType.PROTEIN
+                        ? (runtimeConfig.proteinStructure().enabled() ? "Foldseek enabled" : "Disabled")
+                        : "Protein only")
                 .append(System.lineSeparator());
+        if (selectedInputType() == InputType.PROTEIN && runtimeConfig.proteinStructure().enabled()) {
+            builder.append("  Protein structure TSV: ")
+                    .append(runtimeConfig.proteinStructure().useStructureManifest()
+                            ? textOrDash(runtimeConfig.proteinStructure().structureManifestFile())
+                            : "Not used; FASTA-only ProstT5/3Di mode")
+                    .append(System.lineSeparator());
+        }
         return builder.toString();
     }
 
@@ -487,6 +496,9 @@ final class InputAlignPanel extends JPanel {
             outputPrefixField.setText(prefix);
         }
 
+        PipelineRuntimeConfig runtimeConfig = runtimeConfigSupplier.get();
+        validateProteinStructureConfig(runtimeConfig);
+
         RunRequest request = RunRequest.builder()
                 .inputType(selectedInputType())
                 .inputFile(inputPath)
@@ -501,13 +513,36 @@ final class InputAlignPanel extends JPanel {
                         integerOrNull((Integer) alignThreadsSpinner.getValue()),
                         reorderCheckBox.isSelected(),
                         TextListCodec.splitLines(alignExtraArgsArea.getText())))
-                .runtimeConfig(runtimeConfigSupplier.get())
+                .runtimeConfig(runtimeConfig)
                 .build();
         saveLastUsedInputSettings();
         setAlignedPreview(request.runAlignmentFirst()
                 ? ExecutionPlanBuilder.alignedOutputPath(request.inputFile())
                 : request.inputFile());
         return request;
+    }
+
+    private void validateProteinStructureConfig(PipelineRuntimeConfig runtimeConfig) {
+        if (selectedInputType() != InputType.PROTEIN || runtimeConfig == null || !runtimeConfig.proteinStructure().enabled()) {
+            return;
+        }
+        ProteinStructureConfig proteinStructure = runtimeConfig.proteinStructure();
+        if (!proteinStructure.useStructureManifest()) {
+            return;
+        }
+        String manifestText = proteinStructure.structureManifestFile();
+        if (manifestText == null || manifestText.isBlank()) {
+            throw new IllegalArgumentException("Protein structure TSV is required when structure mapping is enabled.");
+        }
+        Path manifestPath;
+        try {
+            manifestPath = Paths.get(manifestText).toAbsolutePath().normalize();
+        } catch (InvalidPathException exception) {
+            throw new IllegalArgumentException("Protein structure TSV path is invalid: " + manifestText, exception);
+        }
+        if (!Files.exists(manifestPath) || !Files.isRegularFile(manifestPath)) {
+            throw new IllegalArgumentException("Protein structure TSV does not exist: " + manifestPath);
+        }
     }
 
     private void reuseLastInputs() {

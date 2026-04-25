@@ -6,7 +6,8 @@ public enum TreeMethodKey {
     DISTANCE("Distance"),
     MAXIMUM_LIKELIHOOD("Maximum Likelihood"),
     BAYESIAN("Bayesian"),
-    PARSIMONY("Parsimony");
+    PARSIMONY("Parsimony"),
+    PROTEIN_STRUCTURE("Protein Structure");
 
     private final String displayName;
 
@@ -32,6 +33,8 @@ public enum TreeMethodKey {
                     return outputRoot.resolve("parsimony_method").resolve("parsimony_tree.nwk.renamed.ladderize");
                 }
                 return outputRoot.resolve("parsimony_method").resolve("parsimony_tree.nwk.rooted.renamed.ladderize");
+            case PROTEIN_STRUCTURE:
+                return outputRoot.resolve("protein_structure").resolve("pairwise_scores.tsv");
             default:
                 throw new IllegalStateException("Unexpected tree method: " + this);
         }

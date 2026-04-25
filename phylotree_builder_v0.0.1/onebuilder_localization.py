@@ -56,6 +56,7 @@ class RuntimeTranslator:
             "maximum_likelihood": self.text("Maximum likelihood method", "极大似然法"),
             "bayesian": self.text("Bayesian method", "贝叶斯法"),
             "parsimony": self.text("Parsimony method", "简约法"),
+            "protein_structure": self.text("Protein structure", "蛋白质结构"),
         }
         return labels[method_key]
 

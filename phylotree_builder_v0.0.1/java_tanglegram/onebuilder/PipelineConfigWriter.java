@@ -20,6 +20,7 @@ public final class PipelineConfigWriter {
         methods.put("maximum_likelihood", buildMaximumLikelihoodSection(config));
         methods.put("bayesian", buildBayesianSection(config));
         methods.put("parsimony", buildParsimonySection(config));
+        methods.put("protein_structure", buildProteinStructureSection(config));
 
         Files.write(outputFile, root.toString(2).getBytes(StandardCharsets.UTF_8));
     }
@@ -144,6 +145,22 @@ public final class PipelineConfigWriter {
                     .put("dnapars_transversion_parsimony", config.parsimony().dnaparsTransversionParsimony());
             putIfPresent(common, "dnapars_outgroup_index", config.parsimony().dnaparsOutgroupIndex());
             section.put("dnapars", phylipProgramSection(common, config.parsimony().dnaparsMenuOverrides()));
+        }
+        return section;
+    }
+
+    private static JSONObject buildProteinStructureSection(PipelineRuntimeConfig config) {
+        ProteinStructureConfig proteinStructure = config.proteinStructure();
+        JSONObject section = new JSONObject()
+                .put("enabled", config.inputType() == InputType.PROTEIN && proteinStructure.enabled())
+                .put("backend", "foldseek")
+                .put("use_structure_manifest", proteinStructure.useStructureManifest())
+                .put("sequence_only_mode", "prostt5")
+                .put("similarity_rule", "mean_qtmscore_ttmscore");
+        if (proteinStructure.structureManifestFile() == null) {
+            section.put("structure_manifest_file", JSONObject.NULL);
+        } else {
+            section.put("structure_manifest_file", proteinStructure.structureManifestFile());
         }
         return section;
     }

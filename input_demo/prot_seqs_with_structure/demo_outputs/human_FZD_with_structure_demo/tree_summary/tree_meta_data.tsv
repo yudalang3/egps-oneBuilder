@@ -1,0 +1,4 @@
+NJ_phylip	/mnt/c/Users/yudal/Documents/project/eGPS2/jars/egps2_collections/egps-oneBuilder/input_demo/prot_seqs_with_structure/demo_outputs/human_FZD_with_structure_demo/distance_method/distance_tree.nwk.rooted.renamed.ladderize
+ML_iqtree	/mnt/c/Users/yudal/Documents/project/eGPS2/jars/egps2_collections/egps-oneBuilder/input_demo/prot_seqs_with_structure/demo_outputs/human_FZD_with_structure_demo/maximum_likelihood/ml_tree.treefile.rooted.renamed.ladderize
+BI_mrbayes	/mnt/c/Users/yudal/Documents/project/eGPS2/jars/egps2_collections/egps-oneBuilder/input_demo/prot_seqs_with_structure/demo_outputs/human_FZD_with_structure_demo/bayesian_method/alignment.nex.con.tre.nwk.rooted.renamed.ladderize
+MP_phylip	/mnt/c/Users/yudal/Documents/project/eGPS2/jars/egps2_collections/egps-oneBuilder/input_demo/prot_seqs_with_structure/demo_outputs/human_FZD_with_structure_demo/parsimony_method/parsimony_tree.nwk.renamed.ladderize

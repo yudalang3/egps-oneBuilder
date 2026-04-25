@@ -189,7 +189,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
                         : "Edit input and alignment settings here, then export the config from Tree Build on Windows.");
                 break;
             case TREE_PARAMETERS:
-                headerContextLabel.setText("Use the method tree to configure Distance, Maximum Likelihood, Bayes, Parsimony, and the reserved Protein Structure slot.");
+                headerContextLabel.setText("Use the method tree to configure Distance, Maximum Likelihood, Bayes, Parsimony, and protein-only Foldseek structure similarity.");
                 break;
             case TREE_BUILD:
                 headerContextLabel.setText("Review the current configuration, export it for command-line reuse, or launch the pipeline from here.");

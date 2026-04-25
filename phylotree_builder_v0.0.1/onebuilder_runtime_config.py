@@ -59,6 +59,14 @@ PROTEIN_DEFAULTS = {
         "protpars_print_sequences": True,
         "protpars_menu_overrides": [],
     },
+    "protein_structure": {
+        "enabled": False,
+        "backend": "foldseek",
+        "use_structure_manifest": False,
+        "structure_manifest_file": None,
+        "sequence_only_mode": "prostt5",
+        "similarity_rule": "mean_qtmscore_ttmscore",
+    },
 }
 
 
@@ -139,7 +147,24 @@ def load_runtime_config(config_path):
     payload = json.loads(content)
     if not isinstance(payload, dict):
         raise ValueError("Runtime config must be a JSON object.")
+    _resolve_runtime_config_paths(payload, path.parent)
     return payload
+
+
+def _resolve_runtime_config_paths(payload, config_dir):
+    methods = payload.get("methods")
+    if not isinstance(methods, dict):
+        return
+    protein_structure = methods.get("protein_structure")
+    if not isinstance(protein_structure, dict):
+        return
+    manifest_file = protein_structure.get("structure_manifest_file")
+    if not manifest_file:
+        return
+    manifest_path = Path(str(manifest_file).strip()).expanduser()
+    if not manifest_path.is_absolute():
+        manifest_path = (config_dir / manifest_path).resolve()
+    protein_structure["structure_manifest_file"] = str(manifest_path)
 
 
 def protein_runtime_settings(runtime_config):
@@ -167,6 +192,8 @@ def _merged_settings(defaults, runtime_config, input_type):
             _merge_distance(merged[method_name], overrides)
         elif method_name == "parsimony":
             _merge_parsimony(merged[method_name], overrides)
+        elif method_name == "protein_structure":
+            _merge_protein_structure(merged[method_name], overrides, input_type)
         else:
             _merge_scalar_overrides(merged[method_name], overrides)
 
@@ -242,6 +269,20 @@ def _merge_parsimony(target, overrides):
     _merge_scalar_overrides(target, overrides, skip_keys={"protpars", "dnapars"})
     _merge_phylip_program(target, overrides, "protpars", "protpars_menu_overrides")
     _merge_phylip_program(target, overrides, "dnapars", "dnapars_menu_overrides")
+
+
+def _merge_protein_structure(target, overrides, input_type):
+    _merge_scalar_overrides(target, overrides)
+    target["backend"] = "foldseek"
+    if input_type != "PROTEIN":
+        target["enabled"] = False
+    target["use_structure_manifest"] = bool(target.get("use_structure_manifest", False))
+    manifest_file = target.get("structure_manifest_file")
+    target["structure_manifest_file"] = str(manifest_file).strip() if manifest_file else None
+    sequence_only_mode = str(target.get("sequence_only_mode") or "prostt5").strip().lower()
+    target["sequence_only_mode"] = sequence_only_mode or "prostt5"
+    similarity_rule = str(target.get("similarity_rule") or "mean_qtmscore_ttmscore").strip()
+    target["similarity_rule"] = similarity_rule or "mean_qtmscore_ttmscore"
 
 
 def _merge_phylip_program(target, overrides, program_key, target_key):

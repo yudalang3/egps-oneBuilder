@@ -232,7 +232,8 @@ public final class OneBuilderStandaloneTest {
                         java.util.Collections.emptyList(),
                         java.util.Collections.emptyList(),
                         Arrays.asList("J", "7", "Y"),
-                        java.util.Collections.emptyList()));
+                        java.util.Collections.emptyList()))
+                .withProteinStructure(new ProteinStructureConfig(true, true, "/data/structures.tsv"));
 
         RunRequest request = RunRequest.builder()
                 .inputType(InputType.PROTEIN)
@@ -253,6 +254,11 @@ public final class OneBuilderStandaloneTest {
                 "expected two IQ-TREE extra args");
         assertTrue(root.getJSONObject("methods").getJSONObject("bayesian").getJSONObject("mrbayes").getJSONArray("command_block").length() == 2,
                 "expected two MrBayes passthrough commands");
+        assertTrue(root.getJSONObject("methods").getJSONObject("protein_structure").getBoolean("enabled"),
+                "expected protein structure config to be enabled");
+        assertEquals("/data/structures.tsv",
+                root.getJSONObject("methods").getJSONObject("protein_structure").getString("structure_manifest_file"),
+                "expected protein structure TSV path");
 
         assertTrue(json.contains("\"run\""), "expected run section");
         assertTrue(json.contains("\"output_prefix\": \"protein_demo\""), "expected output prefix");

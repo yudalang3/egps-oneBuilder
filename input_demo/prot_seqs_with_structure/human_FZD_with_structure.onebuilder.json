@@ -1,0 +1,96 @@
+{
+  "run": {
+    "input_type": "PROTEIN",
+    "input_file": "human_FZD_paralogs.fasta",
+    "output_base_dir": "demo_outputs",
+    "output_prefix": "human_FZD_with_structure_demo"
+  },
+  "alignment": {
+    "run_alignment_first": true,
+    "strategy": "auto",
+    "maxiterate": 0,
+    "reorder": true,
+    "mafft": {
+      "common": {
+        "strategy": "auto",
+        "maxiterate": 0,
+        "threads": 4,
+        "reorder": true
+      },
+      "advanced": {},
+      "extra_args": []
+    }
+  },
+  "methods": {
+    "distance": {
+      "enabled": true,
+      "neighbor": {
+        "common": {
+          "neighbor_method": "NJ",
+          "neighbor_outgroup_index": null
+        },
+        "advanced": {},
+        "menu_overrides": []
+      }
+    },
+    "maximum_likelihood": {
+      "enabled": true,
+      "iqtree": {
+        "common": {
+          "bootstrap_replicates": 1000,
+          "model_strategy": "LG",
+          "model_set": ""
+        },
+        "advanced": {
+          "threads": "AUTO",
+          "threads_max": 4,
+          "seed": 42,
+          "quiet": true,
+          "redo": true
+        },
+        "extra_args": []
+      }
+    },
+    "bayesian": {
+      "enabled": true,
+      "mrbayes": {
+        "common": {
+          "protein_model_prior": "fixed(wag)",
+          "rates": "invgamma",
+          "ngen": 5000,
+          "samplefreq": 100,
+          "printfreq": 1000,
+          "diagnfreq": 1000
+        },
+        "advanced": {
+          "nruns": 2,
+          "nchains": 4,
+          "temp": 0.2,
+          "stoprule": false,
+          "burninfrac": 0.25,
+          "relburnin": true
+        },
+        "command_block": []
+      }
+    },
+    "parsimony": {
+      "enabled": true,
+      "protpars": {
+        "common": {
+          "protpars_outgroup_index": null,
+          "protpars_print_steps": true,
+          "protpars_print_sequences": true
+        },
+        "advanced": {},
+        "menu_overrides": []
+      }
+    },
+    "protein_structure": {
+      "enabled": true,
+      "backend": "foldseek",
+      "use_structure_manifest": true,
+      "structure_manifest_file": "human_FZD_structure_mapping.tsv",
+      "similarity_rule": "mean_qtmscore_ttmscore"
+    }
+  }
+}

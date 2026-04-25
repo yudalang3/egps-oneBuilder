@@ -1,0 +1,51 @@
+============================================================
+          Protein phylogenetic analysis summary
+============================================================
+
+Analysis time: 2026-04-25 15:57:54
+Input file: /mnt/c/Users/yudal/Documents/project/eGPS2/jars/egps2_collections/egps-oneBuilder/input_demo/prot_seqs_with_structure/demo_outputs/human_FZD_with_structure_demo/human_FZD_paralogs.aligned_tmp.fasta
+Number of sequences: 10
+Sequence length: 960 amino acid residues
+
+Methods and results:
+----------------------------------------
+Distance method (Protein)                OK
+    Output file: distance_method/distance_tree.nwk.rooted.renamed.ladderize
+
+Maximum likelihood (Protein)             OK
+    Output file: maximum_likelihood/ml_tree.treefile.rooted.renamed.ladderize
+
+Bayesian inference (Protein)             OK
+    Output file: bayesian_method/alignment.nex.con.tre.nwk.rooted.renamed.ladderize
+
+Parsimony (Protein)                      OK
+    Output file: parsimony_method/parsimony_tree.nwk.renamed.ladderize
+
+Output directory structure:
+----------------------------------------
+/mnt/c/Users/yudal/Documents/project/eGPS2/jars/egps2_collections/egps-oneBuilder/input_demo/prot_seqs_with_structure/demo_outputs/human_FZD_with_structure_demo/
+├── distance_method/        # distance-based results
+├── maximum_likelihood/     # maximum likelihood results
+├── bayesian_method/        # Bayesian inference results
+├── parsimony_method/       # parsimony results
+├── visualizations/         # tree visualizations
+└── tree_summary/           # tree distance analyses
+
+Tree summary outputs:
+----------------------------------------
+- tree_meta_data.tsv
+- tree_distance_matrix.tsv
+- rf_distance_matrix.tsv
+- tree_distance_heatmaps.png
+- tree_distance_heatmaps.pdf
+- analysis_summary.txt
+
+Notes for protein analyses:
+----------------------------------------
+1. All tree files are in Newick format (.nwk)
+2. Distance method computes a protein distance matrix using protdist
+3. Parsimony uses protpars (protein parsimony)
+4. IQ-TREE will auto-select the best-fitting protein substitution model
+5. MrBayes runs with a mixed amino-acid prior for model averaging
+6. tree_summary includes both TSV distance matrices and a combined heatmap figure
+7. Use FigTree, iTOL, or other viewers to inspect and edit trees further

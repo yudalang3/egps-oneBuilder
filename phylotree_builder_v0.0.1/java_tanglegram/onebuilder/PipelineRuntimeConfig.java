@@ -6,6 +6,7 @@ public final class PipelineRuntimeConfig {
     private final MaximumLikelihoodConfig maximumLikelihood;
     private final BayesianConfig bayesian;
     private final SimpleMethodConfig parsimony;
+    private final ProteinStructureConfig proteinStructure;
 
     public PipelineRuntimeConfig(
             InputType inputType,
@@ -13,11 +14,22 @@ public final class PipelineRuntimeConfig {
             MaximumLikelihoodConfig maximumLikelihood,
             BayesianConfig bayesian,
             SimpleMethodConfig parsimony) {
+        this(inputType, distance, maximumLikelihood, bayesian, parsimony, ProteinStructureConfig.defaults());
+    }
+
+    public PipelineRuntimeConfig(
+            InputType inputType,
+            SimpleMethodConfig distance,
+            MaximumLikelihoodConfig maximumLikelihood,
+            BayesianConfig bayesian,
+            SimpleMethodConfig parsimony,
+            ProteinStructureConfig proteinStructure) {
         this.inputType = inputType;
         this.distance = distance;
         this.maximumLikelihood = maximumLikelihood;
         this.bayesian = bayesian;
         this.parsimony = parsimony;
+        this.proteinStructure = proteinStructure == null ? ProteinStructureConfig.defaults() : proteinStructure;
     }
 
     public static PipelineRuntimeConfig defaultsFor(InputType inputType) {
@@ -45,7 +57,8 @@ public final class PipelineRuntimeConfig {
                             false,
                             java.util.List.of()),
                     new BayesianConfig(true, "mixed", "invgamma", 50000, 100, 1000, 5000),
-                    new SimpleMethodConfig(true));
+                    new SimpleMethodConfig(true),
+                    ProteinStructureConfig.defaults());
         }
         return new PipelineRuntimeConfig(
                 inputType,
@@ -70,23 +83,28 @@ public final class PipelineRuntimeConfig {
                         false,
                         java.util.List.of()),
                 new BayesianConfig(true, null, "invgamma", 10000, 100, 100, 1000, Integer.valueOf(6)),
-                new SimpleMethodConfig(true));
+                new SimpleMethodConfig(true),
+                ProteinStructureConfig.defaults());
     }
 
     public PipelineRuntimeConfig withDistance(SimpleMethodConfig distance) {
-        return new PipelineRuntimeConfig(inputType, distance, maximumLikelihood, bayesian, parsimony);
+        return new PipelineRuntimeConfig(inputType, distance, maximumLikelihood, bayesian, parsimony, proteinStructure);
     }
 
     public PipelineRuntimeConfig withMaximumLikelihood(MaximumLikelihoodConfig maximumLikelihood) {
-        return new PipelineRuntimeConfig(inputType, distance, maximumLikelihood, bayesian, parsimony);
+        return new PipelineRuntimeConfig(inputType, distance, maximumLikelihood, bayesian, parsimony, proteinStructure);
     }
 
     public PipelineRuntimeConfig withBayesian(BayesianConfig bayesian) {
-        return new PipelineRuntimeConfig(inputType, distance, maximumLikelihood, bayesian, parsimony);
+        return new PipelineRuntimeConfig(inputType, distance, maximumLikelihood, bayesian, parsimony, proteinStructure);
     }
 
     public PipelineRuntimeConfig withParsimony(SimpleMethodConfig parsimony) {
-        return new PipelineRuntimeConfig(inputType, distance, maximumLikelihood, bayesian, parsimony);
+        return new PipelineRuntimeConfig(inputType, distance, maximumLikelihood, bayesian, parsimony, proteinStructure);
+    }
+
+    public PipelineRuntimeConfig withProteinStructure(ProteinStructureConfig proteinStructure) {
+        return new PipelineRuntimeConfig(inputType, distance, maximumLikelihood, bayesian, parsimony, proteinStructure);
     }
 
     public InputType inputType() {
@@ -107,5 +125,9 @@ public final class PipelineRuntimeConfig {
 
     public SimpleMethodConfig parsimony() {
         return parsimony;
+    }
+
+    public ProteinStructureConfig proteinStructure() {
+        return proteinStructure;
     }
 }

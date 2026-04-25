@@ -1,0 +1,11 @@
+gene	uniprot_accession	uniprot_entry	sequence_id	sequence_length	structure_file	structure_source
+FZD1	Q9UP38	FZD1_HUMAN	FZD1_HUMAN_Q9UP38	647	structures/FZD1_HUMAN_Q9UP38.cif	https://alphafold.ebi.ac.uk/files/AF-Q9UP38-F1-model_v6.cif
+FZD2	Q14332	FZD2_HUMAN	FZD2_HUMAN_Q14332	565	structures/FZD2_HUMAN_Q14332.cif	https://alphafold.ebi.ac.uk/files/AF-Q14332-F1-model_v6.cif
+FZD3	Q9NPG1	FZD3_HUMAN	FZD3_HUMAN_Q9NPG1	666	structures/FZD3_HUMAN_Q9NPG1.cif	https://alphafold.ebi.ac.uk/files/AF-Q9NPG1-F1-model_v6.cif
+FZD4	Q9ULV1	FZD4_HUMAN	FZD4_HUMAN_Q9ULV1	537	structures/FZD4_HUMAN_Q9ULV1.cif	https://alphafold.ebi.ac.uk/files/AF-Q9ULV1-F1-model_v6.cif
+FZD5	Q13467	FZD5_HUMAN	FZD5_HUMAN_Q13467	585	structures/FZD5_HUMAN_Q13467.cif	https://alphafold.ebi.ac.uk/files/AF-Q13467-F1-model_v6.cif
+FZD6	O60353	FZD6_HUMAN	FZD6_HUMAN_O60353	706	structures/FZD6_HUMAN_O60353.cif	https://alphafold.ebi.ac.uk/files/AF-O60353-F1-model_v6.cif
+FZD7	O75084	FZD7_HUMAN	FZD7_HUMAN_O75084	574	structures/FZD7_HUMAN_O75084.cif	https://alphafold.ebi.ac.uk/files/AF-O75084-F1-model_v6.cif
+FZD8	Q9H461	FZD8_HUMAN	FZD8_HUMAN_Q9H461	694	structures/FZD8_HUMAN_Q9H461.cif	https://alphafold.ebi.ac.uk/files/AF-Q9H461-F1-model_v6.cif
+FZD9	O00144	FZD9_HUMAN	FZD9_HUMAN_O00144	591	structures/FZD9_HUMAN_O00144.cif	https://alphafold.ebi.ac.uk/files/AF-O00144-F1-model_v6.cif
+FZD10	Q9ULW2	FZD10_HUMAN	FZD10_HUMAN_Q9ULW2	581	structures/FZD10_HUMAN_Q9ULW2.cif	https://alphafold.ebi.ac.uk/files/AF-Q9ULW2-F1-model_v6.cif

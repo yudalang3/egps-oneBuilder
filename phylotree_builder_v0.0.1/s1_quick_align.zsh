@@ -156,6 +156,13 @@ if [[ ! -x "$pixi_exe" ]]; then
     exit 1
 fi
 
+mafft_binaries_dir="$script_dir/.pixi/envs/default/libexec/mafft"
+if [[ -d "$mafft_binaries_dir" ]]; then
+    export MAFFT_BINARIES="$mafft_binaries_dir"
+else
+    unset MAFFT_BINARIES
+fi
+
 mafft_cmd=("$pixi_exe" run --manifest-path "$script_dir" mafft)
 if [[ "$reorder_enabled" -eq 1 ]]; then
     mafft_cmd+=(--reorder)
@@ -169,6 +176,6 @@ if [[ "${#mafft_extra_args[@]}" -gt 0 ]]; then
 fi
 mafft_cmd+=("$input")
 
-"${mafft_cmd[@]}" > "$output"
+"${mafft_cmd[@]}" > "$output" 2> "${output}.mafft.log"
 
 echo "比对完成！输出文件: $output"

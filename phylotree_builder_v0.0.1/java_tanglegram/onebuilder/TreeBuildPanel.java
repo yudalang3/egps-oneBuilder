@@ -34,8 +34,6 @@ final class TreeBuildPanel extends JPanel {
     private final Map<TreeMethodKey, Path> methodOutputs;
     private final Map<TreeMethodKey, JLabel> methodStatusLabels;
     private final Map<TreeMethodKey, StatusDot> methodStatusDots;
-    private final JLabel proteinStructureStatusLabel;
-    private final StatusDot proteinStructureStatusDot;
     private final JProgressBar overallProgressBar;
     private final EnumSet<TreeMethodKey> enabledProgressMethods;
     private final EnumSet<TreeMethodKey> completedProgressMethods;
@@ -79,9 +77,6 @@ final class TreeBuildPanel extends JPanel {
 
         JPanel detailsCard = WorkbenchStyles.createSurfacePanel(new BorderLayout());
         detailsCard.add(scrollPane, BorderLayout.CENTER);
-        proteinStructureStatusLabel = createStatusValueLabel("Reserved");
-        proteinStructureStatusDot = new StatusDot();
-        updateStatusVisuals(proteinStructureStatusLabel, proteinStructureStatusDot, "Reserved");
         overallProgressBar = new JProgressBar();
         overallProgressBar.setStringPainted(true);
         overallProgressBar.setMinimum(0);
@@ -174,6 +169,9 @@ final class TreeBuildPanel extends JPanel {
             if (runtimeConfig.parsimony().enabled()) {
                 enabledProgressMethods.add(TreeMethodKey.PARSIMONY);
             }
+            if (runtimeConfig.inputType() == InputType.PROTEIN && runtimeConfig.proteinStructure().enabled()) {
+                enabledProgressMethods.add(TreeMethodKey.PROTEIN_STRUCTURE);
+            }
         }
         totalProgressSteps = enabledProgressMethods.size() + PostBuildStep.values().length;
         updateOverallProgressDisplay("Ready to run");
@@ -197,9 +195,10 @@ final class TreeBuildPanel extends JPanel {
         }
         updateOverallProgressDisplay("Preparing run");
         for (TreeMethodKey methodKey : TreeMethodKey.values()) {
-            methodStatuses.put(methodKey, "Queued");
+            String initialStatus = enabledProgressMethods.contains(methodKey) ? "Queued" : "Skipped";
+            methodStatuses.put(methodKey, initialStatus);
             methodOutputs.put(methodKey, null);
-            updateMethodIndicator(methodKey, "Queued");
+            updateMethodIndicator(methodKey, initialStatus);
         }
         setRunning(true);
         refreshDetailsText();
@@ -296,7 +295,7 @@ final class TreeBuildPanel extends JPanel {
         statusGrid.add(createMethodStatusTile("Maximum Likelihood", TreeMethodKey.MAXIMUM_LIKELIHOOD));
         statusGrid.add(createMethodStatusTile("Bayes Method", TreeMethodKey.BAYESIAN));
         statusGrid.add(createMethodStatusTile("Maximum Parsimony", TreeMethodKey.PARSIMONY));
-        statusGrid.add(createStatusTile("Protein Structure", proteinStructureStatusDot, proteinStructureStatusLabel));
+        statusGrid.add(createMethodStatusTile("Protein Structure", TreeMethodKey.PROTEIN_STRUCTURE));
 
         statusCard.add(statusGrid, BorderLayout.CENTER);
         return statusCard;
@@ -518,8 +517,6 @@ final class TreeBuildPanel extends JPanel {
             }
             builder.append(System.lineSeparator());
         }
-        builder.append("- Protein Structure: Reserved").append(System.lineSeparator());
-
         builder.append(System.lineSeparator()).append("Log").append(System.lineSeparator());
         if (logBuffer.length() == 0) {
             builder.append("(no log yet)");
@@ -540,6 +537,8 @@ final class TreeBuildPanel extends JPanel {
                 return "Bayes Method";
             case PARSIMONY:
                 return "Maximum Parsimony";
+            case PROTEIN_STRUCTURE:
+                return "Protein Structure";
             default:
                 throw new IllegalStateException("Unexpected method key: " + methodKey);
         }

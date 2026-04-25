@@ -270,6 +270,7 @@ class ProteinPhylogeneticPipeline:
             self.output_dir / "parsimony_method",
             self.output_dir / "maximum_likelihood",
             self.output_dir / "bayesian_method",
+            self.output_dir / "protein_structure",
             self.output_dir / "visualizations",
         ]
 
@@ -1057,6 +1058,49 @@ class ProteinPhylogeneticPipeline:
 
         return ret_paths
 
+    def protein_structure_method(self):
+        """Run Foldseek-based protein structure similarity if enabled."""
+        self.logger.info("Starting protein structure similarity (Foldseek)...")
+        settings = self.runtime_settings.get("protein_structure", {})
+        work_dir = self.output_dir / "protein_structure"
+        work_dir.mkdir(parents=True, exist_ok=True)
+
+        input_fasta = self.original_file or self.input_file
+        cmd = [
+            sys.executable,
+            str(self.script_dir / "wrap_protein_pairwise_distance.py"),
+            "--input-fasta",
+            str(input_fasta),
+            "--output-dir",
+            str(work_dir),
+        ]
+        if settings.get("use_structure_manifest"):
+            manifest_file = settings.get("structure_manifest_file")
+            if not manifest_file:
+                self.logger.error("Protein structure TSV is required when structure mapping is enabled")
+                return None
+            cmd.extend(["--structure-manifest", str(manifest_file)])
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            if result.stdout:
+                self.logger.info(result.stdout.strip())
+            if result.stderr:
+                self.logger.debug(result.stderr.strip())
+            output_path = work_dir / "pairwise_scores.tsv"
+            if output_path.exists():
+                self.logger.info("Protein structure similarity completed")
+                return output_path
+            self.logger.error(f"Protein structure similarity output not found: {output_path}")
+            return None
+        except subprocess.CalledProcessError as exception:
+            self.logger.error("Protein structure similarity failed: " + str(exception))
+            if exception.stdout:
+                self.logger.error(exception.stdout.strip())
+            if exception.stderr:
+                self.logger.error(exception.stderr.strip())
+            return None
+
     def run_pipeline(self):
         """Run the full analysis pipeline"""
         self.logger.info(
@@ -1127,6 +1171,17 @@ class ProteinPhylogeneticPipeline:
             )
         else:
             self.logger.info(self.translator.marker_skipped("parsimony"))
+
+        if self.runtime_settings.get("protein_structure", {}).get("enabled"):
+            os.chdir(entry_path)
+            protein_structure_output = self.protein_structure_method()
+            self.logger.info(
+                self.translator.marker_complete("protein_structure")
+                if protein_structure_output
+                else self.translator.marker_failed("protein_structure")
+            )
+        else:
+            self.logger.info(self.translator.marker_skipped("protein_structure"))
 
         # 5. Rerooting and ladderizing
         # Parsimony trees typically lack branch lengths and may not need rerooting/ladderizing

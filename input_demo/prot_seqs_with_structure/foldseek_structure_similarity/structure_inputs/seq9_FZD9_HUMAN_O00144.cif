@@ -1,0 +1,1 @@
+/mnt/c/Users/yudal/Documents/project/eGPS2/jars/egps2_collections/egps-oneBuilder/input_demo/prot_seqs_with_structure/structures/FZD9_HUMAN_O00144.cif

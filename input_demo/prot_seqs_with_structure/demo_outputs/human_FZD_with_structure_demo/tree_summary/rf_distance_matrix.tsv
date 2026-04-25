@@ -1,0 +1,5 @@
+NJ_phylip	ML_iqtree	BI_mrbayes	MP_phylip
+NJ_phylip	0	2	2	4
+ML_iqtree	2	0	0	2
+BI_mrbayes	2	0	0	2
+MP_phylip	4	2	2	0

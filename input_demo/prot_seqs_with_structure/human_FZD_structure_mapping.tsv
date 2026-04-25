@@ -1,0 +1,12 @@
+# sequence_id	structure_file
+# Human Frizzled paralogs; structures are AlphaFoldDB full-length mmCIF model_v6 files.
+FZD1_HUMAN_Q9UP38	structures/FZD1_HUMAN_Q9UP38.cif
+FZD2_HUMAN_Q14332	structures/FZD2_HUMAN_Q14332.cif
+FZD3_HUMAN_Q9NPG1	structures/FZD3_HUMAN_Q9NPG1.cif
+FZD4_HUMAN_Q9ULV1	structures/FZD4_HUMAN_Q9ULV1.cif
+FZD5_HUMAN_Q13467	structures/FZD5_HUMAN_Q13467.cif
+FZD6_HUMAN_O60353	structures/FZD6_HUMAN_O60353.cif
+FZD7_HUMAN_O75084	structures/FZD7_HUMAN_O75084.cif
+FZD8_HUMAN_Q9H461	structures/FZD8_HUMAN_Q9H461.cif
+FZD9_HUMAN_O00144	structures/FZD9_HUMAN_O00144.cif
+FZD10_HUMAN_Q9ULW2	structures/FZD10_HUMAN_Q9ULW2.cif

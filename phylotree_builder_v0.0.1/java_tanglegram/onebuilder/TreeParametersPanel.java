@@ -15,7 +15,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
-import javax.swing.JTextArea;
 import javax.swing.JTree;
 import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
@@ -32,10 +31,10 @@ final class TreeParametersPanel extends JPanel {
     private final MaximumLikelihoodPanel maximumLikelihoodPanel;
     private final BayesianPanel bayesianPanel;
     private final ParsimonyMethodPanel parsimonyPanel;
+    private final ProteinStructurePanel proteinStructurePanel;
     private final JTree sectionTree;
     private final JPanel cardPanel;
     private final CardLayout cardLayout;
-    private final JTextArea proteinStructureNote;
     private final Map<ParameterSection, DefaultMutableTreeNode> nodesBySection;
     private final DefaultTreeCellRenderer treeRenderer;
     private InputType inputType;
@@ -51,13 +50,13 @@ final class TreeParametersPanel extends JPanel {
         maximumLikelihoodPanel = new MaximumLikelihoodPanel();
         bayesianPanel = new BayesianPanel();
         parsimonyPanel = new ParsimonyMethodPanel(inputType);
+        proteinStructurePanel = new ProteinStructurePanel(inputType);
 
         add(buildHeader(), BorderLayout.NORTH);
 
         cardLayout = new CardLayout();
         cardPanel = WorkbenchStyles.createCanvasPanel(cardLayout);
         cardPanel.setMinimumSize(new Dimension(240, 240));
-        proteinStructureNote = WorkbenchStyles.createNoteArea("");
         buildCards();
 
         DefaultMutableTreeNode root = new DefaultMutableTreeNode("Tree Parameters");
@@ -174,7 +173,7 @@ final class TreeParametersPanel extends JPanel {
         maximumLikelihoodPanel.setInputType(inputType);
         bayesianPanel.setInputType(inputType);
         parsimonyPanel.setInputType(inputType);
-        proteinStructureNote.setText(proteinStructureText());
+        proteinStructurePanel.setInputType(inputType);
         sectionTree.repaint();
         if (selectedSection != null && !isSectionEnabled(selectedSection)) {
             selectSection(ParameterSection.DISTANCE_METHOD);
@@ -187,6 +186,7 @@ final class TreeParametersPanel extends JPanel {
         maximumLikelihoodPanel.apply(runtimeConfig.maximumLikelihood(), runtimeConfig.inputType());
         bayesianPanel.apply(runtimeConfig.bayesian(), runtimeConfig.inputType());
         parsimonyPanel.apply(runtimeConfig.parsimony());
+        proteinStructurePanel.apply(runtimeConfig.proteinStructure());
     }
 
     PipelineRuntimeConfig runtimeConfig() {
@@ -195,7 +195,8 @@ final class TreeParametersPanel extends JPanel {
                 distancePanel.toConfig(),
                 maximumLikelihoodPanel.toConfig(),
                 bayesianPanel.toConfig(inputType),
-                parsimonyPanel.toConfig());
+                parsimonyPanel.toConfig(),
+                proteinStructurePanel.toConfig());
     }
 
     private JPanel buildHeader() {
@@ -203,7 +204,7 @@ final class TreeParametersPanel extends JPanel {
         headerCard.add(WorkbenchStyles.createSectionTitle("Tree Parameters"), BorderLayout.NORTH);
         headerCard.add(
                 WorkbenchStyles.createSubtitleLabel(
-                        "Browse the parameter tree, adjust each method, and keep Protein Structure reserved for future protein-only work."),
+                "Browse the parameter tree, adjust each method, and configure protein-only Foldseek structure similarity when needed."),
                 BorderLayout.CENTER);
         return headerCard;
     }
@@ -229,7 +230,11 @@ final class TreeParametersPanel extends JPanel {
                 "PHYLIP parsimony settings.",
                 parsimonyPanel),
                 ParameterSection.MAXIMUM_PARSIMONY.cardKey());
-        cardPanel.add(createPlaceholderCard(), ParameterSection.PROTEIN_STRUCTURE.cardKey());
+        cardPanel.add(createMethodCard(
+                "Protein Structure",
+                "Foldseek structure similarity settings for protein inputs.",
+                proteinStructurePanel),
+                ParameterSection.PROTEIN_STRUCTURE.cardKey());
     }
 
     private JPanel createMethodCard(String title, String subtitle, JPanel content) {
@@ -282,14 +287,6 @@ final class TreeParametersPanel extends JPanel {
         }
     }
 
-    private JPanel createPlaceholderCard() {
-        JPanel card = WorkbenchStyles.createSurfacePanel(new BorderLayout(0, 12));
-        card.add(WorkbenchStyles.createSectionTitle("Protein Structure"), BorderLayout.NORTH);
-        proteinStructureNote.setText(proteinStructureText());
-        card.add(proteinStructureNote, BorderLayout.CENTER);
-        return card;
-    }
-
     private void selectSection(ParameterSection section) {
         selectedSection = section;
         DefaultMutableTreeNode node = nodesBySection.get(section);
@@ -329,12 +326,6 @@ final class TreeParametersPanel extends JPanel {
             return "Protein only";
         }
         return null;
-    }
-
-    private String proteinStructureText() {
-        return inputType == InputType.PROTEIN
-                ? "Reserved for future protein structure workflow. This placeholder stays visible so protein projects can grow into structure-aware analysis later."
-                : "Protein only. Switch the input type to Protein to enable this future structure workflow placeholder.";
     }
 
     private void showProteinOnlyTooltip(ParameterSection section) {

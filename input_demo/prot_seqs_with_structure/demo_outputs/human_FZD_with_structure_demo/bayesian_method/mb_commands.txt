@@ -1,0 +1,8 @@
+set autoclose=yes nowarn=yes;
+execute alignment.nex
+prset aamodelpr=fixed(wag);
+lset rates=invgamma;
+mcmcp ngen=5000 samplefreq=100 printfreq=1000 diagnfreq=1000 nruns=2 nchains=4 temp=0.2 stoprule=no;
+mcmc;
+sumt burninfrac=0.25 relburnin=yes;
+quit;

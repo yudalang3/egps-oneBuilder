@@ -54,6 +54,18 @@ public final class PipelineProgressInterpreter {
         if (containsAny(line, "====Parsimony method skipped by runtime config====", "====简约法已按运行时配置跳过====")) {
             return MethodProgressEvent.skipped(TreeMethodKey.PARSIMONY);
         }
+        if (containsAny(line, "Starting protein structure similarity", "开始蛋白质结构")) {
+            return MethodProgressEvent.running(TreeMethodKey.PROTEIN_STRUCTURE);
+        }
+        if (containsAny(line, "====Protein structure complete", "====蛋白质结构完成")) {
+            return MethodProgressEvent.completed(TreeMethodKey.PROTEIN_STRUCTURE);
+        }
+        if (containsAny(line, "====Protein structure failed", "====蛋白质结构失败")) {
+            return MethodProgressEvent.failed(TreeMethodKey.PROTEIN_STRUCTURE);
+        }
+        if (containsAny(line, "====Protein structure skipped by runtime config====", "====蛋白质结构已按运行时配置跳过====")) {
+            return MethodProgressEvent.skipped(TreeMethodKey.PROTEIN_STRUCTURE);
+        }
         return null;
     }
 
