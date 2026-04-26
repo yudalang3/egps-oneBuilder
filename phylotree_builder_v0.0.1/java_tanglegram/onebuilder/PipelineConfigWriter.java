@@ -156,7 +156,8 @@ public final class PipelineConfigWriter {
                 .put("backend", "foldseek")
                 .put("use_structure_manifest", proteinStructure.useStructureManifest())
                 .put("sequence_only_mode", "prostt5")
-                .put("similarity_rule", "mean_qtmscore_ttmscore");
+                .put("similarity_rule", "mean_qtmscore_ttmscore")
+                .put("missing_distance", "1");
         if (proteinStructure.structureManifestFile() == null) {
             section.put("structure_manifest_file", JSONObject.NULL);
         } else {

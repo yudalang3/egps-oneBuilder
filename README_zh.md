@@ -235,6 +235,9 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 - 输入页包含输入/输出路径、最近浏览目录记忆、MAFFT strategy、`Maxiterate`、sequence reorder 控制、`Advanced MAFFT`、`Export config file when running` 以及 `Export JSON`。
 - 高级参数区域默认折叠，并且现在在 4 个方法页里都统一放在主要参数区的正下方。
 - GUI 支持在启动 run 之前，按方法开启/关闭四种建树步骤，并调整公开出来的 ML、贝叶斯以及结构化 PHYLIP 常用参数。
+- `Protein Structure` 是蛋白质专用的 Foldseek 步骤。它既可以直接使用输入 FASTA 的 ProstT5/3Di 模式，也可以读取结构映射 TSV；TSV 中每个非注释行格式为 `sequence_id<TAB>structure_file`，相对结构路径会按 TSV 所在目录解析。
+- Foldseek 步骤会输出 `protein_structure/pairwise_scores.tsv`、`protein_structure/similarity_matrix.tsv`、`protein_structure/distance_matrix.tsv` 和 `protein_structure/run_config.json`。运行时生成的 `structure_inputs/` 与 `foldseek_tmp/` 已经被 Git 忽略。
+- 默认结构距离策略是 `distance = 1 - similarity`。有真实结构时默认使用 `qtmscore` 和 `ttmscore` 的均值；如果 Foldseek 没返回某个 pair，默认距离写为 `1`，保证距离矩阵仍是数值矩阵。
 - ML 页面现在会给出非阻断式的 Bootstrap 提示：`1000` 仍是推荐默认值，`0` 会明确表示跳过 `-bb`，而特别大的值只会提示运行时间风险，不会强制拦截。
 - PHYLIP 页面继续保留 `menu_overrides` 作为高级逃生口，同时把已经稳定的常用项直接结构化出来，例如 DNA 距离模型设置、neighbor 类型/外群、蛋白 `protpars` 的输出开关，以及 DNA `dnapars` 的外群/颠换简约法选项。
 - 窗口菜单中还提供 `Preference > Settings...`，可设置共享的全局字体族、全局字号、窗口大小恢复、默认的 tanglegram 标签字号，以及 `Show Windows oneBuilder startup warning`。

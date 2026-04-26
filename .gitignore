@@ -11,5 +11,8 @@
 /AGENTS.md
 /launch.md
 /docs/
+/input_demo/prot_seqs_with_structure/demo_outputs/
+/input_demo/prot_seqs_with_structure/foldseek_structure_similarity/
+/input_demo/prot_seqs_with_structure/*.aligned.*
 *.log
 *.class

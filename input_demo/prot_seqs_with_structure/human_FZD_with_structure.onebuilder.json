@@ -90,7 +90,8 @@
       "backend": "foldseek",
       "use_structure_manifest": true,
       "structure_manifest_file": "human_FZD_structure_mapping.tsv",
-      "similarity_rule": "mean_qtmscore_ttmscore"
+      "similarity_rule": "mean_qtmscore_ttmscore",
+      "missing_distance": "1"
     }
   }
 }

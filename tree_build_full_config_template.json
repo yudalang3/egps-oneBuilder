@@ -121,6 +121,15 @@
         "advanced": {},
         "menu_overrides": []
       }
+    },
+    "protein_structure": {
+      "enabled": false,
+      "backend": "foldseek",
+      "use_structure_manifest": false,
+      "structure_manifest_file": null,
+      "sequence_only_mode": "prostt5",
+      "similarity_rule": "mean_qtmscore_ttmscore",
+      "missing_distance": "1"
     }
   }
 }

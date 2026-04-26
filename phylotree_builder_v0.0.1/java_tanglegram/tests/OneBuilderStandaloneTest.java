@@ -75,11 +75,11 @@ public final class OneBuilderStandaloneTest {
                         "--config",
                         configPath.toString(),
                         inputFile.toString(),
-                        outputDir.resolve("protein_demo").toString()),
+                        executionPlan.pipelineOutputDir().toString()),
                 executionPlan.buildCommand(),
                 "unexpected protein build command");
         assertEquals(
-                outputDir.resolve("protein_demo"),
+                outputDir.resolve("protein_demo").toAbsolutePath().normalize(),
                 executionPlan.pipelineOutputDir(),
                 "unexpected protein output directory");
     }
@@ -112,7 +112,7 @@ public final class OneBuilderStandaloneTest {
                         "--config",
                         configPath.toString(),
                         inputFile.toString(),
-                        outputDir.resolve("protein_demo").toString()),
+                        executionPlan.pipelineOutputDir().toString()),
                 executionPlan.buildCommand(),
                 "unexpected overwrite-enabled build command");
     }
@@ -156,7 +156,7 @@ public final class OneBuilderStandaloneTest {
                         "--config",
                         configPath.toString(),
                         inputFile.resolveSibling("raw_sequences.aligned.fa").toString(),
-                        outputDir.resolve("dna_demo").toString()),
+                        executionPlan.pipelineOutputDir().toString()),
                 executionPlan.buildCommand(),
                 "unexpected dna build command");
     }
@@ -259,6 +259,12 @@ public final class OneBuilderStandaloneTest {
         assertEquals("/data/structures.tsv",
                 root.getJSONObject("methods").getJSONObject("protein_structure").getString("structure_manifest_file"),
                 "expected protein structure TSV path");
+        assertEquals("mean_qtmscore_ttmscore",
+                root.getJSONObject("methods").getJSONObject("protein_structure").getString("similarity_rule"),
+                "expected default Foldseek similarity rule");
+        assertEquals("1",
+                root.getJSONObject("methods").getJSONObject("protein_structure").getString("missing_distance"),
+                "expected explicit missing Foldseek pair distance policy");
 
         assertTrue(json.contains("\"run\""), "expected run section");
         assertTrue(json.contains("\"output_prefix\": \"protein_demo\""), "expected output prefix");
@@ -347,7 +353,7 @@ public final class OneBuilderStandaloneTest {
                     Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"),
                     PlatformSupport.LINUX);
             assertEquals(
-                    Arrays.asList("1. Input / Align", "2. Tree Parameters", "3. Tree Build", "4. Tanglegram"),
+                    Arrays.asList("Input / Align", "Tree Parameters", "Tree Build", "Tanglegram"),
                     workspacePanel.navigationLabels(),
                     "unexpected left navigation labels");
             assertEquals("Input / Align", workspacePanel.selectedSectionLabel(), "unexpected initial section");

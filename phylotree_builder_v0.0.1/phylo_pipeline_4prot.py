@@ -1080,6 +1080,12 @@ class ProteinPhylogeneticPipeline:
                 self.logger.error("Protein structure TSV is required when structure mapping is enabled")
                 return None
             cmd.extend(["--structure-manifest", str(manifest_file)])
+        similarity_rule = settings.get("similarity_rule")
+        if similarity_rule:
+            cmd.extend(["--similarity-rule", str(similarity_rule)])
+        missing_distance = settings.get("missing_distance")
+        if missing_distance is not None:
+            cmd.extend(["--missing-distance", str(missing_distance)])
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)

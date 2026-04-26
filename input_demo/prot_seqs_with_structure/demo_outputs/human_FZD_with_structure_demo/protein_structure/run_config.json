@@ -1,8 +1,0 @@
-{
-  "input_fasta": "/mnt/c/Users/yudal/Documents/project/eGPS2/jars/egps2_collections/egps-oneBuilder/input_demo/prot_seqs_with_structure/human_FZD_paralogs.aligned.fasta",
-  "mode": "structure",
-  "backend": "foldseek",
-  "foldseek_exe": "/mnt/c/Users/yudal/Documents/project/eGPS2/jars/egps2_collections/egps-oneBuilder/phylotree_builder_v0.0.1/.pixi/envs/default/bin/foldseek",
-  "threads": 0,
-  "structure_manifest": "/mnt/c/Users/yudal/Documents/project/eGPS2/jars/egps2_collections/egps-oneBuilder/input_demo/prot_seqs_with_structure/demo_outputs/human_FZD_with_structure_demo/protein_structure/normalized_structure_manifest.tsv"
-}

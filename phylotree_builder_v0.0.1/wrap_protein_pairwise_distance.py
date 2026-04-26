@@ -16,6 +16,12 @@ from pathlib import Path
 
 STRUCTURE_FORMAT_OUTPUT = "query,target,fident,alnlen,evalue,bits,alntmscore,qtmscore,ttmscore,lddt,prob"
 SEQUENCE_FORMAT_OUTPUT = "query,target,fident,alnlen,evalue,bits,prob"
+SIMILARITY_RULES = {
+    "mean_qtmscore_ttmscore",
+    "alntmscore",
+    "prob",
+    "fident",
+}
 ALL_OUTPUT_COLUMNS = [
     "query",
     "target",
@@ -48,6 +54,16 @@ def main() -> int:
     )
     parser.add_argument("--threads", type=int, default=0, help="Foldseek threads; 0 lets Foldseek decide.")
     parser.add_argument(
+        "--similarity-rule",
+        default="mean_qtmscore_ttmscore",
+        help="Similarity score rule: mean_qtmscore_ttmscore, alntmscore, prob, or fident.",
+    )
+    parser.add_argument(
+        "--missing-distance",
+        default="1",
+        help="Distance value used when Foldseek reports no hit for a pair. Use an empty string to keep blanks.",
+    )
+    parser.add_argument(
         "--foldseek",
         default=os.environ.get("FOLDSEEK_EXE", "foldseek"),
         help="Foldseek executable path or command name.",
@@ -61,6 +77,7 @@ def main() -> int:
     sequence_ids = parse_fasta_ids(input_fasta)
     if not sequence_ids:
         raise SystemExit(f"No FASTA records found in {input_fasta}")
+    similarity_rule = normalize_similarity_rule(args.similarity_rule)
 
     foldseek_exe = resolve_foldseek(args.foldseek)
     tmp_dir = output_dir / "foldseek_tmp"
@@ -89,6 +106,7 @@ def main() -> int:
             STRUCTURE_FORMAT_OUTPUT.split(","),
             id_lookup,
             "structure_vs_structure",
+            similarity_rule,
         )
         run_config_extra = {"structure_manifest": str(normalized_manifest)}
     else:
@@ -106,17 +124,20 @@ def main() -> int:
             SEQUENCE_FORMAT_OUTPUT.split(","),
             {sequence_id: sequence_id for sequence_id in sequence_ids},
             "sequence_vs_sequence",
+            similarity_rule,
         )
         run_config_extra = {}
 
     write_pairwise_scores(output_dir / "pairwise_scores.tsv", rows)
-    write_matrices(output_dir, sequence_ids, rows)
+    write_matrices(output_dir, sequence_ids, rows, args.missing_distance)
     write_run_config(
         output_dir / "run_config.json",
         input_fasta,
         mode,
         foldseek_exe,
         args.threads,
+        similarity_rule,
+        args.missing_distance,
         run_config_extra,
     )
     print(f"Protein structure similarity completed: {output_dir}")
@@ -149,6 +170,20 @@ def resolve_foldseek(foldseek_command: str) -> str:
     raise SystemExit(
         "Foldseek executable was not found. Install Foldseek or set FOLDSEEK_EXE."
     )
+
+
+def normalize_similarity_rule(value: str | None) -> str:
+    rule = str(value or "mean_qtmscore_ttmscore").strip().lower()
+    if not rule:
+        rule = "mean_qtmscore_ttmscore"
+    if rule not in SIMILARITY_RULES:
+        raise ValueError(
+            "Unsupported similarity rule: "
+            + rule
+            + ". Expected one of: "
+            + ", ".join(sorted(SIMILARITY_RULES))
+        )
+    return rule
 
 
 def prepare_structure_inputs(
@@ -317,6 +352,7 @@ def normalize_foldseek_rows(
     raw_columns: list[str],
     id_lookup: dict[str, str],
     pair_type: str,
+    similarity_rule: str,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     if not raw_output.is_file():
@@ -330,7 +366,7 @@ def normalize_foldseek_rows(
             raw = {column: values[index] if index < len(values) else "" for index, column in enumerate(raw_columns)}
             query = map_foldseek_id(raw.get("query", ""), id_lookup)
             target = map_foldseek_id(raw.get("target", ""), id_lookup)
-            similarity, score_type = choose_similarity(raw, pair_type)
+            similarity, score_type = choose_similarity(raw, pair_type, similarity_rule)
             distance = None if similarity is None else max(0.0, 1.0 - similarity)
             row = {column: "" for column in ALL_OUTPUT_COLUMNS}
             row.update(raw)
@@ -358,20 +394,25 @@ def map_foldseek_id(raw_id: str, id_lookup: dict[str, str]) -> str:
     return raw_id
 
 
-def choose_similarity(raw: dict[str, str], pair_type: str) -> tuple[float | None, str]:
-    qtmscore = parse_float(raw.get("qtmscore"))
-    ttmscore = parse_float(raw.get("ttmscore"))
-    if qtmscore is not None and ttmscore is not None:
-        return (qtmscore + ttmscore) / 2.0, "foldseek_tmscore_mean"
-    alntmscore = parse_float(raw.get("alntmscore"))
-    if alntmscore is not None:
-        return alntmscore, "foldseek_alntmscore"
-    prob = parse_float(raw.get("prob"))
-    if prob is not None:
-        return prob, "foldseek_prostt5_prob" if pair_type == "sequence_vs_sequence" else "foldseek_prob"
-    fident = parse_float(raw.get("fident"))
-    if fident is not None:
-        return fident, "foldseek_fident"
+def choose_similarity(raw: dict[str, str], pair_type: str, similarity_rule: str) -> tuple[float | None, str]:
+    rule = normalize_similarity_rule(similarity_rule)
+    if rule == "mean_qtmscore_ttmscore":
+        qtmscore = parse_float(raw.get("qtmscore"))
+        ttmscore = parse_float(raw.get("ttmscore"))
+        if qtmscore is not None and ttmscore is not None:
+            return (qtmscore + ttmscore) / 2.0, "foldseek_tmscore_mean"
+        alntmscore = parse_float(raw.get("alntmscore"))
+        if alntmscore is not None:
+            return alntmscore, "foldseek_alntmscore"
+        prob = parse_float(raw.get("prob"))
+        if prob is not None:
+            return prob, "foldseek_prostt5_prob" if pair_type == "sequence_vs_sequence" else "foldseek_prob"
+    elif rule == "alntmscore":
+        return parse_float(raw.get("alntmscore")), "foldseek_alntmscore"
+    elif rule == "prob":
+        return parse_float(raw.get("prob")), "foldseek_prostt5_prob" if pair_type == "sequence_vs_sequence" else "foldseek_prob"
+    elif rule == "fident":
+        return parse_float(raw.get("fident")), "foldseek_fident"
     return None, "unavailable"
 
 
@@ -398,11 +439,21 @@ def write_pairwise_scores(path: Path, rows: list[dict[str, str]]) -> None:
             writer.writerow({column: row.get(column, "") for column in ALL_OUTPUT_COLUMNS})
 
 
-def write_matrices(output_dir: Path, sequence_ids: list[str], rows: list[dict[str, str]]) -> None:
+def write_matrices(output_dir: Path, sequence_ids: list[str], rows: list[dict[str, str]], missing_distance: str = "1") -> None:
     similarity_by_pair = symmetric_pair_values(rows, "similarity")
     distance_by_pair = symmetric_pair_values(rows, "distance")
-    write_matrix(output_dir / "similarity_matrix.tsv", sequence_ids, similarity_by_pair, "1")
-    write_matrix(output_dir / "distance_matrix.tsv", sequence_ids, distance_by_pair, "0")
+    missing_similarity = format_missing_similarity(missing_distance)
+    write_matrix(output_dir / "similarity_matrix.tsv", sequence_ids, similarity_by_pair, "1", missing_similarity)
+    write_matrix(output_dir / "distance_matrix.tsv", sequence_ids, distance_by_pair, "0", missing_distance)
+
+
+def format_missing_similarity(missing_distance: str) -> str:
+    if missing_distance is None or str(missing_distance) == "":
+        return ""
+    parsed = parse_float(str(missing_distance))
+    if parsed is None:
+        return ""
+    return format_float(max(0.0, 1.0 - parsed))
 
 
 def symmetric_pair_values(rows: list[dict[str, str]], column: str) -> dict[tuple[str, str], str]:
@@ -435,7 +486,13 @@ def symmetric_pair_values(rows: list[dict[str, str]], column: str) -> dict[tuple
     return symmetric_values
 
 
-def write_matrix(path: Path, sequence_ids: list[str], values: dict[tuple[str, str], str], diagonal: str) -> None:
+def write_matrix(
+    path: Path,
+    sequence_ids: list[str],
+    values: dict[tuple[str, str], str],
+    diagonal: str,
+    missing_value: str,
+) -> None:
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
         writer.writerow(["id", *sequence_ids])
@@ -445,7 +502,7 @@ def write_matrix(path: Path, sequence_ids: list[str], values: dict[tuple[str, st
                 if query == target:
                     row.append(diagonal)
                 else:
-                    row.append(values.get((query, target), ""))
+                    row.append(values.get((query, target), missing_value))
             writer.writerow(row)
 
 
@@ -455,6 +512,8 @@ def write_run_config(
     mode: str,
     foldseek_exe: str,
     threads: int,
+    similarity_rule: str,
+    missing_distance: str,
     extra: dict[str, str],
 ) -> None:
     payload = {
@@ -463,6 +522,8 @@ def write_run_config(
         "backend": "foldseek",
         "foldseek_exe": foldseek_exe,
         "threads": threads,
+        "similarity_rule": similarity_rule,
+        "missing_distance": missing_distance,
         **extra,
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

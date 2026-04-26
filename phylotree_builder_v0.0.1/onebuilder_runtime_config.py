@@ -66,6 +66,7 @@ PROTEIN_DEFAULTS = {
         "structure_manifest_file": None,
         "sequence_only_mode": "prostt5",
         "similarity_rule": "mean_qtmscore_ttmscore",
+        "missing_distance": "1",
     },
 }
 
@@ -124,6 +125,15 @@ DNA_DEFAULTS = {
         "dnapars_outgroup_index": None,
         "dnapars_transversion_parsimony": False,
         "dnapars_menu_overrides": [],
+    },
+    "protein_structure": {
+        "enabled": False,
+        "backend": "foldseek",
+        "use_structure_manifest": False,
+        "structure_manifest_file": None,
+        "sequence_only_mode": "prostt5",
+        "similarity_rule": "mean_qtmscore_ttmscore",
+        "missing_distance": "1",
     },
 }
 
@@ -283,6 +293,8 @@ def _merge_protein_structure(target, overrides, input_type):
     target["sequence_only_mode"] = sequence_only_mode or "prostt5"
     similarity_rule = str(target.get("similarity_rule") or "mean_qtmscore_ttmscore").strip()
     target["similarity_rule"] = similarity_rule or "mean_qtmscore_ttmscore"
+    missing_distance = target.get("missing_distance")
+    target["missing_distance"] = str(missing_distance).strip() if missing_distance is not None else "1"
 
 
 def _merge_phylip_program(target, overrides, program_key, target_key):
