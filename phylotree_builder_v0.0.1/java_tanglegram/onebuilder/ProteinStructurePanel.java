@@ -1,6 +1,8 @@
 package onebuilder;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -83,13 +85,16 @@ final class ProteinStructurePanel extends JPanel {
         constraints.gridy = 0;
         constraints.gridwidth = 3;
         constraints.weightx = 1.0;
-        formPanel.add(enabledCheckBox, constraints);
+        formPanel.add(new JLabel("Basic Parameters"), constraints);
 
         constraints.gridy = 1;
+        formPanel.add(enabledCheckBox, constraints);
+
+        constraints.gridy = 2;
         formPanel.add(useStructureManifestCheckBox, constraints);
 
         constraints.gridx = 0;
-        constraints.gridy = 2;
+        constraints.gridy = 3;
         constraints.gridwidth = 1;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Protein structure TSV"), constraints);
@@ -103,7 +108,7 @@ final class ProteinStructurePanel extends JPanel {
         formPanel.add(browseButton, constraints);
 
         constraints.gridx = 0;
-        constraints.gridy = 3;
+        constraints.gridy = 4;
         constraints.gridwidth = 3;
         constraints.weightx = 1.0;
         constraints.fill = GridBagConstraints.HORIZONTAL;
@@ -138,13 +143,12 @@ final class ProteinStructurePanel extends JPanel {
         advancedConstraints.gridy = 11;
         advancedForm.add(gpuCheckBox, advancedConstraints);
 
+        advancedConstraints.gridx = 0;
         advancedConstraints.gridy = 12;
         advancedConstraints.gridwidth = 1;
-        advancedForm.add(new JLabel("Extra Foldseek args"), advancedConstraints);
-        advancedConstraints.gridx = 1;
         advancedConstraints.weightx = 1.0;
         advancedConstraints.fill = GridBagConstraints.BOTH;
-        advancedForm.add(new JScrollPane(extraArgsArea), advancedConstraints);
+        advancedForm.add(createLabeledRow("Extra Foldseek args", new JScrollPane(extraArgsArea)), advancedConstraints);
 
         JPanel advancedContent = new JPanel(new BorderLayout(0, 8));
         advancedContent.setOpaque(false);
@@ -153,13 +157,13 @@ final class ProteinStructurePanel extends JPanel {
                 WorkbenchStyles.createNoteArea("Advanced fields map directly to Foldseek search flags. Extra args are appended last; enter one token per line."),
                 BorderLayout.CENTER);
 
-        constraints.gridy = 4;
+        constraints.gridy = 5;
         formPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), constraints);
 
-        constraints.gridy = 5;
+        constraints.gridy = 6;
         formPanel.add(new JSeparator(), constraints);
 
-        constraints.gridy = 6;
+        constraints.gridy = 7;
         formPanel.add(new JLabel("<html>After Foldseek produces a pair-wise distance matrix, eGPS will build a "
                 + "structure-similarity tree with the selected method.</html>"), constraints);
 
@@ -184,7 +188,7 @@ final class ProteinStructurePanel extends JPanel {
         horizontalFiller.setOpaque(false);
         treeBuilderPanel.add(horizontalFiller, radioConstraints);
 
-        constraints.gridy = 7;
+        constraints.gridy = 8;
         formPanel.add(treeBuilderPanel, constraints);
 
         add(formPanel, BorderLayout.NORTH);
@@ -287,16 +291,22 @@ final class ProteinStructurePanel extends JPanel {
             GridBagConstraints constraints,
             int row,
             String label,
-            java.awt.Component component) {
+            Component component) {
         constraints.gridx = 0;
         constraints.gridy = row;
         constraints.gridwidth = 1;
-        constraints.weightx = 0.0;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        panel.add(new JLabel(label), constraints);
-
-        constraints.gridx = 1;
         constraints.weightx = 1.0;
-        panel.add(component, constraints);
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(createLabeledRow(label, component), constraints);
+    }
+
+    private static JPanel createLabeledRow(String labelText, Component component) {
+        JPanel row = new JPanel(new BorderLayout(8, 0));
+        row.setOpaque(false);
+        JLabel label = new JLabel(labelText);
+        label.setPreferredSize(new Dimension(210, label.getPreferredSize().height));
+        row.add(label, BorderLayout.WEST);
+        row.add(component, BorderLayout.CENTER);
+        return row;
     }
 }
