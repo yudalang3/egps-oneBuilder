@@ -68,6 +68,9 @@ PROTEIN_DEFAULTS = {
         "similarity_rule": "mean_qtmscore_ttmscore",
         "missing_distance": "1",
     },
+    "reroot": {
+        "method": "MAD",
+    },
 }
 
 
@@ -135,6 +138,9 @@ DNA_DEFAULTS = {
         "similarity_rule": "mean_qtmscore_ttmscore",
         "missing_distance": "1",
     },
+    "reroot": {
+        "method": "MAD",
+    },
 }
 
 
@@ -188,28 +194,37 @@ def dna_runtime_settings(runtime_config):
 def _merged_settings(defaults, runtime_config, input_type):
     merged = copy.deepcopy(defaults)
     methods = (runtime_config or {}).get("methods", {})
-    if not isinstance(methods, dict):
-        return merged
+    reroot = (runtime_config or {}).get("reroot", {})
+    if isinstance(reroot, dict):
+        _merge_reroot(merged["reroot"], reroot)
 
-    for method_name, overrides in methods.items():
-        if method_name not in merged or not isinstance(overrides, dict):
-            continue
-        if method_name == "maximum_likelihood":
-            _merge_maximum_likelihood(merged[method_name], overrides)
-        elif method_name == "bayesian":
-            _merge_bayesian(merged[method_name], overrides)
-        elif method_name == "distance":
-            _merge_distance(merged[method_name], overrides)
-        elif method_name == "parsimony":
-            _merge_parsimony(merged[method_name], overrides)
-        elif method_name == "protein_structure":
-            _merge_protein_structure(merged[method_name], overrides, input_type)
-        else:
-            _merge_scalar_overrides(merged[method_name], overrides)
+    if isinstance(methods, dict):
+        for method_name, overrides in methods.items():
+            if method_name not in merged or not isinstance(overrides, dict):
+                continue
+            if method_name == "maximum_likelihood":
+                _merge_maximum_likelihood(merged[method_name], overrides)
+            elif method_name == "bayesian":
+                _merge_bayesian(merged[method_name], overrides)
+            elif method_name == "distance":
+                _merge_distance(merged[method_name], overrides)
+            elif method_name == "parsimony":
+                _merge_parsimony(merged[method_name], overrides)
+            elif method_name == "protein_structure":
+                _merge_protein_structure(merged[method_name], overrides, input_type)
+            else:
+                _merge_scalar_overrides(merged[method_name], overrides)
 
     _normalize_input_type_specific_settings(merged, input_type)
 
     return merged
+
+
+def _merge_reroot(target, overrides):
+    method = str(overrides.get("method") or target.get("method") or "MAD").strip()
+    if method not in {"MAD", "root-at-middle-point"}:
+        method = "MAD"
+    target["method"] = method
 
 
 def _normalize_input_type_specific_settings(merged, input_type):

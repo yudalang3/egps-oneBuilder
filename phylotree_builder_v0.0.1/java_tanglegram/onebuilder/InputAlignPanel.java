@@ -371,6 +371,7 @@ final class InputAlignPanel extends JPanel {
         builder.append("MAFFT threads: ").append(integerTextOrAuto((Integer) alignThreadsSpinner.getValue())).append(System.lineSeparator());
         builder.append("Expected aligned file: ").append(textOrDash(alignedPreviewValue.getText())).append(System.lineSeparator());
         builder.append("Keep config file when running: ").append(exportConfigCheckBox.isSelected() ? "Yes" : "No").append(System.lineSeparator());
+        builder.append("Reroot method: ").append(runtimeConfig.reroot().method().jsonValue()).append(System.lineSeparator());
         builder.append(System.lineSeparator()).append("Method tree").append(System.lineSeparator());
         builder.append("- Distance Method: ").append(runtimeConfig.distance().enabled() ? "Enabled" : "Disabled").append(System.lineSeparator());
         builder.append("- Maximum Likelihood: ").append(runtimeConfig.maximumLikelihood().enabled() ? "Enabled" : "Disabled").append(System.lineSeparator());

@@ -895,9 +895,71 @@ class PhylogeneticPipeline:
                 self.logger.error(f"MAD 定根失败: {tree_file}")
                 ret_paths.append(Path(tree_file))
             else:
-                self.logger.info(f"定根完成，{tree_file}")
+                self.logger.info(f"Rerooting completed: {tree_file}")
                 ret_paths.append(Path(path_output))
         return ret_paths
+
+    def reroot_tree_by_egps_midpoint(self, tree_files):
+        ret_paths: List[Path] = []
+        classpath = os.pathsep.join(
+            [
+                str(self.script_dir / "java_tanglegram"),
+                str(self.script_dir / "lib" / "*"),
+            ]
+        )
+
+        for tree_file in tree_files:
+            if tree_file is None or not Path(tree_file).exists():
+                ret_paths.append(tree_file)
+                continue
+
+            tree_file = Path(tree_file)
+            path_output = tree_file.with_name(tree_file.name + ".rooted")
+            cmd = [
+                "java",
+                "-cp",
+                classpath,
+                "onebuilder.RerootTreeCommand",
+                "--method",
+                "root-at-middle-point",
+                "--input",
+                str(tree_file),
+                "--output",
+                str(path_output),
+            ]
+            self.logger.info(cmd)
+
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    cwd=str(self.script_dir),
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                stdout, stderr = proc.communicate()
+                self.logger.debug("==Stdout of eGPS midpoint rerooting==")
+                self.logger.debug(stdout)
+                if proc.returncode != 0:
+                    self.logger.error(f"eGPS midpoint rerooting failed: {tree_file}")
+                    if stderr:
+                        self.logger.error(stderr)
+                    ret_paths.append(tree_file)
+                else:
+                    self.logger.info(f"Rerooting completed: {tree_file}")
+                    ret_paths.append(path_output)
+            except Exception as e:
+                self.logger.error(f"eGPS midpoint rerooting exception: {e}")
+                ret_paths.append(tree_file)
+
+        return ret_paths
+
+    def reroot_trees(self, tree_files):
+        method = str(self.runtime_settings.get("reroot", {}).get("method", "MAD")).strip()
+        if method == "root-at-middle-point":
+            return self.reroot_tree_by_egps_midpoint(tree_files)
+        return self.reroot_tree_by_MAD(tree_files)
 
     def restore_names_in_trees(self, tree_files):
         self.logger.info("Restoring original sequence names in trees...")
@@ -1062,7 +1124,7 @@ class PhylogeneticPipeline:
             self.logger.info(self.translator.marker_skipped("parsimony"))
 
         os.chdir(entry_path)
-        rooted_tree_files = self.reroot_tree_by_MAD(tree_files)
+        rooted_tree_files = self.reroot_trees(tree_files)
         os.chdir(entry_path)
         rooted_ladd_tree_files = self.ladderize_tree_by_ete4(rooted_tree_files)
 

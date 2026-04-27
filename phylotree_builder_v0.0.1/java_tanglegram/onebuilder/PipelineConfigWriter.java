@@ -12,6 +12,7 @@ public final class PipelineConfigWriter {
         JSONObject root = new JSONObject();
         root.put("run", buildRunSection(request));
         root.put("alignment", buildAlignmentSection(request));
+        root.put("reroot", buildRerootSection(request.runtimeConfig()));
         JSONObject methods = new JSONObject();
         root.put("methods", methods);
 
@@ -49,6 +50,11 @@ public final class PipelineConfigWriter {
                         .put("common", common)
                         .put("advanced", new JSONObject())
                         .put("extra_args", new JSONArray(request.alignOptions().extraArgs())));
+    }
+
+    private static JSONObject buildRerootSection(PipelineRuntimeConfig config) {
+        RerootConfig reroot = config == null ? RerootConfig.defaults() : config.reroot();
+        return new JSONObject().put("method", reroot.method().jsonValue());
     }
 
     private static JSONObject buildDistanceSection(PipelineRuntimeConfig config) {

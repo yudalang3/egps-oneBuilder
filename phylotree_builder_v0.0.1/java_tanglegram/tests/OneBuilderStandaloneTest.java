@@ -23,9 +23,12 @@ public final class OneBuilderStandaloneTest {
         run("buildsExecutionPlanWithOverwriteFlag", OneBuilderStandaloneTest::buildsExecutionPlanWithOverwriteFlag);
         run("buildsDnaExecutionPlanWithAlignment", OneBuilderStandaloneTest::buildsDnaExecutionPlanWithAlignment);
         run("serializesPipelineRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesPipelineRuntimeConfigAsJson);
+        run("serializesRerootRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesRerootRuntimeConfigAsJson);
+        run("rerootTreeCommandUsesEgpsMidpointRooting", OneBuilderStandaloneTest::rerootTreeCommandUsesEgpsMidpointRooting);
         run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
         run("tracksWorkflowTabUnlocks", OneBuilderStandaloneTest::tracksWorkflowTabUnlocks);
         run("relocksTanglegramWhenNewRunStarts", OneBuilderStandaloneTest::relocksTanglegramWhenNewRunStarts);
+        run("buildsStandaloneTanglegramLaunchCommand", OneBuilderStandaloneTest::buildsStandaloneTanglegramLaunchCommand);
         run("buildsLinuxWorkbenchShell", OneBuilderStandaloneTest::buildsLinuxWorkbenchShell);
         run("buildsWindowsWorkbenchShell", OneBuilderStandaloneTest::buildsWindowsWorkbenchShell);
         run("blocksNavigationUntilRequiredInputIsReady", OneBuilderStandaloneTest::blocksNavigationUntilRequiredInputIsReady);
@@ -271,6 +274,8 @@ public final class OneBuilderStandaloneTest {
         assertTrue(json.contains("\"language\": \"english\""), "expected default UI language in run section");
         assertTrue(json.contains("\"alignment\""), "expected alignment section");
         assertTrue(json.contains("\"run_alignment_first\": false"), "expected alignment flag");
+        assertTrue(json.contains("\"reroot\""), "expected reroot section");
+        assertTrue(json.contains("\"method\": \"MAD\""), "expected default MAD reroot method");
         assertTrue(json.contains("\"mafft\""), "expected MAFFT section");
         assertTrue(json.contains("\"common\""), "expected common tier");
         assertTrue(json.contains("\"advanced\""), "expected advanced tier");
@@ -309,6 +314,50 @@ public final class OneBuilderStandaloneTest {
         assertTrue(json.contains("\"enabled\": false"), "expected distance enabled flag");
     }
 
+    private static void serializesRerootRuntimeConfigAsJson() throws Exception {
+        Path tempFile = Files.createTempFile("onebuilder-reroot-config-", ".json");
+        PipelineRuntimeConfig config = PipelineRuntimeConfig.defaultsFor(InputType.DNA_CDS)
+                .withReroot(new RerootConfig(RerootMethod.ROOT_AT_MIDDLE_POINT));
+
+        RunRequest request = RunRequest.builder()
+                .inputType(InputType.DNA_CDS)
+                .inputFile(Paths.get("/data/input/aligned.fasta"))
+                .outputDirectory(Paths.get("/data/output"))
+                .outputPrefix("dna_demo")
+                .exportConfigFile(true)
+                .runAlignmentFirst(false)
+                .alignOptions(AlignmentOptions.defaults())
+                .runtimeConfig(config)
+                .build();
+
+        new PipelineConfigWriter().write(tempFile, request);
+        JSONObject root = new JSONObject(Files.readString(tempFile, StandardCharsets.UTF_8));
+        assertEquals(
+                "root-at-middle-point",
+                root.getJSONObject("reroot").getString("method"),
+                "unexpected midpoint reroot JSON value");
+    }
+
+    private static void rerootTreeCommandUsesEgpsMidpointRooting() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("onebuilder-midpoint-");
+        Path inputTree = tempDirectory.resolve("input.nwk");
+        Path outputTree = tempDirectory.resolve("output.nwk");
+        Files.writeString(inputTree, "((A:1,B:1):1,C:4);", StandardCharsets.UTF_8);
+
+        int exitCode = RerootTreeCommand.run(new String[] {
+                "--method", "root-at-middle-point",
+                "--input", inputTree.toString(),
+                "--output", outputTree.toString()
+        });
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(exitCode), "midpoint reroot command should succeed");
+        assertTrue(Files.exists(outputTree), "expected midpoint output tree");
+        String output = Files.readString(outputTree, StandardCharsets.UTF_8).trim();
+        assertTrue(output.endsWith(";"), "expected Newick output");
+        assertTrue(output.contains("A") && output.contains("B") && output.contains("C"),
+                "expected all leaves to be preserved");
+    }
+
     private static void detectsPlatformSupport() {
         assertEquals(PlatformSupport.LINUX, PlatformSupport.detect("Linux"), "unexpected linux detection");
         assertEquals(PlatformSupport.WINDOWS, PlatformSupport.detect("Windows 11"), "unexpected windows detection");
@@ -321,17 +370,22 @@ public final class OneBuilderStandaloneTest {
         WorkflowTabsState state = WorkflowTabsState.initial();
         assertTrue(state.inputEnabled(), "input tab should be enabled initially");
         assertTrue(!state.treeParametersEnabled(), "tree parameters tab should start disabled");
+        assertTrue(!state.rerootTreeEnabled(), "reroot tree tab should start disabled");
         assertTrue(!state.treeBuildEnabled(), "tree build tab should start disabled");
         assertTrue(!state.tanglegramEnabled(), "tanglegram tab should start disabled");
+        assertTrue(!state.visLaunchingEnabled(), "vis launching tab should start disabled");
 
         state = state.markInputConfigured();
         assertTrue(state.treeParametersEnabled(), "tree parameters tab should unlock when input is configured");
+        assertTrue(state.rerootTreeEnabled(), "reroot tree tab should unlock when input is configured");
         assertTrue(state.treeBuildEnabled(), "tree build tab should unlock when input is configured");
         assertTrue(!state.tanglegramEnabled(), "tanglegram tab should still be locked");
+        assertTrue(!state.visLaunchingEnabled(), "vis launching tab should still be locked");
 
         state = state.markRunStarted();
         state = state.markTanglegramReady();
         assertTrue(state.tanglegramEnabled(), "tanglegram tab should unlock when results are ready");
+        assertTrue(state.visLaunchingEnabled(), "vis launching tab should unlock when results are ready");
     }
 
     private static void relocksTanglegramWhenNewRunStarts() {
@@ -342,6 +396,23 @@ public final class OneBuilderStandaloneTest {
 
         state = state.markRunStarted();
         assertTrue(!state.tanglegramEnabled(), "starting a new run should relock tanglegram until new results exist");
+        assertTrue(!state.visLaunchingEnabled(), "starting a new run should relock vis launching until new results exist");
+    }
+
+    private static void buildsStandaloneTanglegramLaunchCommand() {
+        Path scriptDir = Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1");
+        Path outputDir = Paths.get("/data/output/demo");
+        List<String> command = VisLaunchingPanel.buildLaunchCommand(scriptDir, outputDir, ":");
+        assertEquals(
+                Arrays.asList(
+                        "java",
+                        "-cp",
+                        scriptDir.resolve("java_tanglegram") + ":" + scriptDir.resolve("lib") + java.io.File.separator + "*",
+                        "tanglegram.launcher",
+                        "-dir",
+                        outputDir.resolve("tree_summary").toString()),
+                command,
+                "unexpected standalone tanglegram launch command");
     }
 
     private static void buildsLinuxWorkbenchShell() throws Exception {
@@ -353,13 +424,15 @@ public final class OneBuilderStandaloneTest {
                     Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"),
                     PlatformSupport.LINUX);
             assertEquals(
-                    Arrays.asList("Input / Align", "Tree Parameters", "Tree Build", "Tanglegram"),
+                    Arrays.asList("Input / Align", "Tree Parameters", "Reroot Tree", "Tree Build", "Tanglegram", "Vis. Launching"),
                     workspacePanel.navigationLabels(),
                     "unexpected left navigation labels");
             assertEquals("Input / Align", workspacePanel.selectedSectionLabel(), "unexpected initial section");
             assertTrue(!workspacePanel.isSectionEnabled("Tree Parameters"), "tree parameters section should start disabled");
+            assertTrue(!workspacePanel.isSectionEnabled("Reroot Tree"), "reroot tree section should start disabled");
             assertTrue(!workspacePanel.isSectionEnabled("Tree Build"), "tree build section should start disabled");
             assertTrue(!workspacePanel.isSectionEnabled("Tanglegram"), "tanglegram section should start disabled");
+            assertTrue(!workspacePanel.isSectionEnabled("Vis. Launching"), "vis launching section should start disabled");
             assertTrue(workspacePanel.hasHeaderPanel(), "expected top header");
             assertTrue(workspacePanel.inputAlignPanel().isRunSupported(), "linux should support run");
             assertTrue(workspacePanel.inputAlignPanel().isExportSelected(), "export should default to selected");
@@ -368,6 +441,7 @@ public final class OneBuilderStandaloneTest {
                     workspacePanel.treeParametersPanel().parameterTreeLabels(),
                     "unexpected parameter tree labels");
             assertTrue(workspacePanel.treeParametersPanel().isProteinStructureEnabledForTest(), "protein structure should be available for protein projects");
+            assertEquals(RerootMethod.MAD, workspacePanel.rerootTreePanel().toConfig().method(), "MAD should be the default reroot method");
             assertTrue(workspacePanel.treeBuildPanel().hasRunButtonForTest(), "expected tree build run button");
             assertTrue(workspacePanel.treeBuildPanel().hasExportConfigButtonForTest(), "expected tree build export button");
         });

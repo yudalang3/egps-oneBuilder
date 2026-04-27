@@ -22,8 +22,10 @@ final class OneBuilderWorkspacePanel extends JPanel {
     private final CardLayout contentLayout;
     private final InputAlignPanel inputAlignPanel;
     private final TreeParametersPanel treeParametersPanel;
+    private final RerootTreePanel rerootTreePanel;
     private final TreeBuildPanel treeBuildPanel;
     private final CurrentRunTanglegramPanel currentRunTanglegramPanel;
+    private final VisLaunchingPanel visLaunchingPanel;
     private final PipelineRunner pipelineRunner;
     private final PipelineConfigWriter pipelineConfigWriter;
     private final PlatformSupport platformSupport;
@@ -46,18 +48,21 @@ final class OneBuilderWorkspacePanel extends JPanel {
         WorkbenchStyles.applyCanvas(this);
 
         treeParametersPanel = new TreeParametersPanel(selectedInputType);
+        rerootTreePanel = new RerootTreePanel();
+        rerootTreePanel.apply(RerootConfig.defaults());
         treeBuildPanel = new TreeBuildPanel(
                 platformSupport,
                 this::handleRunButtonPressed,
                 this::handleExportButtonPressed,
                 this::handleStopRequested);
         currentRunTanglegramPanel = new CurrentRunTanglegramPanel();
+        visLaunchingPanel = new VisLaunchingPanel(scriptDirectory, () -> latestCompletedOutputDirectory);
         pipelineRunner = new PipelineRunner(scriptDirectory, new RunnerListener());
         pipelineConfigWriter = new PipelineConfigWriter();
         inputAlignPanel = new InputAlignPanel(
                 platformSupport,
                 this::handleInputChanged,
-                treeParametersPanel::runtimeConfig);
+                this::currentRuntimeConfig);
 
         headerContextLabel = WorkbenchStyles.createSubtitleLabel(
                 "Prepare one alignment, review the method tree, run the pipeline, then inspect the tanglegram.");
@@ -72,8 +77,10 @@ final class OneBuilderWorkspacePanel extends JPanel {
         WorkbenchStyles.applyCanvas(contentPanel);
         contentPanel.add(inputAlignPanel, WorkspaceSection.INPUT_ALIGN.name());
         contentPanel.add(treeParametersPanel, WorkspaceSection.TREE_PARAMETERS.name());
+        contentPanel.add(rerootTreePanel, WorkspaceSection.REROOT_TREE.name());
         contentPanel.add(treeBuildPanel, WorkspaceSection.TREE_BUILD.name());
         contentPanel.add(currentRunTanglegramPanel, WorkspaceSection.TANGLEGRAM.name());
+        contentPanel.add(visLaunchingPanel, WorkspaceSection.VIS_LAUNCHING.name());
 
         JPanel centerPanel = WorkbenchStyles.createCanvasPanel(new BorderLayout(0, 16));
         centerPanel.setBorder(WorkbenchStyles.PAGE_PADDING);
@@ -119,6 +126,10 @@ final class OneBuilderWorkspacePanel extends JPanel {
 
     TreeBuildPanel treeBuildPanel() {
         return treeBuildPanel;
+    }
+
+    RerootTreePanel rerootTreePanel() {
+        return rerootTreePanel;
     }
 
     InputAlignPanel inputAlignPanel() {
@@ -191,11 +202,17 @@ final class OneBuilderWorkspacePanel extends JPanel {
             case TREE_PARAMETERS:
                 headerContextLabel.setText("Use the method tree to configure Distance, Maximum Likelihood, Bayes, Parsimony, and protein-only Foldseek structure similarity.");
                 break;
+            case REROOT_TREE:
+                headerContextLabel.setText("Choose the rerooting method applied after tree inference and before visualization.");
+                break;
             case TREE_BUILD:
                 headerContextLabel.setText("Review the current configuration, export it for command-line reuse, or launch the pipeline from here.");
                 break;
             case TANGLEGRAM:
                 headerContextLabel.setText("Inspect the current run using the same fixed tree-pair comparisons as the standalone viewer.");
+                break;
+            case VIS_LAUNCHING:
+                headerContextLabel.setText("Open the standalone interactive Tanglegram viewer for the latest completed run.");
                 break;
             default:
                 throw new IllegalStateException("Unexpected section: " + section);
@@ -256,6 +273,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
         workflowTabsState = workflowTabsState.markInputConfigured().markRunStarted();
         syncWorkflowTabs();
         inputAlignPanel.setRunning(true);
+        rerootTreePanel.setRunning(true);
         treeBuildPanel.setDraftSummary(inputAlignPanel.buildRunDraftSummary(preparedRequest.runtimeConfig()));
         treeBuildPanel.configureOverallProgress(preparedRequest.runtimeConfig());
 
@@ -263,6 +281,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
             pipelineRunner.start(preparedRequest);
         } catch (IllegalStateException exception) {
             inputAlignPanel.setRunning(false);
+            rerootTreePanel.setRunning(false);
             treeBuildPanel.setRunning(false);
             JOptionPane.showMessageDialog(this, exception.getMessage(), "eGPS oneBuilder", JOptionPane.ERROR_MESSAGE);
         }
@@ -282,6 +301,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
             }
         }
         inputAlignPanel.setRunning(true);
+        rerootTreePanel.setRunning(true);
         treeBuildPanel.setExporting(true);
         Thread exportThread = new Thread(() -> {
             try {
@@ -289,6 +309,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
                 pipelineConfigWriter.write(request.exportConfigPath(), request);
                 SwingUtilities.invokeLater(() -> {
                     inputAlignPanel.setRunning(false);
+                    rerootTreePanel.setRunning(false);
                     treeBuildPanel.setExporting(false);
                     JOptionPane.showMessageDialog(
                             OneBuilderWorkspacePanel.this,
@@ -299,6 +320,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
             } catch (Exception exception) {
                 SwingUtilities.invokeLater(() -> {
                     inputAlignPanel.setRunning(false);
+                    rerootTreePanel.setRunning(false);
                     treeBuildPanel.setExporting(false);
                     JOptionPane.showMessageDialog(
                             OneBuilderWorkspacePanel.this,
@@ -317,7 +339,11 @@ final class OneBuilderWorkspacePanel extends JPanel {
     }
 
     private void refreshTreeBuildDraft() {
-        treeBuildPanel.setDraftSummary(inputAlignPanel.buildRunDraftSummary(treeParametersPanel.runtimeConfig()));
+        treeBuildPanel.setDraftSummary(inputAlignPanel.buildRunDraftSummary(currentRuntimeConfig()));
+    }
+
+    private PipelineRuntimeConfig currentRuntimeConfig() {
+        return treeParametersPanel.runtimeConfig().withReroot(rerootTreePanel.toConfig());
     }
 
     private RunRequest confirmOverwriteIfNeeded(RunRequest request) {
@@ -346,6 +372,10 @@ final class OneBuilderWorkspacePanel extends JPanel {
                 workflowTabsState.treeParametersEnabled() && inputReady,
                 inputAlignPanel.navigationBlockingMessage());
         navigationRail.setSectionEnabled(
+                WorkspaceSection.REROOT_TREE,
+                workflowTabsState.rerootTreeEnabled() && inputReady,
+                inputAlignPanel.navigationBlockingMessage());
+        navigationRail.setSectionEnabled(
                 WorkspaceSection.TREE_BUILD,
                 workflowTabsState.treeBuildEnabled() && inputReady,
                 inputAlignPanel.navigationBlockingMessage());
@@ -354,6 +384,11 @@ final class OneBuilderWorkspacePanel extends JPanel {
                 WorkspaceSection.TANGLEGRAM,
                 tanglegramEnabled,
                 lockedSectionMessage(WorkspaceSection.TANGLEGRAM));
+        navigationRail.setSectionEnabled(
+                WorkspaceSection.VIS_LAUNCHING,
+                tanglegramEnabled && workflowTabsState.visLaunchingEnabled(),
+                lockedSectionMessage(WorkspaceSection.VIS_LAUNCHING));
+        visLaunchingPanel.setReady(tanglegramEnabled && workflowTabsState.visLaunchingEnabled());
     }
 
     private String blockingMessageFor(WorkspaceSection targetSection) {
@@ -377,9 +412,11 @@ final class OneBuilderWorkspacePanel extends JPanel {
     private String lockedSectionMessage(WorkspaceSection section) {
         switch (section) {
             case TREE_PARAMETERS:
+            case REROOT_TREE:
             case TREE_BUILD:
                 return inputAlignPanel.navigationBlockingMessage();
             case TANGLEGRAM:
+            case VIS_LAUNCHING:
                 if (!platformSupport.supportsPipelineExecution()) {
                     return "Tanglegram in oneBuilder opens only after a Linux run generates results. Use the standalone viewer to inspect an existing tree_summary output on this platform.";
                 }
@@ -439,6 +476,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
             workflowTabsState = workflowTabsState.markTanglegramReady().markRunFinished();
             syncWorkflowTabs();
             inputAlignPanel.setRunning(false);
+            rerootTreePanel.setRunning(false);
             treeBuildPanel.finishRun("Completed");
             for (TreeMethodKey methodKey : TreeMethodKey.values()) {
                 Path outputPath = methodKey.expectedOutputPath(outputDirectory, inputType);
@@ -452,6 +490,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
         @Override
         public void onRunFailed(String message) {
             inputAlignPanel.setRunning(false);
+            rerootTreePanel.setRunning(false);
             treeBuildPanel.finishRun("Failed");
             WorkbenchStyles.updateStatusChip(headerStatusChip, "Failed");
             JOptionPane.showMessageDialog(
@@ -464,6 +503,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
         @Override
         public void onRunStopped() {
             inputAlignPanel.setRunning(false);
+            rerootTreePanel.setRunning(false);
             treeBuildPanel.finishRun("Interrupted");
             WorkbenchStyles.updateStatusChip(headerStatusChip, "Interrupted");
         }

@@ -3,8 +3,10 @@ package onebuilder;
 enum WorkspaceSection {
     INPUT_ALIGN("Input / Align", 1),
     TREE_PARAMETERS("Tree Parameters", 2),
-    TREE_BUILD("Tree Build", 3),
-    TANGLEGRAM("Tanglegram", 4);
+    REROOT_TREE("Reroot Tree", 3),
+    TREE_BUILD("Tree Build", 4),
+    TANGLEGRAM("Tanglegram", 5),
+    VIS_LAUNCHING("Vis. Launching", 6);
 
     private final String label;
     private final int stepNumber;
