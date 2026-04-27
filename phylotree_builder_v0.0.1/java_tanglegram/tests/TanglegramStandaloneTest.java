@@ -27,6 +27,8 @@ public final class TanglegramStandaloneTest {
         run("usesPreferenceBackedTanglegramDefaults", TanglegramStandaloneTest::usesPreferenceBackedTanglegramDefaults);
         run("resolvesMovedSampleTreesFromFallbackLayout", TanglegramStandaloneTest::resolvesMovedSampleTreesFromFallbackLayout);
         run("buildsFixedPairOrderForAllMethods", TanglegramStandaloneTest::buildsFixedPairOrderForAllMethods);
+        run("buildsProteinStructurePairsWhenStructureTreeExists", TanglegramStandaloneTest::buildsProteinStructurePairsWhenStructureTreeExists);
+        run("keepsFourMethodPairsWhenProteinStructureTreeIsMissing", TanglegramStandaloneTest::keepsFourMethodPairsWhenProteinStructureTreeIsMissing);
         run("loadsOnlyAvailablePairsWhenOneMethodIsMissing", TanglegramStandaloneTest::loadsOnlyAvailablePairsWhenOneMethodIsMissing);
         run("rendersPairPanelForResolvedTrees", TanglegramStandaloneTest::rendersPairPanelForResolvedTrees);
     }
@@ -137,6 +139,36 @@ public final class TanglegramStandaloneTest {
         assertEquals("ML-BI", pairs.get(3).tabName(), "pair 4 mismatch");
         assertEquals("ML-MP", pairs.get(4).tabName(), "pair 5 mismatch");
         assertEquals("BI-MP", pairs.get(5).tabName(), "pair 6 mismatch");
+    }
+
+    private static void buildsProteinStructurePairsWhenStructureTreeExists() throws Exception {
+        Path movedOutput = copySampleOutput();
+        Path structureTree = movedOutput.resolve("protein_structure").resolve("structure_tree.nwk");
+        Files.createDirectories(structureTree.getParent());
+        Files.writeString(structureTree, "(seq1:0.1,seq2:0.1,seq3:0.2);\n");
+        Files.writeString(
+                movedOutput.resolve("tree_summary").resolve("tree_meta_data.tsv"),
+                "Protein_structure\t" + structureTree + "\n",
+                java.nio.file.StandardOpenOption.APPEND);
+
+        TreeSummaryLoadResult result = TreeSummaryLoader.load(movedOutput.resolve("tree_summary"));
+        List<TreePairSpec> pairs = result.availablePairs();
+
+        assertEquals(5, result.resolvedTrees().size(), "expected all five trees");
+        assertEquals(10, pairs.size(), "expected ten tree pairs");
+        assertEquals("NJ-PS", pairs.get(3).tabName(), "pair with structure tree should follow NJ-MP");
+        assertEquals("MP-PS", pairs.get(9).tabName(), "last pair should compare MP and structure tree");
+    }
+
+    private static void keepsFourMethodPairsWhenProteinStructureTreeIsMissing() throws Exception {
+        Path movedOutput = copySampleOutput();
+
+        TreeSummaryLoadResult result = TreeSummaryLoader.loadRunResult(movedOutput);
+
+        assertEquals(4, result.resolvedTrees().size(), "expected four resolved trees without structure tree");
+        assertEquals(6, result.availablePairs().size(), "expected original six pairs without structure tree");
+        assertTrue(!result.missingMethods().contains(TreeMethod.PROTEIN_STRUCTURE),
+                "missing optional structure tree should not be a required missing method");
     }
 
     private static void loadsOnlyAvailablePairsWhenOneMethodIsMissing() throws Exception {

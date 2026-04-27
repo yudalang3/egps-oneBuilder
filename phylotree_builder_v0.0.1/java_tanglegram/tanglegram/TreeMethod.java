@@ -40,10 +40,15 @@ public enum TreeMethod {
                     "parsimony_method/parsimony_tree.nwk.renamed.ladderize",
                     "parsimony_method/parsimony_tree.nwk.rooted.ladderize",
                     "parsimony_method/parsimony_tree.nwk.ladderize",
-                    "parsimony_method/parsimony_tree.nwk"));
+                    "parsimony_method/parsimony_tree.nwk")),
+    PROTEIN_STRUCTURE(
+            "Protein_structure",
+            "PS",
+            Arrays.asList(
+                    "protein_structure/structure_tree.nwk"));
 
     public static final List<TreeMethod> DISPLAY_ORDER = Collections.unmodifiableList(
-            Arrays.asList(NJ_PHYLIP, ML_IQTREE, BI_MRBAYES, MP_PHYLIP));
+            Arrays.asList(NJ_PHYLIP, ML_IQTREE, BI_MRBAYES, MP_PHYLIP, PROTEIN_STRUCTURE));
 
     private final String metadataKey;
     private final String shortLabel;
@@ -69,6 +74,10 @@ public enum TreeMethod {
             resolvedCandidates.add(outputRootDir.resolve(fallbackCandidate).normalize());
         }
         return resolvedCandidates;
+    }
+
+    public boolean optional() {
+        return this == PROTEIN_STRUCTURE;
     }
 
     public static TreeMethod fromMetadataKey(String metadataKey) {

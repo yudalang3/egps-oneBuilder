@@ -796,6 +796,8 @@ class ProteinPhylogeneticPipeline:
             f.write(f"ML_iqtree\t{tree_files[1] if tree_files[1] else 'NULL'}\n")
             f.write(f"BI_mrbayes\t{tree_files[2] if tree_files[2] else 'NULL'}\n")
             f.write(f"MP_phylip\t{tree_files[3] if tree_files[3] else 'NULL'}\n")
+            protein_structure_tree = tree_files[4] if len(tree_files) > 4 else None
+            f.write(f"Protein_structure\t{protein_structure_tree if protein_structure_tree else 'NULL'}\n")
 
         # call R script to calculate pairwise tree distances if available
         heatmap_paths = []
@@ -904,6 +906,11 @@ class ProteinPhylogeneticPipeline:
                 (self.translator.text("Bayesian inference (Protein)", "贝叶斯法 (Protein)"), tree_files[2]),
                 (self.translator.text("Parsimony (Protein)", "简约法 (Protein)"), tree_files[3]),
             ]
+            if len(tree_files) > 4:
+                methods.append((
+                    self.translator.text("Protein structure similarity tree", "蛋白质结构相似性树"),
+                    tree_files[4],
+                ))
 
             for method, tree_file in methods:
                 status = self.translator.text("OK", "✓ 成功") if tree_file and tree_file.exists() else self.translator.text("FAILED", "✗ 失败")
@@ -1156,14 +1163,68 @@ class ProteinPhylogeneticPipeline:
                 self.logger.info(result.stdout.strip())
             if result.stderr:
                 self.logger.debug(result.stderr.strip())
-            output_path = work_dir / "pairwise_scores.tsv"
-            if output_path.exists():
+            pairwise_scores_path = work_dir / "pairwise_scores.tsv"
+            distance_matrix_path = work_dir / "distance_matrix.tsv"
+            if pairwise_scores_path.exists() and distance_matrix_path.exists():
                 self.logger.info("Protein structure similarity completed")
-                return output_path
-            self.logger.error(f"Protein structure similarity output not found: {output_path}")
+                return self.build_protein_structure_tree(distance_matrix_path, work_dir)
+            self.logger.error(
+                f"Protein structure similarity output not found: {pairwise_scores_path} and {distance_matrix_path}"
+            )
             return None
         except subprocess.CalledProcessError as exception:
             self.logger.error("Protein structure similarity failed: " + str(exception))
+            if exception.stdout:
+                self.logger.error(exception.stdout.strip())
+            if exception.stderr:
+                self.logger.error(exception.stderr.strip())
+            return None
+
+    def build_protein_structure_tree(self, distance_matrix_path, work_dir):
+        """Build a Newick tree from the Foldseek structure distance matrix."""
+        settings = self.runtime_settings.get("protein_structure", {})
+        tree_builder_method = str(settings.get("tree_builder_method") or "NJ").strip()
+        if tree_builder_method not in {"NJ", "SwiftNJ"}:
+            tree_builder_method = "NJ"
+        output_tree_path = Path(work_dir) / "structure_tree.nwk"
+        classpath = os.pathsep.join(
+            [
+                str(self.script_dir / "java_tanglegram"),
+                str(self.script_dir / "lib" / "*"),
+            ]
+        )
+        cmd = [
+            "java",
+            "-cp",
+            classpath,
+            "onebuilder.ProteinStructureTreeCommand",
+            "--method",
+            tree_builder_method,
+            "--input",
+            str(distance_matrix_path),
+            "--output",
+            str(output_tree_path),
+        ]
+        self.logger.info(cmd)
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=str(self.script_dir),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            if result.stdout:
+                self.logger.info(result.stdout.strip())
+            if result.stderr:
+                self.logger.debug(result.stderr.strip())
+            if output_tree_path.exists():
+                self.logger.info(f"Protein structure tree completed: {output_tree_path}")
+                return output_tree_path
+            self.logger.error(f"Protein structure tree output not found: {output_tree_path}")
+            return None
+        except subprocess.CalledProcessError as exception:
+            self.logger.error("Protein structure tree building failed: " + str(exception))
             if exception.stdout:
                 self.logger.error(exception.stdout.strip())
             if exception.stderr:
@@ -1193,6 +1254,7 @@ class ProteinPhylogeneticPipeline:
 
         # 4. Build trees using four methods
         tree_files = [None, None, None, None]
+        protein_structure_tree = None
 
         entry_path = Path.cwd()
 
@@ -1243,10 +1305,10 @@ class ProteinPhylogeneticPipeline:
 
         if self.runtime_settings.get("protein_structure", {}).get("enabled"):
             os.chdir(entry_path)
-            protein_structure_output = self.protein_structure_method()
+            protein_structure_tree = self.protein_structure_method()
             self.logger.info(
                 self.translator.marker_complete("protein_structure")
-                if protein_structure_output
+                if protein_structure_tree
                 else self.translator.marker_failed("protein_structure")
             )
         else:
@@ -1264,12 +1326,13 @@ class ProteinPhylogeneticPipeline:
         )
 
         result_trees = self.restore_names_in_trees(rooted_ladd_tree_files)
+        result_trees.append(protein_structure_tree)
         # 6. Visualization and summary
         os.chdir(entry_path)
 
         methods = ["Distance", "Maximum Likelihood", "Bayesian", "Parsimony"]
 
-        self.visualize_trees(result_trees, methods)
+        self.visualize_trees(result_trees[:4], methods)
 
         os.chdir(entry_path)
         self.generate_summary(result_trees, sequences)

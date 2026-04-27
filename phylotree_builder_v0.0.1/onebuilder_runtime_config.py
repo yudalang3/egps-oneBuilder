@@ -67,6 +67,7 @@ PROTEIN_DEFAULTS = {
         "sequence_only_mode": "prostt5",
         "similarity_rule": "mean_qtmscore_ttmscore",
         "missing_distance": "1",
+        "tree_builder_method": "NJ",
     },
     "reroot": {
         "method": "MAD",
@@ -137,6 +138,7 @@ DNA_DEFAULTS = {
         "sequence_only_mode": "prostt5",
         "similarity_rule": "mean_qtmscore_ttmscore",
         "missing_distance": "1",
+        "tree_builder_method": "NJ",
     },
     "reroot": {
         "method": "MAD",
@@ -310,6 +312,16 @@ def _merge_protein_structure(target, overrides, input_type):
     target["similarity_rule"] = similarity_rule or "mean_qtmscore_ttmscore"
     missing_distance = target.get("missing_distance")
     target["missing_distance"] = str(missing_distance).strip() if missing_distance is not None else "1"
+    target["tree_builder_method"] = _normalize_protein_structure_tree_builder_method(
+        target.get("tree_builder_method")
+    )
+
+
+def _normalize_protein_structure_tree_builder_method(value):
+    method = str(value or "NJ").strip()
+    if method.lower() in {"swiftnj", "swift nj"}:
+        return "SwiftNJ"
+    return "NJ"
 
 
 def _merge_phylip_program(target, overrides, program_key, target_key):

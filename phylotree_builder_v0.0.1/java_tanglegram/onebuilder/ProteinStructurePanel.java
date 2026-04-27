@@ -6,11 +6,14 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.nio.file.Path;
 import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
+import javax.swing.JSeparator;
 import javax.swing.JTextField;
 
 final class ProteinStructurePanel extends JPanel {
@@ -18,6 +21,8 @@ final class ProteinStructurePanel extends JPanel {
     private final JCheckBox useStructureManifestCheckBox;
     private final JTextField structureManifestField;
     private final JButton browseButton;
+    private final JRadioButton njTreeBuilderButton;
+    private final JRadioButton swiftNjTreeBuilderButton;
     private InputType inputType;
 
     ProteinStructurePanel(InputType inputType) {
@@ -31,6 +36,11 @@ final class ProteinStructurePanel extends JPanel {
         structureManifestField = new JTextField();
         browseButton = new JButton("Browse");
         browseButton.addActionListener(event -> browseForStructureManifest());
+        njTreeBuilderButton = new JRadioButton("NJ", true);
+        swiftNjTreeBuilderButton = new JRadioButton("Swift NJ", false);
+        ButtonGroup treeBuilderGroup = new ButtonGroup();
+        treeBuilderGroup.add(njTreeBuilderButton);
+        treeBuilderGroup.add(swiftNjTreeBuilderButton);
 
         JPanel formPanel = new JPanel(new GridBagLayout());
         formPanel.setOpaque(false);
@@ -62,6 +72,32 @@ final class ProteinStructurePanel extends JPanel {
         constraints.weightx = 0.0;
         formPanel.add(browseButton, constraints);
 
+        constraints.gridx = 0;
+        constraints.gridy = 3;
+        constraints.gridwidth = 3;
+        constraints.weightx = 1.0;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        formPanel.add(new JSeparator(), constraints);
+
+        constraints.gridy = 4;
+        formPanel.add(new JLabel("<html>After Foldseek produces a pair-wise distance matrix, eGPS will build a "
+                + "structure-similarity tree with the selected NJ method.</html>"), constraints);
+
+        JPanel treeBuilderPanel = new JPanel(new GridBagLayout());
+        treeBuilderPanel.setOpaque(false);
+        GridBagConstraints radioConstraints = new GridBagConstraints();
+        radioConstraints.insets = new Insets(0, 0, 0, 12);
+        radioConstraints.anchor = GridBagConstraints.WEST;
+        radioConstraints.gridx = 0;
+        treeBuilderPanel.add(new JLabel("Structure tree builder"), radioConstraints);
+        radioConstraints.gridx = 1;
+        treeBuilderPanel.add(njTreeBuilderButton, radioConstraints);
+        radioConstraints.gridx = 2;
+        treeBuilderPanel.add(swiftNjTreeBuilderButton, radioConstraints);
+
+        constraints.gridy = 5;
+        formPanel.add(treeBuilderPanel, constraints);
+
         add(formPanel, BorderLayout.NORTH);
         add(WorkbenchStyles.createNoteArea(
                 "When no TSV is selected, Foldseek uses the input FASTA with ProstT5/3Di for structure-like similarity. "
@@ -85,6 +121,11 @@ final class ProteinStructurePanel extends JPanel {
         enabledCheckBox.setSelected(safeConfig.enabled());
         useStructureManifestCheckBox.setSelected(safeConfig.useStructureManifest());
         structureManifestField.setText(safeConfig.structureManifestFile() == null ? "" : safeConfig.structureManifestFile());
+        if ("SwiftNJ".equals(safeConfig.treeBuilderMethod())) {
+            swiftNjTreeBuilderButton.setSelected(true);
+        } else {
+            njTreeBuilderButton.setSelected(true);
+        }
         updateControlState();
     }
 
@@ -92,7 +133,8 @@ final class ProteinStructurePanel extends JPanel {
         return new ProteinStructureConfig(
                 inputType == InputType.PROTEIN && enabledCheckBox.isSelected(),
                 useStructureManifestCheckBox.isSelected(),
-                structureManifestField.getText());
+                structureManifestField.getText(),
+                swiftNjTreeBuilderButton.isSelected() ? "SwiftNJ" : "NJ");
     }
 
     private void browseForStructureManifest() {
@@ -112,5 +154,7 @@ final class ProteinStructurePanel extends JPanel {
         useStructureManifestCheckBox.setEnabled(enabled);
         structureManifestField.setEnabled(enabled && useStructureManifestCheckBox.isSelected());
         browseButton.setEnabled(enabled && useStructureManifestCheckBox.isSelected());
+        njTreeBuilderButton.setEnabled(enabled);
+        swiftNjTreeBuilderButton.setEnabled(enabled);
     }
 }

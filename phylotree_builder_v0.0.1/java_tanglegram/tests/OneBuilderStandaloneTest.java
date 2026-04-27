@@ -23,6 +23,8 @@ public final class OneBuilderStandaloneTest {
         run("buildsExecutionPlanWithOverwriteFlag", OneBuilderStandaloneTest::buildsExecutionPlanWithOverwriteFlag);
         run("buildsDnaExecutionPlanWithAlignment", OneBuilderStandaloneTest::buildsDnaExecutionPlanWithAlignment);
         run("serializesPipelineRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesPipelineRuntimeConfigAsJson);
+        run("roundTripsProteinStructureTreeBuilderMethod", OneBuilderStandaloneTest::roundTripsProteinStructureTreeBuilderMethod);
+        run("proteinStructureTreeCommandBuildsNewick", OneBuilderStandaloneTest::proteinStructureTreeCommandBuildsNewick);
         run("serializesRerootRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesRerootRuntimeConfigAsJson);
         run("rerootTreeCommandUsesEgpsMidpointRooting", OneBuilderStandaloneTest::rerootTreeCommandUsesEgpsMidpointRooting);
         run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
@@ -236,7 +238,7 @@ public final class OneBuilderStandaloneTest {
                         java.util.Collections.emptyList(),
                         Arrays.asList("J", "7", "Y"),
                         java.util.Collections.emptyList()))
-                .withProteinStructure(new ProteinStructureConfig(true, true, "/data/structures.tsv"));
+                .withProteinStructure(new ProteinStructureConfig(true, true, "/data/structures.tsv", "SwiftNJ"));
 
         RunRequest request = RunRequest.builder()
                 .inputType(InputType.PROTEIN)
@@ -268,6 +270,9 @@ public final class OneBuilderStandaloneTest {
         assertEquals("1",
                 root.getJSONObject("methods").getJSONObject("protein_structure").getString("missing_distance"),
                 "expected explicit missing Foldseek pair distance policy");
+        assertEquals("SwiftNJ",
+                root.getJSONObject("methods").getJSONObject("protein_structure").getString("tree_builder_method"),
+                "expected protein structure tree builder method");
 
         assertTrue(json.contains("\"run\""), "expected run section");
         assertTrue(json.contains("\"output_prefix\": \"protein_demo\""), "expected output prefix");
@@ -312,6 +317,42 @@ public final class OneBuilderStandaloneTest {
         assertTrue(json.contains("\"menu_overrides\": ["), "expected PHYLIP passthrough array");
         assertTrue(json.contains("\"P\""), "expected PHYLIP menu override");
         assertTrue(json.contains("\"enabled\": false"), "expected distance enabled flag");
+    }
+
+    private static void roundTripsProteinStructureTreeBuilderMethod() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            ProteinStructurePanel panel = new ProteinStructurePanel(InputType.PROTEIN);
+
+            assertEquals("NJ", panel.toConfig().treeBuilderMethod(), "expected NJ as the default structure tree builder");
+
+            panel.apply(new ProteinStructureConfig(true, false, null, "SwiftNJ"));
+            assertEquals("SwiftNJ", panel.toConfig().treeBuilderMethod(), "expected SwiftNJ to round-trip through the panel");
+        });
+    }
+
+    private static void proteinStructureTreeCommandBuildsNewick() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("protein-structure-tree-");
+        Path matrixFile = tempDirectory.resolve("distance_matrix.tsv");
+        Path outputFile = tempDirectory.resolve("structure_tree.nwk");
+        Files.writeString(matrixFile,
+                "id\tseqA\tseqB\tseqC\n"
+                        + "seqA\t0\t0.3\t0.5\n"
+                        + "seqB\t0.3\t0\t0.4\n"
+                        + "seqC\t0.5\t0.4\t0\n",
+                StandardCharsets.UTF_8);
+
+        int exitCode = ProteinStructureTreeCommand.run(new String[] {
+                "--method", "SwiftNJ",
+                "--input", matrixFile.toString(),
+                "--output", outputFile.toString()
+        });
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(exitCode), "expected structure tree command to succeed");
+        String newick = Files.readString(outputFile, StandardCharsets.UTF_8);
+        assertTrue(newick.trim().endsWith(";"), "expected Newick terminator");
+        assertTrue(newick.contains("seqA"), "expected seqA leaf");
+        assertTrue(newick.contains("seqB"), "expected seqB leaf");
+        assertTrue(newick.contains("seqC"), "expected seqC leaf");
     }
 
     private static void serializesRerootRuntimeConfigAsJson() throws Exception {

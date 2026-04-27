@@ -388,6 +388,9 @@ final class InputAlignPanel extends JPanel {
                             ? textOrDash(runtimeConfig.proteinStructure().structureManifestFile())
                             : "Not used; FASTA-only ProstT5/3Di mode")
                     .append(System.lineSeparator());
+            builder.append("  Structure tree builder: ")
+                    .append("SwiftNJ".equals(runtimeConfig.proteinStructure().treeBuilderMethod()) ? "Swift NJ" : "NJ")
+                    .append(System.lineSeparator());
         }
         return builder.toString();
     }

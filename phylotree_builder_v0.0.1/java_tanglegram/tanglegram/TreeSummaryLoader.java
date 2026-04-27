@@ -35,10 +35,15 @@ public final class TreeSummaryLoader {
 
         Map<TreeMethod, Path> resolvedTrees = new EnumMap<>(TreeMethod.class);
         List<TreeMethod> missingMethods = new ArrayList<>();
+        List<TreeMethod> missingOptionalMethods = new ArrayList<>();
         for (TreeMethod method : TreeMethod.DISPLAY_ORDER) {
             Path resolvedTree = resolveTree(method, metadataEntries.get(method), normalizedTreeSummaryDir, outputRootDir);
             if (resolvedTree == null) {
-                missingMethods.add(method);
+                if (method.optional()) {
+                    missingOptionalMethods.add(method);
+                } else {
+                    missingMethods.add(method);
+                }
             } else {
                 resolvedTrees.put(method, resolvedTree);
             }
@@ -46,6 +51,9 @@ public final class TreeSummaryLoader {
 
         if (!missingMethods.isEmpty()) {
             warnings.add("Missing methods: " + formatMethods(missingMethods));
+        }
+        if (!missingOptionalMethods.isEmpty()) {
+            warnings.add("Missing optional methods: " + formatMethods(missingOptionalMethods));
         }
 
         return new TreeSummaryLoadResult(normalizedTreeSummaryDir, outputRootDir, resolvedTrees, missingMethods, warnings);
@@ -74,6 +82,9 @@ public final class TreeSummaryLoader {
 
         List<String> missingTrees = new ArrayList<>();
         for (TreeMethod method : TreeMethod.DISPLAY_ORDER) {
+            if (method.optional()) {
+                continue;
+            }
             if (resolveTree(method, null, normalizedOutputRootDir.resolve("tree_summary"), normalizedOutputRootDir) == null) {
                 missingTrees.add(method.shortLabel());
             }

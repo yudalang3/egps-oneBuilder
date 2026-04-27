@@ -163,7 +163,8 @@ public final class PipelineConfigWriter {
                 .put("use_structure_manifest", proteinStructure.useStructureManifest())
                 .put("sequence_only_mode", "prostt5")
                 .put("similarity_rule", "mean_qtmscore_ttmscore")
-                .put("missing_distance", "1");
+                .put("missing_distance", "1")
+                .put("tree_builder_method", proteinStructure.treeBuilderMethod());
         if (proteinStructure.structureManifestFile() == null) {
             section.put("structure_manifest_file", JSONObject.NULL);
         } else {

@@ -34,7 +34,7 @@ public enum TreeMethodKey {
                 }
                 return outputRoot.resolve("parsimony_method").resolve("parsimony_tree.nwk.rooted.renamed.ladderize");
             case PROTEIN_STRUCTURE:
-                return outputRoot.resolve("protein_structure").resolve("pairwise_scores.tsv");
+                return outputRoot.resolve("protein_structure").resolve("structure_tree.nwk");
             default:
                 throw new IllegalStateException("Unexpected tree method: " + this);
         }
