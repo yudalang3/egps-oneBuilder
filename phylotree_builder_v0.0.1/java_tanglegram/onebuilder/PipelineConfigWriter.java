@@ -157,6 +157,24 @@ public final class PipelineConfigWriter {
 
     private static JSONObject buildProteinStructureSection(PipelineRuntimeConfig config) {
         ProteinStructureConfig proteinStructure = config.proteinStructure();
+        JSONObject common = new JSONObject()
+                .put("threads", proteinStructure.threads())
+                .put("sensitivity", proteinStructure.sensitivity())
+                .put("evalue", proteinStructure.evalue())
+                .put("max_seqs", proteinStructure.maxSeqs())
+                .put("coverage_threshold", proteinStructure.coverageThreshold())
+                .put("coverage_mode", proteinStructure.coverageMode())
+                .put("alignment_type", proteinStructure.alignmentType());
+        JSONObject advanced = new JSONObject()
+                .put("tmscore_threshold", proteinStructure.tmscoreThreshold())
+                .put("exhaustive_search", proteinStructure.exhaustiveSearch())
+                .put("exact_tmscore", proteinStructure.exactTmscore())
+                .put("gpu", proteinStructure.gpu())
+                .put("verbosity", proteinStructure.verbosity());
+        JSONObject foldseek = new JSONObject()
+                .put("common", common)
+                .put("advanced", advanced)
+                .put("extra_args", new JSONArray(proteinStructure.extraArgs()));
         JSONObject section = new JSONObject()
                 .put("enabled", config.inputType() == InputType.PROTEIN && proteinStructure.enabled())
                 .put("backend", "foldseek")
@@ -164,7 +182,8 @@ public final class PipelineConfigWriter {
                 .put("sequence_only_mode", "prostt5")
                 .put("similarity_rule", "mean_qtmscore_ttmscore")
                 .put("missing_distance", "1")
-                .put("tree_builder_method", proteinStructure.treeBuilderMethod());
+                .put("tree_builder_method", proteinStructure.treeBuilderMethod())
+                .put("foldseek", foldseek);
         if (proteinStructure.structureManifestFile() == null) {
             section.put("structure_manifest_file", JSONObject.NULL);
         } else {

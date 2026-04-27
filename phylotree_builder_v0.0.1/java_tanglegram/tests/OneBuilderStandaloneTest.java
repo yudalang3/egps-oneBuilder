@@ -15,42 +15,52 @@ import tanglegram.UiPreferenceStore;
 import tanglegram.UiPreferences;
 
 public final class OneBuilderStandaloneTest {
+    private static final String SUITE_PREFERENCE_NODE = "/egps-onebuilder/tests/onebuilder/suite";
+
     private OneBuilderStandaloneTest() {
     }
 
     public static void main(String[] args) throws Exception {
-        run("buildsProteinExecutionPlanWithoutAlignment", OneBuilderStandaloneTest::buildsProteinExecutionPlanWithoutAlignment);
-        run("buildsExecutionPlanWithOverwriteFlag", OneBuilderStandaloneTest::buildsExecutionPlanWithOverwriteFlag);
-        run("buildsDnaExecutionPlanWithAlignment", OneBuilderStandaloneTest::buildsDnaExecutionPlanWithAlignment);
-        run("serializesPipelineRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesPipelineRuntimeConfigAsJson);
-        run("roundTripsProteinStructureTreeBuilderMethod", OneBuilderStandaloneTest::roundTripsProteinStructureTreeBuilderMethod);
-        run("proteinStructureTreeCommandBuildsNewick", OneBuilderStandaloneTest::proteinStructureTreeCommandBuildsNewick);
-        run("serializesRerootRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesRerootRuntimeConfigAsJson);
-        run("rerootTreeCommandUsesEgpsMidpointRooting", OneBuilderStandaloneTest::rerootTreeCommandUsesEgpsMidpointRooting);
-        run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
-        run("tracksWorkflowTabUnlocks", OneBuilderStandaloneTest::tracksWorkflowTabUnlocks);
-        run("relocksTanglegramWhenNewRunStarts", OneBuilderStandaloneTest::relocksTanglegramWhenNewRunStarts);
-        run("buildsStandaloneTanglegramLaunchCommand", OneBuilderStandaloneTest::buildsStandaloneTanglegramLaunchCommand);
-        run("buildsLinuxWorkbenchShell", OneBuilderStandaloneTest::buildsLinuxWorkbenchShell);
-        run("buildsWindowsWorkbenchShell", OneBuilderStandaloneTest::buildsWindowsWorkbenchShell);
-        run("blocksNavigationUntilRequiredInputIsReady", OneBuilderStandaloneTest::blocksNavigationUntilRequiredInputIsReady);
-        run("prefersInputParentDirectoryWhenInputPathIsAFile", OneBuilderStandaloneTest::prefersInputParentDirectoryWhenInputPathIsAFile);
-        run("rejectsInvalidOutputDirectoryPath", OneBuilderStandaloneTest::rejectsInvalidOutputDirectoryPath);
-        run("autoDetectsDnaInputTypeForExportedConfig", OneBuilderStandaloneTest::autoDetectsDnaInputTypeForExportedConfig);
-        run("autoEnablesAlignmentForUnequalSequenceLengths", OneBuilderStandaloneTest::autoEnablesAlignmentForUnequalSequenceLengths);
-        run("adaptsMaximumLikelihoodStrategiesByInputType", OneBuilderStandaloneTest::adaptsMaximumLikelihoodStrategiesByInputType);
-        run("showsBootstrapGuidanceForTypicalAndExtremeValues", OneBuilderStandaloneTest::showsBootstrapGuidanceForTypicalAndExtremeValues);
-        run("preservesAlrtZeroInSerializedConfig", OneBuilderStandaloneTest::preservesAlrtZeroInSerializedConfig);
-        run("omitsStopvalWhenStopruleIsDisabled", OneBuilderStandaloneTest::omitsStopvalWhenStopruleIsDisabled);
-        run("roundTripsAdvancedRuntimeConfigThroughPanels", OneBuilderStandaloneTest::roundTripsAdvancedRuntimeConfigThroughPanels);
-        run("usesPreferenceDefaultForEmbeddedTanglegramLabelSize", OneBuilderStandaloneTest::usesPreferenceDefaultForEmbeddedTanglegramLabelSize);
-        run("loadsCurrentRunTanglegramTabs", OneBuilderStandaloneTest::loadsCurrentRunTanglegramTabs);
-        run("detectsCurrentRunTanglegramArtifacts", OneBuilderStandaloneTest::detectsCurrentRunTanglegramArtifacts);
-        run("interpretsMethodProgressFromLogs", OneBuilderStandaloneTest::interpretsMethodProgressFromLogs);
-        run("tracksTreeBuildOverallProgressFromEnabledMethodsAndLogs", OneBuilderStandaloneTest::tracksTreeBuildOverallProgressFromEnabledMethodsAndLogs);
-        run("keepsTreeBuildCaretAtEndAfterAppendingLogs", OneBuilderStandaloneTest::keepsTreeBuildCaretAtEndAfterAppendingLogs);
-        run("storesLanguageInExportedConfig", OneBuilderStandaloneTest::storesLanguageInExportedConfig);
-        run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
+        UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
+        UiPreferenceStore.clearNodeForTests();
+        try {
+            run("buildsProteinExecutionPlanWithoutAlignment", OneBuilderStandaloneTest::buildsProteinExecutionPlanWithoutAlignment);
+            run("buildsExecutionPlanWithOverwriteFlag", OneBuilderStandaloneTest::buildsExecutionPlanWithOverwriteFlag);
+            run("buildsDnaExecutionPlanWithAlignment", OneBuilderStandaloneTest::buildsDnaExecutionPlanWithAlignment);
+            run("serializesPipelineRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesPipelineRuntimeConfigAsJson);
+            run("roundTripsProteinStructureTreeBuilderMethod", OneBuilderStandaloneTest::roundTripsProteinStructureTreeBuilderMethod);
+            run("proteinStructureTreeCommandBuildsNewick", OneBuilderStandaloneTest::proteinStructureTreeCommandBuildsNewick);
+            run("serializesRerootRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesRerootRuntimeConfigAsJson);
+            run("rerootTreeCommandUsesEgpsMidpointRooting", OneBuilderStandaloneTest::rerootTreeCommandUsesEgpsMidpointRooting);
+            run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
+            run("tracksWorkflowTabUnlocks", OneBuilderStandaloneTest::tracksWorkflowTabUnlocks);
+            run("relocksTanglegramWhenNewRunStarts", OneBuilderStandaloneTest::relocksTanglegramWhenNewRunStarts);
+            run("buildsStandaloneTanglegramLaunchCommand", OneBuilderStandaloneTest::buildsStandaloneTanglegramLaunchCommand);
+            run("buildsLinuxWorkbenchShell", OneBuilderStandaloneTest::buildsLinuxWorkbenchShell);
+            run("buildsWindowsWorkbenchShell", OneBuilderStandaloneTest::buildsWindowsWorkbenchShell);
+            run("blocksNavigationUntilRequiredInputIsReady", OneBuilderStandaloneTest::blocksNavigationUntilRequiredInputIsReady);
+            run("prefersInputParentDirectoryWhenInputPathIsAFile", OneBuilderStandaloneTest::prefersInputParentDirectoryWhenInputPathIsAFile);
+            run("rejectsInvalidOutputDirectoryPath", OneBuilderStandaloneTest::rejectsInvalidOutputDirectoryPath);
+            run("autoDetectsDnaInputTypeForExportedConfig", OneBuilderStandaloneTest::autoDetectsDnaInputTypeForExportedConfig);
+            run("autoEnablesAlignmentForUnequalSequenceLengths", OneBuilderStandaloneTest::autoEnablesAlignmentForUnequalSequenceLengths);
+            run("adaptsMaximumLikelihoodStrategiesByInputType", OneBuilderStandaloneTest::adaptsMaximumLikelihoodStrategiesByInputType);
+            run("showsBootstrapGuidanceForTypicalAndExtremeValues", OneBuilderStandaloneTest::showsBootstrapGuidanceForTypicalAndExtremeValues);
+            run("preservesAlrtZeroInSerializedConfig", OneBuilderStandaloneTest::preservesAlrtZeroInSerializedConfig);
+            run("omitsStopvalWhenStopruleIsDisabled", OneBuilderStandaloneTest::omitsStopvalWhenStopruleIsDisabled);
+            run("roundTripsAdvancedRuntimeConfigThroughPanels", OneBuilderStandaloneTest::roundTripsAdvancedRuntimeConfigThroughPanels);
+            run("usesPreferenceDefaultForEmbeddedTanglegramLabelSize", OneBuilderStandaloneTest::usesPreferenceDefaultForEmbeddedTanglegramLabelSize);
+            run("loadsCurrentRunTanglegramTabs", OneBuilderStandaloneTest::loadsCurrentRunTanglegramTabs);
+            run("detectsCurrentRunTanglegramArtifacts", OneBuilderStandaloneTest::detectsCurrentRunTanglegramArtifacts);
+            run("interpretsMethodProgressFromLogs", OneBuilderStandaloneTest::interpretsMethodProgressFromLogs);
+            run("tracksTreeBuildOverallProgressFromEnabledMethodsAndLogs", OneBuilderStandaloneTest::tracksTreeBuildOverallProgressFromEnabledMethodsAndLogs);
+            run("keepsTreeBuildCaretAtEndAfterAppendingLogs", OneBuilderStandaloneTest::keepsTreeBuildCaretAtEndAfterAppendingLogs);
+            run("storesLanguageInExportedConfig", OneBuilderStandaloneTest::storesLanguageInExportedConfig);
+            run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
+        } finally {
+            UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
+            UiPreferenceStore.clearNodeForTests();
+            UiPreferenceStore.resetNodeForTests();
+        }
     }
 
     private static void buildsProteinExecutionPlanWithoutAlignment() {
@@ -238,7 +248,24 @@ public final class OneBuilderStandaloneTest {
                         java.util.Collections.emptyList(),
                         Arrays.asList("J", "7", "Y"),
                         java.util.Collections.emptyList()))
-                .withProteinStructure(new ProteinStructureConfig(true, true, "/data/structures.tsv", "SwiftNJ"));
+                .withProteinStructure(new ProteinStructureConfig(
+                        true,
+                        true,
+                        "/data/structures.tsv",
+                        "SwiftNJ",
+                        6,
+                        7.5d,
+                        1.0d,
+                        500,
+                        0.4d,
+                        2,
+                        1,
+                        0.6d,
+                        true,
+                        true,
+                        false,
+                        2,
+                        Arrays.asList("--prefilter-mode", "2")));
 
         RunRequest request = RunRequest.builder()
                 .inputType(InputType.PROTEIN)
@@ -273,6 +300,19 @@ public final class OneBuilderStandaloneTest {
         assertEquals("SwiftNJ",
                 root.getJSONObject("methods").getJSONObject("protein_structure").getString("tree_builder_method"),
                 "expected protein structure tree builder method");
+        JSONObject foldseek = root.getJSONObject("methods").getJSONObject("protein_structure").getJSONObject("foldseek");
+        assertEquals(Integer.valueOf(6), Integer.valueOf(foldseek.getJSONObject("common").getInt("threads")),
+                "expected Foldseek thread count");
+        assertEquals(Double.valueOf(7.5d), Double.valueOf(foldseek.getJSONObject("common").getDouble("sensitivity")),
+                "expected Foldseek sensitivity");
+        assertEquals(Integer.valueOf(500), Integer.valueOf(foldseek.getJSONObject("common").getInt("max_seqs")),
+                "expected Foldseek max seqs");
+        assertTrue(foldseek.getJSONObject("advanced").getBoolean("exhaustive_search"),
+                "expected Foldseek exhaustive search flag");
+        assertTrue(foldseek.getJSONObject("advanced").getBoolean("exact_tmscore"),
+                "expected Foldseek exact TM-score flag");
+        assertEquals(Integer.valueOf(2), Integer.valueOf(foldseek.getJSONArray("extra_args").length()),
+                "expected Foldseek extra args");
 
         assertTrue(json.contains("\"run\""), "expected run section");
         assertTrue(json.contains("\"output_prefix\": \"protein_demo\""), "expected output prefix");
@@ -534,7 +574,7 @@ public final class OneBuilderStandaloneTest {
                 panel.initialOutputChooserPathForTest(),
                 "unexpected remembered output browse directory");
 
-        UiPreferenceStore.resetNodeForTests();
+        UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
     }
 
     private static void prefersInputParentDirectoryWhenInputPathIsAFile() throws Exception {
@@ -945,7 +985,7 @@ public final class OneBuilderStandaloneTest {
                     "unexpected embedded tanglegram default label size");
         });
 
-        UiPreferenceStore.resetNodeForTests();
+        UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
     }
 
     private static void loadsCurrentRunTanglegramTabs() throws Exception {
@@ -1059,9 +1099,13 @@ public final class OneBuilderStandaloneTest {
             panel.resetForRun(null);
             assertEquals(Integer.valueOf(9), Integer.valueOf(panel.overallProgressMaximumForTest()),
                     "unexpected total progress step count");
-            assertEquals("Preparing run (0/9)", panel.overallProgressTextForTest(), "unexpected initial progress text");
+            assertTrue(panel.overallProgressIndeterminateForTest(),
+                    "main progress bar should use startup animation before measurable work begins");
+            assertEquals("Preparing run", panel.overallProgressTextForTest(), "unexpected initial progress text");
 
             panel.setMethodStatus(TreeMethodKey.DISTANCE, "Running");
+            assertTrue(!panel.overallProgressIndeterminateForTest(),
+                    "main progress bar should become determinate after the first measurable method event");
             assertEquals("Running Distance Method (0/9)", panel.overallProgressTextForTest(),
                     "unexpected distance running text");
             panel.setMethodStatus(TreeMethodKey.DISTANCE, "Completed");
@@ -1092,6 +1136,25 @@ public final class OneBuilderStandaloneTest {
             panel.finishRun("Completed");
             assertEquals("Completed (9/9)", panel.overallProgressTextForTest(),
                     "unexpected completed progress text");
+
+            TreeBuildPanel proteinPanel = new TreeBuildPanel(PlatformSupport.LINUX, () -> { }, () -> { }, () -> { });
+            PipelineRuntimeConfig proteinRuntimeConfig = PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN)
+                    .withProteinStructure(new ProteinStructureConfig(true, false, null, "SwiftNJ"));
+            proteinPanel.configureOverallProgress(proteinRuntimeConfig);
+            proteinPanel.resetForRun(null);
+            assertEquals(Integer.valueOf(11), Integer.valueOf(proteinPanel.overallProgressMaximumForTest()),
+                    "protein structure should add one measurable progress step");
+            assertTrue(proteinPanel.overallProgressIndeterminateForTest(),
+                    "protein run should also start with the startup animation");
+
+            proteinPanel.setMethodStatus(TreeMethodKey.PROTEIN_STRUCTURE, "Running");
+            assertTrue(!proteinPanel.overallProgressIndeterminateForTest(),
+                    "protein structure progress event should switch the bar back to determinate mode");
+            assertEquals("Running Protein Structure (0/11)", proteinPanel.overallProgressTextForTest(),
+                    "unexpected protein structure running text");
+            proteinPanel.setMethodStatus(TreeMethodKey.PROTEIN_STRUCTURE, "Completed");
+            assertEquals(Integer.valueOf(1), Integer.valueOf(proteinPanel.overallProgressValueForTest()),
+                    "completed protein structure step should advance progress once");
         });
     }
 

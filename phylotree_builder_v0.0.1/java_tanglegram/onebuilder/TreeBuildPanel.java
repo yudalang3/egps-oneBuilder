@@ -147,6 +147,10 @@ final class TreeBuildPanel extends JPanel {
         return overallProgressBar.getString();
     }
 
+    boolean overallProgressIndeterminateForTest() {
+        return overallProgressBar.isIndeterminate();
+    }
+
     void applyPreferences() {
         revalidate();
         repaint();
@@ -193,7 +197,7 @@ final class TreeBuildPanel extends JPanel {
         if (totalProgressSteps == 0) {
             totalProgressSteps = TreeMethodKey.values().length + PostBuildStep.values().length;
         }
-        updateOverallProgressDisplay("Preparing run");
+        showPreparingProgress();
         for (TreeMethodKey methodKey : TreeMethodKey.values()) {
             String initialStatus = enabledProgressMethods.contains(methodKey) ? "Queued" : "Skipped";
             methodStatuses.put(methodKey, initialStatus);
@@ -475,6 +479,9 @@ final class TreeBuildPanel extends JPanel {
     }
 
     private void updateOverallProgressDisplay(String message) {
+        if (overallProgressBar.isIndeterminate()) {
+            overallProgressBar.setIndeterminate(false);
+        }
         int completedSteps = completedProgressMethods.size() + completedPostBuildSteps.size();
         int safeTotal = Math.max(1, totalProgressSteps);
         overallProgressBar.setMaximum(safeTotal);
@@ -485,6 +492,13 @@ final class TreeBuildPanel extends JPanel {
         }
         String safeMessage = message == null || message.isBlank() ? "Idle" : message.trim();
         overallProgressBar.setString(safeMessage + " (" + Math.min(completedSteps, totalProgressSteps) + "/" + totalProgressSteps + ")");
+    }
+
+    private void showPreparingProgress() {
+        overallProgressBar.setMaximum(Math.max(1, totalProgressSteps));
+        overallProgressBar.setValue(0);
+        overallProgressBar.setIndeterminate(true);
+        overallProgressBar.setString("Preparing run");
     }
 
     private static boolean containsAny(String line, String first, String second) {

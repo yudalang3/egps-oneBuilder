@@ -53,6 +53,23 @@ def main() -> int:
         help="Optional TSV mapping FASTA sequence IDs to PDB/mmCIF files.",
     )
     parser.add_argument("--threads", type=int, default=0, help="Foldseek threads; 0 lets Foldseek decide.")
+    parser.add_argument("--sensitivity", type=float, default=9.5, help="Foldseek sensitivity (-s).")
+    parser.add_argument("--evalue", type=float, default=10.0, help="Foldseek E-value threshold (-e).")
+    parser.add_argument("--max-seqs", type=int, default=1000, help="Foldseek --max-seqs value.")
+    parser.add_argument("--coverage-threshold", type=float, default=0.0, help="Foldseek coverage threshold (-c).")
+    parser.add_argument("--coverage-mode", type=int, default=0, help="Foldseek --cov-mode value.")
+    parser.add_argument("--alignment-type", type=int, default=2, help="Foldseek --alignment-type value.")
+    parser.add_argument("--tmscore-threshold", type=float, default=0.0, help="Foldseek --tmscore-threshold value.")
+    parser.add_argument("--exhaustive-search", action="store_true", help="Pass --exhaustive-search 1 to Foldseek.")
+    parser.add_argument("--exact-tmscore", action="store_true", help="Pass --exact-tmscore 1 to Foldseek.")
+    parser.add_argument("--gpu", action="store_true", help="Pass --gpu 1 to Foldseek.")
+    parser.add_argument("--verbosity", type=int, default=3, help="Foldseek verbosity (-v).")
+    parser.add_argument(
+        "--foldseek-extra-arg",
+        action="append",
+        default=[],
+        help="Additional Foldseek argument token. Repeat for multiple tokens.",
+    )
     parser.add_argument(
         "--similarity-rule",
         default="mean_qtmscore_ttmscore",
@@ -82,6 +99,7 @@ def main() -> int:
     foldseek_exe = resolve_foldseek(args.foldseek)
     tmp_dir = output_dir / "foldseek_tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
+    foldseek_extra_args = build_foldseek_extra_args(args)
 
     if args.structure_manifest:
         mode = "structure"
@@ -100,6 +118,7 @@ def main() -> int:
             tmp_dir,
             STRUCTURE_FORMAT_OUTPUT,
             args.threads,
+            foldseek_extra_args,
         )
         rows = normalize_foldseek_rows(
             raw_output,
@@ -118,6 +137,7 @@ def main() -> int:
             raw_output,
             tmp_dir,
             args.threads,
+            foldseek_extra_args,
         )
         rows = normalize_foldseek_rows(
             raw_output,
@@ -138,6 +158,7 @@ def main() -> int:
         args.threads,
         similarity_rule,
         args.missing_distance,
+        foldseek_extra_args,
         run_config_extra,
     )
     print(f"Protein structure similarity completed: {output_dir}")
@@ -184,6 +205,43 @@ def normalize_similarity_rule(value: str | None) -> str:
             + ", ".join(sorted(SIMILARITY_RULES))
         )
     return rule
+
+
+def build_foldseek_extra_args(args) -> list[str]:
+    extra_args = [
+        "-s",
+        format_cli_float(max(1.0, args.sensitivity)),
+        "-e",
+        format_cli_float(max(0.0, args.evalue)),
+        "--max-seqs",
+        str(max(1, args.max_seqs)),
+        "-c",
+        format_cli_float(clamp(args.coverage_threshold, 0.0, 1.0)),
+        "--cov-mode",
+        str(int(clamp(args.coverage_mode, 0, 5))),
+        "--alignment-type",
+        str(int(clamp(args.alignment_type, 0, 2))),
+        "--tmscore-threshold",
+        format_cli_float(clamp(args.tmscore_threshold, 0.0, 1.0)),
+        "-v",
+        str(int(clamp(args.verbosity, 0, 3))),
+    ]
+    if args.exhaustive_search:
+        extra_args.extend(["--exhaustive-search", "1"])
+    if args.exact_tmscore:
+        extra_args.extend(["--exact-tmscore", "1"])
+    if args.gpu:
+        extra_args.extend(["--gpu", "1"])
+    extra_args.extend(str(item) for item in args.foldseek_extra_arg if str(item).strip())
+    return extra_args
+
+
+def clamp(value, minimum, maximum):
+    return max(minimum, min(maximum, value))
+
+
+def format_cli_float(value: float) -> str:
+    return f"{value:.8g}"
 
 
 def prepare_structure_inputs(
@@ -312,6 +370,7 @@ def run_foldseek_sequence_search(
     output_file: Path,
     tmp_dir: Path,
     threads: int,
+    extra_args: list[str] | None = None,
 ) -> None:
     weights_dir = output_file.parent / "prostt5_weights"
     sequence_db = output_file.parent / "sequence_db"
@@ -329,6 +388,8 @@ def run_foldseek_sequence_search(
     search_command = [foldseek_exe, "search", str(sequence_db), str(sequence_db), str(result_db), str(tmp_dir)]
     if threads and threads > 0:
         search_command.extend(["--threads", str(threads)])
+    if extra_args:
+        search_command.extend(extra_args)
     run_command(search_command)
     run_command([
         foldseek_exe,
@@ -514,6 +575,7 @@ def write_run_config(
     threads: int,
     similarity_rule: str,
     missing_distance: str,
+    foldseek_args: list[str],
     extra: dict[str, str],
 ) -> None:
     payload = {
@@ -522,6 +584,7 @@ def write_run_config(
         "backend": "foldseek",
         "foldseek_exe": foldseek_exe,
         "threads": threads,
+        "foldseek_args": foldseek_args,
         "similarity_rule": similarity_rule,
         "missing_distance": missing_distance,
         **extra,

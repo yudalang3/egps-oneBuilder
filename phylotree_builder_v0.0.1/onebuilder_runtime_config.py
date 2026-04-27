@@ -68,6 +68,19 @@ PROTEIN_DEFAULTS = {
         "similarity_rule": "mean_qtmscore_ttmscore",
         "missing_distance": "1",
         "tree_builder_method": "NJ",
+        "threads": 0,
+        "sensitivity": 9.5,
+        "evalue": 10.0,
+        "max_seqs": 1000,
+        "coverage_threshold": 0.0,
+        "coverage_mode": 0,
+        "alignment_type": 2,
+        "tmscore_threshold": 0.0,
+        "exhaustive_search": False,
+        "exact_tmscore": False,
+        "gpu": False,
+        "verbosity": 3,
+        "extra_args": [],
     },
     "reroot": {
         "method": "MAD",
@@ -139,6 +152,19 @@ DNA_DEFAULTS = {
         "similarity_rule": "mean_qtmscore_ttmscore",
         "missing_distance": "1",
         "tree_builder_method": "NJ",
+        "threads": 0,
+        "sensitivity": 9.5,
+        "evalue": 10.0,
+        "max_seqs": 1000,
+        "coverage_threshold": 0.0,
+        "coverage_mode": 0,
+        "alignment_type": 2,
+        "tmscore_threshold": 0.0,
+        "exhaustive_search": False,
+        "exact_tmscore": False,
+        "gpu": False,
+        "verbosity": 3,
+        "extra_args": [],
     },
     "reroot": {
         "method": "MAD",
@@ -299,7 +325,13 @@ def _merge_parsimony(target, overrides):
 
 
 def _merge_protein_structure(target, overrides, input_type):
-    _merge_scalar_overrides(target, overrides)
+    _merge_scalar_overrides(target, overrides, skip_keys={"foldseek"})
+    foldseek = overrides.get("foldseek")
+    if isinstance(foldseek, dict):
+        _merge_section_into_target(target, foldseek.get("common"))
+        _merge_section_into_target(target, foldseek.get("advanced"))
+        if "extra_args" in foldseek:
+            target["extra_args"] = _normalize_string_list(foldseek.get("extra_args"))
     target["backend"] = "foldseek"
     if input_type != "PROTEIN":
         target["enabled"] = False
@@ -315,6 +347,19 @@ def _merge_protein_structure(target, overrides, input_type):
     target["tree_builder_method"] = _normalize_protein_structure_tree_builder_method(
         target.get("tree_builder_method")
     )
+    target["threads"] = _normalize_int(target.get("threads"), 0, 0, 512)
+    target["sensitivity"] = _normalize_float(target.get("sensitivity"), 9.5, 1.0, 20.0)
+    target["evalue"] = _normalize_float(target.get("evalue"), 10.0, 0.0, None)
+    target["max_seqs"] = _normalize_int(target.get("max_seqs"), 1000, 1, None)
+    target["coverage_threshold"] = _normalize_float(target.get("coverage_threshold"), 0.0, 0.0, 1.0)
+    target["coverage_mode"] = _normalize_int(target.get("coverage_mode"), 0, 0, 5)
+    target["alignment_type"] = _normalize_int(target.get("alignment_type"), 2, 0, 2)
+    target["tmscore_threshold"] = _normalize_float(target.get("tmscore_threshold"), 0.0, 0.0, 1.0)
+    target["exhaustive_search"] = _normalize_bool(target.get("exhaustive_search"), False)
+    target["exact_tmscore"] = _normalize_bool(target.get("exact_tmscore"), False)
+    target["gpu"] = _normalize_bool(target.get("gpu"), False)
+    target["verbosity"] = _normalize_int(target.get("verbosity"), 3, 0, 3)
+    target["extra_args"] = _normalize_string_list(target.get("extra_args"))
 
 
 def _normalize_protein_structure_tree_builder_method(value):
@@ -322,6 +367,43 @@ def _normalize_protein_structure_tree_builder_method(value):
     if method.lower() in {"swiftnj", "swift nj"}:
         return "SwiftNJ"
     return "NJ"
+
+
+def _normalize_int(value, default, minimum=None, maximum=None):
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError):
+        normalized = default
+    if minimum is not None:
+        normalized = max(minimum, normalized)
+    if maximum is not None:
+        normalized = min(maximum, normalized)
+    return normalized
+
+
+def _normalize_float(value, default, minimum=None, maximum=None):
+    try:
+        normalized = float(value)
+    except (TypeError, ValueError):
+        normalized = default
+    if minimum is not None:
+        normalized = max(minimum, normalized)
+    if maximum is not None:
+        normalized = min(maximum, normalized)
+    return normalized
+
+
+def _normalize_bool(value, default=False):
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True
+    if text in {"0", "false", "no", "n", "off"}:
+        return False
+    return default
 
 
 def _merge_phylip_program(target, overrides, program_key, target_key):

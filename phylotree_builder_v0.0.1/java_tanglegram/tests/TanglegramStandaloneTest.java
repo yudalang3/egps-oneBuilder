@@ -12,25 +12,35 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class TanglegramStandaloneTest {
+    private static final String SUITE_PREFERENCE_NODE = "/egps-onebuilder/tests/tanglegram/suite";
+
     private TanglegramStandaloneTest() {
     }
 
     public static void main(String[] args) throws Exception {
         System.setProperty("java.awt.headless", "true");
 
-        run("parsesEmptyArguments", TanglegramStandaloneTest::parsesEmptyArguments);
-        run("parsesDirectoryArgument", TanglegramStandaloneTest::parsesDirectoryArgument);
-        run("rejectsMissingDirectoryValue", TanglegramStandaloneTest::rejectsMissingDirectoryValue);
-        run("disablesFlatlafNativeLibraryByDefault", TanglegramStandaloneTest::disablesFlatlafNativeLibraryByDefault);
-        run("roundTripsUiPreferences", TanglegramStandaloneTest::roundTripsUiPreferences);
-        run("resolvesStoredWindowSizes", TanglegramStandaloneTest::resolvesStoredWindowSizes);
-        run("usesPreferenceBackedTanglegramDefaults", TanglegramStandaloneTest::usesPreferenceBackedTanglegramDefaults);
-        run("resolvesMovedSampleTreesFromFallbackLayout", TanglegramStandaloneTest::resolvesMovedSampleTreesFromFallbackLayout);
-        run("buildsFixedPairOrderForAllMethods", TanglegramStandaloneTest::buildsFixedPairOrderForAllMethods);
-        run("buildsProteinStructurePairsWhenStructureTreeExists", TanglegramStandaloneTest::buildsProteinStructurePairsWhenStructureTreeExists);
-        run("keepsFourMethodPairsWhenProteinStructureTreeIsMissing", TanglegramStandaloneTest::keepsFourMethodPairsWhenProteinStructureTreeIsMissing);
-        run("loadsOnlyAvailablePairsWhenOneMethodIsMissing", TanglegramStandaloneTest::loadsOnlyAvailablePairsWhenOneMethodIsMissing);
-        run("rendersPairPanelForResolvedTrees", TanglegramStandaloneTest::rendersPairPanelForResolvedTrees);
+        UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
+        UiPreferenceStore.clearNodeForTests();
+        try {
+            run("parsesEmptyArguments", TanglegramStandaloneTest::parsesEmptyArguments);
+            run("parsesDirectoryArgument", TanglegramStandaloneTest::parsesDirectoryArgument);
+            run("rejectsMissingDirectoryValue", TanglegramStandaloneTest::rejectsMissingDirectoryValue);
+            run("disablesFlatlafNativeLibraryByDefault", TanglegramStandaloneTest::disablesFlatlafNativeLibraryByDefault);
+            run("roundTripsUiPreferences", TanglegramStandaloneTest::roundTripsUiPreferences);
+            run("resolvesStoredWindowSizes", TanglegramStandaloneTest::resolvesStoredWindowSizes);
+            run("usesPreferenceBackedTanglegramDefaults", TanglegramStandaloneTest::usesPreferenceBackedTanglegramDefaults);
+            run("resolvesMovedSampleTreesFromFallbackLayout", TanglegramStandaloneTest::resolvesMovedSampleTreesFromFallbackLayout);
+            run("buildsFixedPairOrderForAllMethods", TanglegramStandaloneTest::buildsFixedPairOrderForAllMethods);
+            run("buildsProteinStructurePairsWhenStructureTreeExists", TanglegramStandaloneTest::buildsProteinStructurePairsWhenStructureTreeExists);
+            run("keepsFourMethodPairsWhenProteinStructureTreeIsMissing", TanglegramStandaloneTest::keepsFourMethodPairsWhenProteinStructureTreeIsMissing);
+            run("loadsOnlyAvailablePairsWhenOneMethodIsMissing", TanglegramStandaloneTest::loadsOnlyAvailablePairsWhenOneMethodIsMissing);
+            run("rendersPairPanelForResolvedTrees", TanglegramStandaloneTest::rendersPairPanelForResolvedTrees);
+        } finally {
+            UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
+            UiPreferenceStore.clearNodeForTests();
+            UiPreferenceStore.resetNodeForTests();
+        }
     }
 
     private static void parsesEmptyArguments() {
@@ -80,7 +90,7 @@ public final class TanglegramStandaloneTest {
         assertTrue(loaded.showWindowsOneBuilderWarning(), "expected Windows startup warning to be enabled");
         assertEquals(UiLanguage.CHINESE, loaded.uiLanguage(), "expected stored UI language");
 
-        UiPreferenceStore.resetNodeForTests();
+        UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
     }
 
     private static void resolvesStoredWindowSizes() {
@@ -97,7 +107,7 @@ public final class TanglegramStandaloneTest {
         assertEquals(new Dimension(1400, 900), UiPreferenceStore.resolveWindowSize("tanglegram", new Dimension(1400, 900)),
                 "expected fallback size when restore is disabled");
 
-        UiPreferenceStore.resetNodeForTests();
+        UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
     }
 
     private static void usesPreferenceBackedTanglegramDefaults() {
@@ -109,7 +119,7 @@ public final class TanglegramStandaloneTest {
         TanglegramRenderOptions defaults = TanglegramRenderOptions.defaults();
         assertEquals(Integer.valueOf(26), Integer.valueOf(defaults.labelFontSize()), "expected label size from preferences");
 
-        UiPreferenceStore.resetNodeForTests();
+        UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
     }
 
     private static void resolvesMovedSampleTreesFromFallbackLayout() throws Exception {

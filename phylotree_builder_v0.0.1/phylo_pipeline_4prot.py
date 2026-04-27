@@ -1156,6 +1156,7 @@ class ProteinPhylogeneticPipeline:
         missing_distance = settings.get("missing_distance")
         if missing_distance is not None:
             cmd.extend(["--missing-distance", str(missing_distance)])
+        cmd.extend(self.protein_structure_foldseek_args(settings))
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -1179,6 +1180,36 @@ class ProteinPhylogeneticPipeline:
             if exception.stderr:
                 self.logger.error(exception.stderr.strip())
             return None
+
+    def protein_structure_foldseek_args(self, settings):
+        """Convert protein-structure runtime settings into wrapper CLI arguments."""
+        args = []
+        option_map = [
+            ("threads", "--threads"),
+            ("sensitivity", "--sensitivity"),
+            ("evalue", "--evalue"),
+            ("max_seqs", "--max-seqs"),
+            ("coverage_threshold", "--coverage-threshold"),
+            ("coverage_mode", "--coverage-mode"),
+            ("alignment_type", "--alignment-type"),
+            ("tmscore_threshold", "--tmscore-threshold"),
+            ("verbosity", "--verbosity"),
+        ]
+        for setting_key, cli_key in option_map:
+            value = settings.get(setting_key)
+            if value is not None:
+                args.extend([cli_key, str(value)])
+        for setting_key, cli_key in [
+            ("exhaustive_search", "--exhaustive-search"),
+            ("exact_tmscore", "--exact-tmscore"),
+            ("gpu", "--gpu"),
+        ]:
+            if settings.get(setting_key):
+                args.append(cli_key)
+        for extra_arg in settings.get("extra_args", []) or []:
+            if str(extra_arg).strip():
+                args.extend(["--foldseek-extra-arg", str(extra_arg).strip()])
+        return args
 
     def build_protein_structure_tree(self, distance_matrix_path, work_dir):
         """Build a Newick tree from the Foldseek structure distance matrix."""
