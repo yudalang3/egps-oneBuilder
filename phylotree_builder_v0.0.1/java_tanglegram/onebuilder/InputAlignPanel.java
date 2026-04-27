@@ -719,7 +719,7 @@ final class InputAlignPanel extends JPanel {
             notifyInputChanged();
         }
         inputTypeHintLabel.setText("Auto-detected: " + detectedInputType.displayName()
-                + (detection.needsAlignment() ? "; raw sequence lengths differ, alignment enabled." : "; alignment status not forced."));
+                + (detection.needsAlignment() ? "; raw sequence lengths differ, alignment enabled." : "; raw sequence length equal, do not align default."));
     }
 
     private static boolean updateSequenceLengthDifference(
