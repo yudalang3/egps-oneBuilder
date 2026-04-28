@@ -189,6 +189,11 @@ public final class PipelineConfigWriter {
         } else {
             section.put("structure_manifest_file", proteinStructure.structureManifestFile());
         }
+        if (proteinStructure.prostt5ModelPath() == null) {
+            section.put("prostt5_model_path", JSONObject.NULL);
+        } else {
+            section.put("prostt5_model_path", proteinStructure.prostt5ModelPath());
+        }
         return section;
     }
 

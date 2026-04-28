@@ -388,6 +388,11 @@ final class InputAlignPanel extends JPanel {
                             ? textOrDash(runtimeConfig.proteinStructure().structureManifestFile())
                             : "Not used; FASTA-only ProstT5/3Di mode")
                     .append(System.lineSeparator());
+            if (!runtimeConfig.proteinStructure().useStructureManifest()) {
+                builder.append("  ProstT5 model weights: ")
+                        .append(textOrDash(runtimeConfig.proteinStructure().prostt5ModelPath()))
+                        .append(System.lineSeparator());
+            }
             builder.append("  Structure tree builder: ")
                     .append("SwiftNJ".equals(runtimeConfig.proteinStructure().treeBuilderMethod()) ? "Swift NJ" : "NJ")
                     .append(System.lineSeparator());
@@ -532,6 +537,20 @@ final class InputAlignPanel extends JPanel {
         }
         ProteinStructureConfig proteinStructure = runtimeConfig.proteinStructure();
         if (!proteinStructure.useStructureManifest()) {
+            String prostt5ModelText = proteinStructure.prostt5ModelPath();
+            if (prostt5ModelText == null || prostt5ModelText.isBlank()) {
+                throw new IllegalArgumentException(
+                        "ProstT5 model weights path is required when Protein Structure is enabled without a structure TSV. oneBuilder does not download ProstT5 automatically.");
+            }
+            Path prostt5ModelPath;
+            try {
+                prostt5ModelPath = Paths.get(prostt5ModelText).toAbsolutePath().normalize();
+            } catch (InvalidPathException exception) {
+                throw new IllegalArgumentException("ProstT5 model weights path is invalid: " + prostt5ModelText, exception);
+            }
+            if (!Files.exists(prostt5ModelPath)) {
+                throw new IllegalArgumentException("ProstT5 model weights path does not exist: " + prostt5ModelPath);
+            }
             return;
         }
         String manifestText = proteinStructure.structureManifestFile();

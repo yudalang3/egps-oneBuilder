@@ -127,6 +127,7 @@
       "backend": "foldseek",
       "use_structure_manifest": false,
       "structure_manifest_file": null,
+      "prostt5_model_path": null,
       "sequence_only_mode": "prostt5",
       "similarity_rule": "mean_qtmscore_ttmscore",
       "missing_distance": "1"

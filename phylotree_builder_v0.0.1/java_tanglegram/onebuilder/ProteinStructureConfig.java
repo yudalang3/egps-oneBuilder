@@ -16,6 +16,7 @@ public final class ProteinStructureConfig {
     private final boolean enabled;
     private final boolean useStructureManifest;
     private final String structureManifestFile;
+    private final String prostt5ModelPath;
     private final String treeBuilderMethod;
     private final int threads;
     private final double sensitivity;
@@ -40,10 +41,20 @@ public final class ProteinStructureConfig {
             boolean useStructureManifest,
             String structureManifestFile,
             String treeBuilderMethod) {
+        this(enabled, useStructureManifest, structureManifestFile, null, treeBuilderMethod);
+    }
+
+    public ProteinStructureConfig(
+            boolean enabled,
+            boolean useStructureManifest,
+            String structureManifestFile,
+            String prostt5ModelPath,
+            String treeBuilderMethod) {
         this(
                 enabled,
                 useStructureManifest,
                 structureManifestFile,
+                prostt5ModelPath,
                 treeBuilderMethod,
                 DEFAULT_THREADS,
                 DEFAULT_SENSITIVITY,
@@ -78,9 +89,50 @@ public final class ProteinStructureConfig {
             boolean gpu,
             int verbosity,
             List<String> extraArgs) {
+        this(
+                enabled,
+                useStructureManifest,
+                structureManifestFile,
+                null,
+                treeBuilderMethod,
+                threads,
+                sensitivity,
+                evalue,
+                maxSeqs,
+                coverageThreshold,
+                coverageMode,
+                alignmentType,
+                tmscoreThreshold,
+                exhaustiveSearch,
+                exactTmscore,
+                gpu,
+                verbosity,
+                extraArgs);
+    }
+
+    public ProteinStructureConfig(
+            boolean enabled,
+            boolean useStructureManifest,
+            String structureManifestFile,
+            String prostt5ModelPath,
+            String treeBuilderMethod,
+            int threads,
+            double sensitivity,
+            double evalue,
+            int maxSeqs,
+            double coverageThreshold,
+            int coverageMode,
+            int alignmentType,
+            double tmscoreThreshold,
+            boolean exhaustiveSearch,
+            boolean exactTmscore,
+            boolean gpu,
+            int verbosity,
+            List<String> extraArgs) {
         this.enabled = enabled;
         this.useStructureManifest = useStructureManifest;
         this.structureManifestFile = normalizeText(structureManifestFile);
+        this.prostt5ModelPath = normalizeText(prostt5ModelPath);
         this.treeBuilderMethod = normalizeTreeBuilderMethod(treeBuilderMethod);
         this.threads = Math.max(0, threads);
         this.sensitivity = Math.max(1.0d, sensitivity);
@@ -111,6 +163,10 @@ public final class ProteinStructureConfig {
 
     public String structureManifestFile() {
         return structureManifestFile;
+    }
+
+    public String prostt5ModelPath() {
+        return prostt5ModelPath;
     }
 
     public String treeBuilderMethod() {

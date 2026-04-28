@@ -237,10 +237,11 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 - 输入页包含输入/输出路径、最近浏览目录记忆、MAFFT strategy、`Maxiterate`、sequence reorder 控制、`Advanced MAFFT`、`Export config file when running` 以及 `Export JSON`。
 - 高级参数区域默认折叠，并且统一放在主要参数区的正下方。
 - GUI 支持在启动 run 之前，按方法开启/关闭四种建树步骤，并调整公开出来的 ML、贝叶斯以及结构化 PHYLIP 常用参数。
-- `Protein Structure` 是蛋白质专用的 Foldseek 步骤。Basic Parameters 包含 `Enable Foldseek protein structure similarity`、`Use protein structure mapping TSV` 和 `Protein structure TSV`。不选择 TSV 时，Foldseek 会直接用输入 FASTA 走 ProstT5/3Di 模式；选择 TSV 时，每个非注释行必须是 `sequence_id<TAB>structure_file`，相对结构路径按 TSV 所在目录解析。
+- `Protein Structure` 是蛋白质专用的 Foldseek 步骤。Basic Parameters 包含 `Enable Foldseek protein structure similarity`、`Use protein structure mapping TSV`、`Protein structure TSV` 和 `ProstT5 model weights`。选择 TSV 时，每个非注释行必须是 `sequence_id<TAB>structure_file`，相对结构路径按 TSV 所在目录解析。不选择 TSV 时，FASTA-only ProstT5/3Di 模式必须提供本地 ProstT5 权重路径；oneBuilder 不会自动下载这个模型。
 - `Protein Structure > Advanced Parameters` 暴露 Foldseek 搜索参数：`Threads (--threads)`、`Sensitivity (-s)`、`E-value (-e)`、`Max seqs (--max-seqs)`、`Coverage threshold (-c)`、`Coverage mode (--cov-mode)`、`Alignment type (--alignment-type)`、`TM-score threshold`、`Verbosity (-v)`、`--exhaustive-search`、`--exact-tmscore`、`--gpu`，以及一行一个 token 的 `Extra Foldseek args`。
 - Foldseek 生成距离矩阵后，oneBuilder 可以用 `NJ` 或 `Swift NJ` 构建 `protein_structure/structure_tree.nwk`。这棵结构树在 tanglegram 中是可选的第五棵树；没有启用 Protein Structure 的旧输出仍然按原来的四种方法比较。
-- Foldseek 步骤会输出 `protein_structure/pairwise_scores.tsv`、`protein_structure/similarity_matrix.tsv`、`protein_structure/distance_matrix.tsv`、`protein_structure/structure_tree.nwk` 和 `protein_structure/run_config.json`。运行时生成的 `structure_inputs/` 与 `foldseek_tmp/` 已经被 Git 忽略。
+- Foldseek 步骤会输出 `protein_structure/pairwise_scores.tsv`、`protein_structure/similarity_matrix.tsv`、`protein_structure/distance_matrix.tsv`、`protein_structure/structure_tree.nwk` 和 `protein_structure/run_config.json`。运行时生成的 `structure_inputs/` 与 `foldseek_tmp/` 已经被 Git 忽略。CLI/JSON 配置运行时，只要 `use_structure_manifest` 为 `false`，就必须设置 `methods.protein_structure.prostt5_model_path`。
+- 如果后续用 Apptainer/Singularity 打包，请把 ProstT5 权重放进镜像，或运行时 bind mount 进去，然后把 `prostt5_model_path` 设置成容器内可见路径。
 - 默认结构距离策略是 `distance = 1 - similarity`。有真实结构时默认使用 `qtmscore` 和 `ttmscore` 的均值；如果 Foldseek 没返回某个 pair，默认距离写为 `1`，保证距离矩阵仍是数值矩阵。
 - `Tree Build` 的主进度条在准备阶段先显示不带百分比的动态效果，等收到方法或后处理进度事件后再切换成确定的 `completed/total` 进度。贝叶斯、Protein Structure 和树距离计算等慢步骤会保留同一个计数器，并显示 `please wait...` 文本动画。
 - ML 页面现在会给出非阻断式的 Bootstrap 提示：`1000` 仍是推荐默认值，`0` 会明确表示跳过 `-bb`，而特别大的值只会提示运行时间风险，不会强制拦截。

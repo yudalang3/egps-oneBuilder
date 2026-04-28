@@ -41,6 +41,7 @@ public final class OneBuilderStandaloneTest {
             run("blocksNavigationUntilRequiredInputIsReady", OneBuilderStandaloneTest::blocksNavigationUntilRequiredInputIsReady);
             run("prefersInputParentDirectoryWhenInputPathIsAFile", OneBuilderStandaloneTest::prefersInputParentDirectoryWhenInputPathIsAFile);
             run("rejectsInvalidOutputDirectoryPath", OneBuilderStandaloneTest::rejectsInvalidOutputDirectoryPath);
+            run("requiresProstt5ModelPathForFastaOnlyProteinStructure", OneBuilderStandaloneTest::requiresProstt5ModelPathForFastaOnlyProteinStructure);
             run("autoDetectsDnaInputTypeForExportedConfig", OneBuilderStandaloneTest::autoDetectsDnaInputTypeForExportedConfig);
             run("autoEnablesAlignmentForUnequalSequenceLengths", OneBuilderStandaloneTest::autoEnablesAlignmentForUnequalSequenceLengths);
             run("adaptsMaximumLikelihoodStrategiesByInputType", OneBuilderStandaloneTest::adaptsMaximumLikelihoodStrategiesByInputType);
@@ -252,6 +253,7 @@ public final class OneBuilderStandaloneTest {
                         true,
                         true,
                         "/data/structures.tsv",
+                        "/models/prostt5",
                         "SwiftNJ",
                         6,
                         7.5d,
@@ -291,6 +293,9 @@ public final class OneBuilderStandaloneTest {
         assertEquals("/data/structures.tsv",
                 root.getJSONObject("methods").getJSONObject("protein_structure").getString("structure_manifest_file"),
                 "expected protein structure TSV path");
+        assertEquals("/models/prostt5",
+                root.getJSONObject("methods").getJSONObject("protein_structure").getString("prostt5_model_path"),
+                "expected ProstT5 model path");
         assertEquals("mean_qtmscore_ttmscore",
                 root.getJSONObject("methods").getJSONObject("protein_structure").getString("similarity_rule"),
                 "expected default Foldseek similarity rule");
@@ -365,8 +370,9 @@ public final class OneBuilderStandaloneTest {
 
             assertEquals("NJ", panel.toConfig().treeBuilderMethod(), "expected NJ as the default structure tree builder");
 
-            panel.apply(new ProteinStructureConfig(true, false, null, "SwiftNJ"));
+            panel.apply(new ProteinStructureConfig(true, false, null, "/models/prostt5", "SwiftNJ"));
             assertEquals("SwiftNJ", panel.toConfig().treeBuilderMethod(), "expected SwiftNJ to round-trip through the panel");
+            assertEquals("/models/prostt5", panel.toConfig().prostt5ModelPath(), "expected ProstT5 model path to round-trip through the panel");
         });
     }
 
@@ -616,6 +622,26 @@ public final class OneBuilderStandaloneTest {
             throw new AssertionError("expected invalid output path to be rejected");
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains("Output"), "expected output-path validation message");
+        }
+    }
+
+    private static void requiresProstt5ModelPathForFastaOnlyProteinStructure() throws Exception {
+        Path tempInputFile = Files.createTempFile("onebuilder-protein-input-", ".fasta");
+        Path tempOutputDirectory = Files.createTempDirectory("onebuilder-protein-output-");
+        Files.writeString(tempInputFile, ">seq1\nMPEPTIDE\n>seq2\nMPEPTIDK\n", StandardCharsets.UTF_8);
+
+        PipelineRuntimeConfig runtimeConfig = PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN)
+                .withProteinStructure(new ProteinStructureConfig(true, false, null, null, "NJ"));
+        InputAlignPanel panel = new InputAlignPanel(PlatformSupport.LINUX, () -> { }, () -> runtimeConfig);
+        setTextField(panel, "inputFileField", tempInputFile.toString());
+        setTextField(panel, "outputDirField", tempOutputDirectory.toString());
+
+        try {
+            panel.buildRunRequestForExport();
+            throw new AssertionError("expected FASTA-only Protein Structure to require a local ProstT5 model path");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("ProstT5 model weights path is required"),
+                    "expected explicit ProstT5 model validation message");
         }
     }
 

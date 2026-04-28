@@ -27,6 +27,8 @@ final class ProteinStructurePanel extends JPanel {
     private final JCheckBox useStructureManifestCheckBox;
     private final JTextField structureManifestField;
     private final JButton browseButton;
+    private final JTextField prostt5ModelField;
+    private final JButton prostt5BrowseButton;
     private final JRadioButton njTreeBuilderButton;
     private final JRadioButton swiftNjTreeBuilderButton;
     private final JSpinner threadsSpinner;
@@ -55,6 +57,9 @@ final class ProteinStructurePanel extends JPanel {
         structureManifestField = new JTextField();
         browseButton = new JButton("Browse");
         browseButton.addActionListener(event -> browseForStructureManifest());
+        prostt5ModelField = new JTextField();
+        prostt5BrowseButton = new JButton("Browse");
+        prostt5BrowseButton.addActionListener(event -> browseForProstt5Model());
         njTreeBuilderButton = new JRadioButton("NJ", true);
         swiftNjTreeBuilderButton = new JRadioButton("Swift NJ", false);
         ButtonGroup treeBuilderGroup = new ButtonGroup();
@@ -109,13 +114,33 @@ final class ProteinStructurePanel extends JPanel {
 
         constraints.gridx = 0;
         constraints.gridy = 4;
+        constraints.gridwidth = 1;
+        constraints.weightx = 0.0;
+        formPanel.add(new JLabel("ProstT5 model weights"), constraints);
+
+        constraints.gridx = 1;
+        constraints.weightx = 1.0;
+        formPanel.add(prostt5ModelField, constraints);
+
+        constraints.gridx = 2;
+        constraints.weightx = 0.0;
+        formPanel.add(prostt5BrowseButton, constraints);
+
+        constraints.gridx = 0;
+        constraints.gridy = 5;
+        constraints.gridwidth = 3;
+        constraints.weightx = 1.0;
+        formPanel.add(new JLabel("<html><b>Required without TSV:</b> Select local ProstT5 model weights. oneBuilder will not download ProstT5 automatically.</html>"), constraints);
+
+        constraints.gridx = 0;
+        constraints.gridy = 6;
         constraints.gridwidth = 3;
         constraints.weightx = 1.0;
         constraints.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(WorkbenchStyles.createNoteArea(
-                "When no TSV is selected, Foldseek uses the input FASTA with ProstT5/3Di for structure-like similarity. "
-                        + "When a TSV is selected, each non-comment row must contain: sequence_id<TAB>structure_file. "
-                        + "Lines beginning with # are ignored, and relative structure paths are resolved from the TSV file location."),
+                "When no protein structure TSV is provided, FASTA-only Foldseek mode requires a local ProstT5 model weights path. "
+                        + "oneBuilder will not download this file automatically. Download it yourself and select it here. "
+                        + "When a TSV is selected, each non-comment row must contain: sequence_id<TAB>structure_file; relative structure paths are resolved from the TSV file location."),
                 constraints);
 
         JPanel advancedForm = new JPanel(new GridBagLayout());
@@ -157,13 +182,13 @@ final class ProteinStructurePanel extends JPanel {
                 WorkbenchStyles.createNoteArea("Advanced fields map directly to Foldseek search flags. Extra args are appended last; enter one token per line."),
                 BorderLayout.CENTER);
 
-        constraints.gridy = 5;
+        constraints.gridy = 7;
         formPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), constraints);
 
-        constraints.gridy = 6;
+        constraints.gridy = 8;
         formPanel.add(new JSeparator(), constraints);
 
-        constraints.gridy = 7;
+        constraints.gridy = 9;
         formPanel.add(new JLabel("<html>After Foldseek produces a pair-wise distance matrix, eGPS will build a "
                 + "structure-similarity tree with the selected method.</html>"), constraints);
 
@@ -188,7 +213,7 @@ final class ProteinStructurePanel extends JPanel {
         horizontalFiller.setOpaque(false);
         treeBuilderPanel.add(horizontalFiller, radioConstraints);
 
-        constraints.gridy = 8;
+        constraints.gridy = 10;
         formPanel.add(treeBuilderPanel, constraints);
 
         add(formPanel, BorderLayout.NORTH);
@@ -209,6 +234,7 @@ final class ProteinStructurePanel extends JPanel {
         enabledCheckBox.setSelected(safeConfig.enabled());
         useStructureManifestCheckBox.setSelected(safeConfig.useStructureManifest());
         structureManifestField.setText(safeConfig.structureManifestFile() == null ? "" : safeConfig.structureManifestFile());
+        prostt5ModelField.setText(safeConfig.prostt5ModelPath() == null ? "" : safeConfig.prostt5ModelPath());
         if ("SwiftNJ".equals(safeConfig.treeBuilderMethod())) {
             swiftNjTreeBuilderButton.setSelected(true);
         } else {
@@ -235,6 +261,7 @@ final class ProteinStructurePanel extends JPanel {
                 inputType == InputType.PROTEIN && enabledCheckBox.isSelected(),
                 useStructureManifestCheckBox.isSelected(),
                 structureManifestField.getText(),
+                prostt5ModelField.getText(),
                 swiftNjTreeBuilderButton.isSelected() ? "SwiftNJ" : "NJ",
                 ((Integer) threadsSpinner.getValue()).intValue(),
                 ((Double) sensitivitySpinner.getValue()).doubleValue(),
@@ -261,13 +288,27 @@ final class ProteinStructurePanel extends JPanel {
         }
     }
 
+    private void browseForProstt5Model() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+        int selection = chooser.showOpenDialog(this);
+        if (selection == JFileChooser.APPROVE_OPTION) {
+            Path selectedPath = chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
+            prostt5ModelField.setText(selectedPath.toString());
+        }
+    }
+
     private void updateControlState() {
         boolean proteinInput = inputType == InputType.PROTEIN;
         boolean enabled = proteinInput && enabledCheckBox.isSelected();
+        boolean structureManifestEnabled = enabled && useStructureManifestCheckBox.isSelected();
+        boolean prostt5Enabled = enabled && !useStructureManifestCheckBox.isSelected();
         enabledCheckBox.setEnabled(proteinInput);
         useStructureManifestCheckBox.setEnabled(enabled);
-        structureManifestField.setEnabled(enabled && useStructureManifestCheckBox.isSelected());
-        browseButton.setEnabled(enabled && useStructureManifestCheckBox.isSelected());
+        structureManifestField.setEnabled(structureManifestEnabled);
+        browseButton.setEnabled(structureManifestEnabled);
+        prostt5ModelField.setEnabled(prostt5Enabled);
+        prostt5BrowseButton.setEnabled(prostt5Enabled);
         njTreeBuilderButton.setEnabled(enabled);
         swiftNjTreeBuilderButton.setEnabled(enabled);
         threadsSpinner.setEnabled(enabled);

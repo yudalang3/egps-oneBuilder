@@ -1162,6 +1162,14 @@ class ProteinPhylogeneticPipeline:
                 self.logger.error("Protein structure TSV is required when structure mapping is enabled")
                 return None
             cmd.extend(["--structure-manifest", str(manifest_file)])
+        else:
+            prostt5_model_path = settings.get("prostt5_model_path")
+            if not prostt5_model_path:
+                self.logger.error(
+                    "FASTA-only Foldseek mode requires prostt5_model_path. oneBuilder does not download ProstT5 weights automatically."
+                )
+                return None
+            cmd.extend(["--prostt5-model", str(prostt5_model_path)])
         similarity_rule = settings.get("similarity_rule")
         if similarity_rule:
             cmd.extend(["--similarity-rule", str(similarity_rule)])

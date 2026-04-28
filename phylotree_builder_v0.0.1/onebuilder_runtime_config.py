@@ -64,6 +64,7 @@ PROTEIN_DEFAULTS = {
         "backend": "foldseek",
         "use_structure_manifest": False,
         "structure_manifest_file": None,
+        "prostt5_model_path": None,
         "sequence_only_mode": "prostt5",
         "similarity_rule": "mean_qtmscore_ttmscore",
         "missing_distance": "1",
@@ -148,6 +149,7 @@ DNA_DEFAULTS = {
         "backend": "foldseek",
         "use_structure_manifest": False,
         "structure_manifest_file": None,
+        "prostt5_model_path": None,
         "sequence_only_mode": "prostt5",
         "similarity_rule": "mean_qtmscore_ttmscore",
         "missing_distance": "1",
@@ -202,13 +204,14 @@ def _resolve_runtime_config_paths(payload, config_dir):
     protein_structure = methods.get("protein_structure")
     if not isinstance(protein_structure, dict):
         return
-    manifest_file = protein_structure.get("structure_manifest_file")
-    if not manifest_file:
-        return
-    manifest_path = Path(str(manifest_file).strip()).expanduser()
-    if not manifest_path.is_absolute():
-        manifest_path = (config_dir / manifest_path).resolve()
-    protein_structure["structure_manifest_file"] = str(manifest_path)
+    for path_key in ("structure_manifest_file", "prostt5_model_path"):
+        raw_path = protein_structure.get(path_key)
+        if not raw_path:
+            continue
+        resolved_path = Path(str(raw_path).strip()).expanduser()
+        if not resolved_path.is_absolute():
+            resolved_path = (config_dir / resolved_path).resolve()
+        protein_structure[path_key] = str(resolved_path)
 
 
 def protein_runtime_settings(runtime_config):
@@ -338,6 +341,8 @@ def _merge_protein_structure(target, overrides, input_type):
     target["use_structure_manifest"] = bool(target.get("use_structure_manifest", False))
     manifest_file = target.get("structure_manifest_file")
     target["structure_manifest_file"] = str(manifest_file).strip() if manifest_file else None
+    prostt5_model_path = target.get("prostt5_model_path")
+    target["prostt5_model_path"] = str(prostt5_model_path).strip() if prostt5_model_path else None
     sequence_only_mode = str(target.get("sequence_only_mode") or "prostt5").strip().lower()
     target["sequence_only_mode"] = sequence_only_mode or "prostt5"
     similarity_rule = str(target.get("similarity_rule") or "mean_qtmscore_ttmscore").strip()

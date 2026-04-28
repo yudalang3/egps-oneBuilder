@@ -52,6 +52,10 @@ def main() -> int:
         "--structure-manifest",
         help="Optional TSV mapping FASTA sequence IDs to PDB/mmCIF files.",
     )
+    parser.add_argument(
+        "--prostt5-model",
+        help="Local ProstT5 model weights path required for FASTA-only Foldseek mode. oneBuilder never downloads this automatically.",
+    )
     parser.add_argument("--threads", type=int, default=0, help="Foldseek threads; 0 lets Foldseek decide.")
     parser.add_argument("--sensitivity", type=float, default=9.5, help="Foldseek sensitivity (-s).")
     parser.add_argument("--evalue", type=float, default=10.0, help="Foldseek E-value threshold (-e).")
@@ -95,6 +99,9 @@ def main() -> int:
     if not sequence_ids:
         raise SystemExit(f"No FASTA records found in {input_fasta}")
     similarity_rule = normalize_similarity_rule(args.similarity_rule)
+    prostt5_model_path = None
+    if not args.structure_manifest:
+        prostt5_model_path = resolve_required_prostt5_model(args.prostt5_model)
 
     foldseek_exe = resolve_foldseek(args.foldseek)
     tmp_dir = output_dir / "foldseek_tmp"
@@ -137,6 +144,7 @@ def main() -> int:
             raw_output,
             tmp_dir,
             args.threads,
+            prostt5_model_path,
             foldseek_extra_args,
         )
         rows = normalize_foldseek_rows(
@@ -146,7 +154,7 @@ def main() -> int:
             "sequence_vs_sequence",
             similarity_rule,
         )
-        run_config_extra = {}
+        run_config_extra = {"prostt5_model_path": str(prostt5_model_path)}
 
     write_pairwise_scores(output_dir / "pairwise_scores.tsv", rows)
     write_matrices(output_dir, sequence_ids, rows, args.missing_distance)
@@ -191,6 +199,18 @@ def resolve_foldseek(foldseek_command: str) -> str:
     raise SystemExit(
         "Foldseek executable was not found. Install Foldseek or set FOLDSEEK_EXE."
     )
+
+
+def resolve_required_prostt5_model(prostt5_model_arg: str | None) -> Path:
+    if not prostt5_model_arg or not str(prostt5_model_arg).strip():
+        raise SystemExit(
+            "FASTA-only Foldseek mode requires --prostt5-model pointing to local ProstT5 weights. "
+            "oneBuilder does not download ProstT5 automatically; download it yourself or provide --structure-manifest."
+        )
+    prostt5_model_path = Path(str(prostt5_model_arg).strip()).expanduser().resolve()
+    if not prostt5_model_path.exists():
+        raise SystemExit(f"ProstT5 model weights path does not exist: {prostt5_model_path}")
+    return prostt5_model_path
 
 
 def normalize_similarity_rule(value: str | None) -> str:
@@ -340,13 +360,7 @@ def run_foldseek_easy_search(
     format_output: str,
     threads: int,
     extra_args: list[str] | None = None,
-    prepare_prostt5: bool = False,
 ) -> None:
-    if prepare_prostt5:
-        weights_dir = output_file.parent / "prostt5_weights"
-        if not weights_dir.exists():
-            run_command([foldseek_exe, "databases", "ProstT5", str(weights_dir), str(tmp_dir)])
-
     command = [
         foldseek_exe,
         "easy-search",
@@ -370,20 +384,18 @@ def run_foldseek_sequence_search(
     output_file: Path,
     tmp_dir: Path,
     threads: int,
+    prostt5_model_path: Path,
     extra_args: list[str] | None = None,
 ) -> None:
-    weights_dir = output_file.parent / "prostt5_weights"
     sequence_db = output_file.parent / "sequence_db"
     result_db = output_file.parent / "sequence_search_result"
-    if not weights_dir.exists():
-        run_command([foldseek_exe, "databases", "ProstT5", str(weights_dir), str(tmp_dir)])
     run_command([
         foldseek_exe,
         "createdb",
         str(input_fasta),
         str(sequence_db),
         "--prostt5-model",
-        str(weights_dir),
+        str(prostt5_model_path),
     ])
     search_command = [foldseek_exe, "search", str(sequence_db), str(sequence_db), str(result_db), str(tmp_dir)]
     if threads and threads > 0:
