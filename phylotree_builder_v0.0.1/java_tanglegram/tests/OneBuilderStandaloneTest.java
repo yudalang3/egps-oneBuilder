@@ -494,6 +494,16 @@ public final class OneBuilderStandaloneTest {
                         outputDir.resolve("tree_summary").toString()),
                 command,
                 "unexpected standalone tanglegram launch command");
+        assertEquals(
+                scriptDir.resolve("how_to_cite.md").toAbsolutePath().normalize(),
+                HowToCitePanel.resolveCitationDocument(scriptDir),
+                "unexpected citation document path");
+
+        HowToCitePanel panel = new HowToCitePanel(scriptDir);
+        assertEquals(
+                scriptDir.resolve("how_to_cite.md").toAbsolutePath().normalize(),
+                panel.citationDocumentPathForTest(),
+                "unexpected panel citation path");
     }
 
     private static void buildsLinuxWorkbenchShell() throws Exception {
@@ -505,7 +515,7 @@ public final class OneBuilderStandaloneTest {
                     Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"),
                     PlatformSupport.LINUX);
             assertEquals(
-                    Arrays.asList("Input / Align", "Tree Parameters", "Reroot Tree", "Tree Build", "Tanglegram", "Vis. Launching"),
+                    Arrays.asList("Input / Align", "Tree Parameters", "Reroot Tree", "Tree Build", "Tanglegram", "Vis. Launching", "How to cite"),
                     workspacePanel.navigationLabels(),
                     "unexpected left navigation labels");
             assertEquals("Input / Align", workspacePanel.selectedSectionLabel(), "unexpected initial section");
@@ -514,6 +524,11 @@ public final class OneBuilderStandaloneTest {
             assertTrue(!workspacePanel.isSectionEnabled("Tree Build"), "tree build section should start disabled");
             assertTrue(!workspacePanel.isSectionEnabled("Tanglegram"), "tanglegram section should start disabled");
             assertTrue(!workspacePanel.isSectionEnabled("Vis. Launching"), "vis launching section should start disabled");
+            assertTrue(workspacePanel.isSectionEnabled("How to cite"), "how to cite should always be enabled");
+            assertEquals(
+                    Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1/how_to_cite.md").toAbsolutePath().normalize(),
+                    workspacePanel.howToCitePanel().citationDocumentPathForTest(),
+                    "unexpected workspace citation path");
             assertTrue(workspacePanel.hasHeaderPanel(), "expected top header");
             assertTrue(workspacePanel.inputAlignPanel().isRunSupported(), "linux should support run");
             assertTrue(workspacePanel.inputAlignPanel().isExportSelected(), "export should default to selected");
@@ -1122,9 +1137,13 @@ public final class OneBuilderStandaloneTest {
                     "unexpected visualization progress text");
             panel.notePipelineOutput("2026-04-23 INFO Visualization completed\n");
             panel.notePipelineOutput("2026-04-23 INFO ['Rscript', '/tmp/cal_pair_wise_tree_dist.R', '/tmp/tree_meta_data.tsv']\n");
-            assertEquals("Calculating tree distances (6/9)", panel.overallProgressTextForTest(),
+            assertTrue(panel.waitIndicatorRunningForTest(),
+                    "tree distance calculation should show a wait indicator while running");
+            assertEquals("Calculating tree distances, please wait... (6/9)", panel.overallProgressTextForTest(),
                     "unexpected tree distance progress text");
             panel.notePipelineOutput("2026-04-23 INFO Tree distance calculation completed\n");
+            assertTrue(!panel.waitIndicatorRunningForTest(),
+                    "tree distance wait indicator should stop when the step completes");
             panel.notePipelineOutput("2026-04-23 INFO Tree distance heatmaps saved: /tmp/a.png and /tmp/a.pdf\n");
             panel.notePipelineOutput("2026-04-23 INFO Summary saved: /tmp/analysis_summary.txt\n");
 
@@ -1150,9 +1169,13 @@ public final class OneBuilderStandaloneTest {
             proteinPanel.setMethodStatus(TreeMethodKey.PROTEIN_STRUCTURE, "Running");
             assertTrue(!proteinPanel.overallProgressIndeterminateForTest(),
                     "protein structure progress event should switch the bar back to determinate mode");
-            assertEquals("Running Protein Structure (0/11)", proteinPanel.overallProgressTextForTest(),
+            assertTrue(proteinPanel.waitIndicatorRunningForTest(),
+                    "protein structure should show a wait indicator while running");
+            assertEquals("Running Protein Structure, please wait... (0/11)", proteinPanel.overallProgressTextForTest(),
                     "unexpected protein structure running text");
             proteinPanel.setMethodStatus(TreeMethodKey.PROTEIN_STRUCTURE, "Completed");
+            assertTrue(!proteinPanel.waitIndicatorRunningForTest(),
+                    "protein structure wait indicator should stop when complete");
             assertEquals(Integer.valueOf(1), Integer.valueOf(proteinPanel.overallProgressValueForTest()),
                     "completed protein structure step should advance progress once");
         });

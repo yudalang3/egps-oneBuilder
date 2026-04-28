@@ -21,6 +21,7 @@ import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingConstants;
+import javax.swing.Timer;
 import javax.swing.UIManager;
 
 final class TreeBuildPanel extends JPanel {
@@ -44,6 +45,9 @@ final class TreeBuildPanel extends JPanel {
     private Path alignedOutputPath;
     private Path outputDirectoryPath;
     private int totalProgressSteps;
+    private final Timer waitIndicatorTimer;
+    private String waitIndicatorMessage;
+    private int waitIndicatorDotCount;
 
     TreeBuildPanel(
             PlatformSupport platformSupport,
@@ -64,6 +68,9 @@ final class TreeBuildPanel extends JPanel {
         this.overallStatus = "Idle";
         this.currentStage = "-";
         this.totalProgressSteps = 0;
+        this.waitIndicatorMessage = null;
+        this.waitIndicatorDotCount = 0;
+        this.waitIndicatorTimer = new Timer(550, event -> advanceWaitIndicator());
         WorkbenchStyles.applyCanvas(this);
 
         add(buildHeader(), BorderLayout.NORTH);
@@ -151,6 +158,10 @@ final class TreeBuildPanel extends JPanel {
         return overallProgressBar.isIndeterminate();
     }
 
+    boolean waitIndicatorRunningForTest() {
+        return waitIndicatorTimer.isRunning();
+    }
+
     void applyPreferences() {
         revalidate();
         repaint();
@@ -194,6 +205,7 @@ final class TreeBuildPanel extends JPanel {
         outputDirectoryPath = executionPlan == null ? null : executionPlan.pipelineOutputDir();
         completedProgressMethods.clear();
         completedPostBuildSteps.clear();
+        stopWaitIndicator();
         if (totalProgressSteps == 0) {
             totalProgressSteps = TreeMethodKey.values().length + PostBuildStep.values().length;
         }
@@ -239,6 +251,7 @@ final class TreeBuildPanel extends JPanel {
 
     void finishRun(String finalStatus) {
         overallStatus = finalStatus == null || finalStatus.isBlank() ? "Idle" : finalStatus;
+        stopWaitIndicator();
         if ("Completed".equalsIgnoreCase(overallStatus)) {
             currentStage = "Complete";
             markAllProgressUnitsComplete();
@@ -400,20 +413,34 @@ final class TreeBuildPanel extends JPanel {
         }
         String normalizedStatus = statusText == null || statusText.isBlank() ? "-" : statusText.trim();
         if ("Running".equalsIgnoreCase(normalizedStatus)) {
-            updateOverallProgressDisplay("Running " + methodLabel(methodKey));
+            String message = "Running " + methodLabel(methodKey);
+            if (isSlowMethod(methodKey)) {
+                startWaitIndicator(message);
+            } else {
+                updateOverallProgressDisplay(message);
+            }
             return;
         }
         if ("Completed".equalsIgnoreCase(normalizedStatus)) {
+            if (isSlowMethod(methodKey)) {
+                stopWaitIndicator();
+            }
             completedProgressMethods.add(methodKey);
             updateOverallProgressDisplay("Completed " + methodLabel(methodKey));
             return;
         }
         if ("Skipped".equalsIgnoreCase(normalizedStatus)) {
+            if (isSlowMethod(methodKey)) {
+                stopWaitIndicator();
+            }
             completedProgressMethods.add(methodKey);
             updateOverallProgressDisplay("Skipped " + methodLabel(methodKey));
             return;
         }
         if ("Failed".equalsIgnoreCase(normalizedStatus)) {
+            if (isSlowMethod(methodKey)) {
+                stopWaitIndicator();
+            }
             completedProgressMethods.add(methodKey);
             updateOverallProgressDisplay("Failed " + methodLabel(methodKey));
         }
@@ -444,7 +471,7 @@ final class TreeBuildPanel extends JPanel {
             return;
         }
         if (containsAny(line, "cal_pair_wise_tree_dist.R", "tree distance calculation")) {
-            updateOverallProgressDisplay("Calculating tree distances");
+            startWaitIndicator("Calculating tree distances");
             return;
         }
         if (containsAny(line, "Tree distance calculation completed", "树距离计算完成")) {
@@ -464,6 +491,9 @@ final class TreeBuildPanel extends JPanel {
         if (step == null) {
             return;
         }
+        if (step == PostBuildStep.TREE_DISTANCE || step == PostBuildStep.HEATMAPS) {
+            stopWaitIndicator();
+        }
         completedPostBuildSteps.add(step);
         updateOverallProgressDisplay(message);
     }
@@ -479,6 +509,11 @@ final class TreeBuildPanel extends JPanel {
     }
 
     private void updateOverallProgressDisplay(String message) {
+        stopWaitIndicator();
+        setOverallProgressDisplay(message);
+    }
+
+    private void setOverallProgressDisplay(String message) {
         if (overallProgressBar.isIndeterminate()) {
             overallProgressBar.setIndeterminate(false);
         }
@@ -494,6 +529,40 @@ final class TreeBuildPanel extends JPanel {
         overallProgressBar.setString(safeMessage + " (" + Math.min(completedSteps, totalProgressSteps) + "/" + totalProgressSteps + ")");
     }
 
+    private void startWaitIndicator(String message) {
+        waitIndicatorMessage = message == null || message.isBlank() ? "Running" : message.trim();
+        waitIndicatorDotCount = 3;
+        setWaitIndicatorDisplay();
+        if (!waitIndicatorTimer.isRunning()) {
+            waitIndicatorTimer.start();
+        }
+    }
+
+    private void advanceWaitIndicator() {
+        if (waitIndicatorMessage == null) {
+            waitIndicatorTimer.stop();
+            return;
+        }
+        waitIndicatorDotCount = (waitIndicatorDotCount % 3) + 1;
+        setWaitIndicatorDisplay();
+    }
+
+    private void setWaitIndicatorDisplay() {
+        StringBuilder dots = new StringBuilder();
+        for (int index = 0; index < waitIndicatorDotCount; index++) {
+            dots.append('.');
+        }
+        setOverallProgressDisplay(waitIndicatorMessage + ", please wait" + dots);
+    }
+
+    private void stopWaitIndicator() {
+        if (waitIndicatorTimer.isRunning()) {
+            waitIndicatorTimer.stop();
+        }
+        waitIndicatorMessage = null;
+        waitIndicatorDotCount = 0;
+    }
+
     private void showPreparingProgress() {
         overallProgressBar.setMaximum(Math.max(1, totalProgressSteps));
         overallProgressBar.setValue(0);
@@ -503,6 +572,10 @@ final class TreeBuildPanel extends JPanel {
 
     private static boolean containsAny(String line, String first, String second) {
         return line.contains(first) || line.contains(second);
+    }
+
+    private static boolean isSlowMethod(TreeMethodKey methodKey) {
+        return methodKey == TreeMethodKey.BAYESIAN || methodKey == TreeMethodKey.PROTEIN_STRUCTURE;
     }
 
     private void refreshDetailsText() {

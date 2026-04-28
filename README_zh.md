@@ -11,17 +11,18 @@ English documentation: [`README.md`](README.md)
 ## 0. 项目特点
 
 - 按输入类型分别提供蛋白质流程和 DNA/CDS 流程。
-- 支持 MAFFT 比对、PHYLIP 距离法/简约法、IQ-TREE 极大似然、MrBayes 贝叶斯分析。（即支持四大类构建进化树的方法）
+- 支持 MAFFT 比对、PHYLIP 距离法/简约法、IQ-TREE 极大似然、MrBayes 贝叶斯分析，以及蛋白输入可选的 Foldseek 蛋白质结构相似性分析。
 - GUI 可以通过 `--config` 运行时 JSON，把 MAFFT、方法启停、极大似然参数和贝叶斯参数传入现有 shell wrapper 与 Python 管线。
 - 保留 CLI wrapper，方便脚本化和批量式运行，因此同一套流程既能走 GUI，也能走命令行自动化。GUI 与 CLI 现在通过共享的 `--config` 运行时 JSON 串联起来，而不是各自维护独立执行逻辑。（现有 CLI wrapper 继续保留为一等入口，因此同一套流程仍然可以用于脚本化、重复性和批量式运行。）
 - 在 `tree_summary/` 中输出树图可视化、TreeDist / Robinson-Foulds 距离矩阵，以及合并热图。
 - `onebuilder.launcher` 新增了交互式 Java Swing 全流程 GUI，并整理成四步工作流：`Input / Align`、`Tree Parameters`、`Tree Build`、`Tanglegram`。
 - 参数编辑页和运行页已经拆开：方法参数集中在 `Tree Parameters`，`Tree Build` 专门负责配置摘要、运行/导出按钮、日志和方法状态指示灯。
 
-- 借助于强大的GUI功能，`tanglegram.launcher` 可以直接加载一次流程输出的 `tree_summary/`，并把四棵树固定渲染成 6 个两两比较标签页。
-- 提供独立的 Java 纠缠树（Tanglegram）查看器，可在 Linux 或 Windows 下把四种方法生成的树固定组合成 6 个两两配对视图进行交互比较。
+- 借助于强大的 GUI 功能，`tanglegram.launcher` 可以直接加载一次流程输出的 `tree_summary/`，渲染四棵序列建树结果，并在存在 Protein Structure 树时额外加入结构树比较。
+- 提供独立的 Java 纠缠树（Tanglegram）查看器，可在 Linux 或 Windows 下交互比较流程生成的树。
 - `tree_summary/` 现在除了原始距离矩阵，还会输出一张合并的 TreeDist + Robinson-Foulds 热图。
 - Windows 下的 `onebuilder.launcher` 现在会在启动时给出说明提示，明确告知该平台只能配置和导出，不能直接执行管线；这个提示可以在 Preference 里关闭或重新打开。
+- 蛋白质流程可以增加 Foldseek `Protein Structure` 步骤，提供基础 TSV/FASTA 控制、Foldseek 高级搜索参数，以及可选的结构相似性树用于 tanglegram 比较。
 
 ## 1. 输入与输出
 
@@ -36,6 +37,7 @@ English documentation: [`README.md`](README.md)
 - `maximum_likelihood/`
 - `bayesian_method/`
 - `parsimony_method/`
+- 蛋白输入启用时会生成 `protein_structure/`
 - `visualizations/`
 - `tree_summary/`
 
@@ -160,7 +162,7 @@ zsh phylotree_builder_v0.0.1/run_onebuilder_config.zsh tree_build_full_config_te
 仓库现在提供两个独立的 Java Swing 入口：
 
 - `onebuilder.launcher`：全流程 GUI，包含 `Input / Align`、`Tree Parameters`、`Tree Build`、`Tanglegram` 四个固定步骤。Linux 下可运行管线；Windows 下只负责配置和导出 JSON。
-- `tanglegram.launcher`：专门用于加载已有 `tree_summary/` 的纠缠树查看器，Linux 和 Windows 都可用。
+- `tanglegram.launcher`：专门用于加载已有 `tree_summary/` 的纠缠树查看器，Linux 和 Windows 都可用；如果存在 Protein Structure 树，也会一起加载。
 - `run_onebuilder_config.zsh`：Linux-only 的 JSON 总入口，用一份 GUI 导出的 `.onebuilder.json` 直接重放整条流程，不需要再次手填输入文件或输出前缀。
 
 从仓库根目录编译：
@@ -223,7 +225,7 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 
 使用说明：
 
-- 顶层工作流固定为 `Input / Align`、`Tree Parameters`、`Tree Build`、`Tanglegram`。
+- 左侧工作流依次为 `Input / Align`、`Tree Parameters`、`Reroot Tree`、`Tree Build`、`Tanglegram`、`Vis. Launching` 和 `How to cite`。
 - `Input / Align` 是必须先完成的入口页。如果必填项还没准备好，后续步骤仍然可以点击，但会解释为什么当前不能跳转。
 - `Tree Parameters` 使用方法树来组织参数，包含 `Distance Method`、`Maximum Likelihood`、`Bayes Method`、`Maximum Parsimony`、`Protein Structure`。
 - `Protein Structure` 节点会一直显示。蛋白输入时可用；非蛋白输入时保留显示并提示 `Protein only`。
@@ -233,11 +235,14 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 - Windows 下的 `onebuilder.launcher` 只负责参数编辑和 JSON 配置导出，不会执行 `s1_quick_align.zsh`、`s2_phylo_4prot.zsh` 或 `s2_phylo_4dna.zsh`；除非你在 Preference 里关闭，否则启动时会先弹出说明提示。
 - 如果输入 FASTA 还是原始序列、尚未完成多序列比对，就勾选 `Run multiple sequence alignment first`；在 Linux 下 GUI 会把参数转发给 `s1_quick_align.zsh`。
 - 输入页包含输入/输出路径、最近浏览目录记忆、MAFFT strategy、`Maxiterate`、sequence reorder 控制、`Advanced MAFFT`、`Export config file when running` 以及 `Export JSON`。
-- 高级参数区域默认折叠，并且现在在 4 个方法页里都统一放在主要参数区的正下方。
+- 高级参数区域默认折叠，并且统一放在主要参数区的正下方。
 - GUI 支持在启动 run 之前，按方法开启/关闭四种建树步骤，并调整公开出来的 ML、贝叶斯以及结构化 PHYLIP 常用参数。
-- `Protein Structure` 是蛋白质专用的 Foldseek 步骤。它既可以直接使用输入 FASTA 的 ProstT5/3Di 模式，也可以读取结构映射 TSV；TSV 中每个非注释行格式为 `sequence_id<TAB>structure_file`，相对结构路径会按 TSV 所在目录解析。
-- Foldseek 步骤会输出 `protein_structure/pairwise_scores.tsv`、`protein_structure/similarity_matrix.tsv`、`protein_structure/distance_matrix.tsv` 和 `protein_structure/run_config.json`。运行时生成的 `structure_inputs/` 与 `foldseek_tmp/` 已经被 Git 忽略。
+- `Protein Structure` 是蛋白质专用的 Foldseek 步骤。Basic Parameters 包含 `Enable Foldseek protein structure similarity`、`Use protein structure mapping TSV` 和 `Protein structure TSV`。不选择 TSV 时，Foldseek 会直接用输入 FASTA 走 ProstT5/3Di 模式；选择 TSV 时，每个非注释行必须是 `sequence_id<TAB>structure_file`，相对结构路径按 TSV 所在目录解析。
+- `Protein Structure > Advanced Parameters` 暴露 Foldseek 搜索参数：`Threads (--threads)`、`Sensitivity (-s)`、`E-value (-e)`、`Max seqs (--max-seqs)`、`Coverage threshold (-c)`、`Coverage mode (--cov-mode)`、`Alignment type (--alignment-type)`、`TM-score threshold`、`Verbosity (-v)`、`--exhaustive-search`、`--exact-tmscore`、`--gpu`，以及一行一个 token 的 `Extra Foldseek args`。
+- Foldseek 生成距离矩阵后，oneBuilder 可以用 `NJ` 或 `Swift NJ` 构建 `protein_structure/structure_tree.nwk`。这棵结构树在 tanglegram 中是可选的第五棵树；没有启用 Protein Structure 的旧输出仍然按原来的四种方法比较。
+- Foldseek 步骤会输出 `protein_structure/pairwise_scores.tsv`、`protein_structure/similarity_matrix.tsv`、`protein_structure/distance_matrix.tsv`、`protein_structure/structure_tree.nwk` 和 `protein_structure/run_config.json`。运行时生成的 `structure_inputs/` 与 `foldseek_tmp/` 已经被 Git 忽略。
 - 默认结构距离策略是 `distance = 1 - similarity`。有真实结构时默认使用 `qtmscore` 和 `ttmscore` 的均值；如果 Foldseek 没返回某个 pair，默认距离写为 `1`，保证距离矩阵仍是数值矩阵。
+- `Tree Build` 的主进度条在准备阶段先显示不带百分比的动态效果，等收到方法或后处理进度事件后再切换成确定的 `completed/total` 进度。贝叶斯、Protein Structure 和树距离计算等慢步骤会保留同一个计数器，并显示 `please wait...` 文本动画。
 - ML 页面现在会给出非阻断式的 Bootstrap 提示：`1000` 仍是推荐默认值，`0` 会明确表示跳过 `-bb`，而特别大的值只会提示运行时间风险，不会强制拦截。
 - PHYLIP 页面继续保留 `menu_overrides` 作为高级逃生口，同时把已经稳定的常用项直接结构化出来，例如 DNA 距离模型设置、neighbor 类型/外群、蛋白 `protpars` 的输出开关，以及 DNA `dnapars` 的外群/颠换简约法选项。
 - 窗口菜单中还提供 `Preference > Settings...`，可设置共享的全局字体族、全局字号、窗口大小恢复、默认的 tanglegram 标签字号，以及 `Show Windows oneBuilder startup warning`。
@@ -249,6 +254,7 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 - 导出的 `<output_prefix>.onebuilder.json` 现在可以在 Linux 下直接用 `zsh phylotree_builder_v0.0.1/run_onebuilder_config.zsh /path/to/file.onebuilder.json` 执行。
 - `onebuilder.launcher` 里的 `Tanglegram` 页面只会在 Linux 成功运行后解锁，并自动载入当前这次 run 的结果。Windows 下请使用独立的 `tanglegram.launcher` 查看已有 `tree_summary/`。
 - GUI 内部的 `Tanglegram` 页面还提供 label font size、水平/垂直 padding、auto-fit，以及 `Reload from current run` 按钮。
+- `How to cite` 作为左侧第 7 个工作流页面显示英文引用指南。规范文件位于 `phylotree_builder_v0.0.1/how_to_cite.md`，仓库根目录的 `how_to_cite.md` 是指向同一文件的软链接。
 - 两个 launcher 都会显式设置 `flatlaf.useNativeLibrary=false`，所以在 JDK 24+ 下不会再打印 `--enable-native-access=ALL-UNNAMED` 的警告。
 
 ### 5.2 Tanglegram 查看器
@@ -291,8 +297,8 @@ java -cp "phylotree_builder_v0.0.1\java_tanglegram;phylotree_builder_v0.0.1\lib/
 - `Preference` 与 `onebuilder.launcher` 共享同一套全局 UI 设置，包括全局字体和默认 tanglegram 标签字号。
 - 这套共享 UI 设置同样保存在 `~/.egps.onebuilder.prop`。
 - `Open` 需要选择一次流程输出里的 `tree_summary/` 目录。
-- 查看器会把可用的两两配对固定排成这 6 个标签顺序：`NJ-ML`、`NJ-BI`、`NJ-MP`、`ML-BI`、`ML-MP`、`BI-MP`。
-- 如果某一种方法缺失，但仍然能解析出至少两棵树，查看器会只加载有效的配对标签，而不是整窗失败。
+- 查看器会把四棵序列建树结果固定排成这 6 个标签顺序：`NJ-ML`、`NJ-BI`、`NJ-MP`、`ML-BI`、`ML-MP`、`BI-MP`。如果存在 `protein_structure/structure_tree.nwk`，还会额外加入 `PS` 与可用序列树之间的比较标签。
+- 如果某一种必需的序列方法缺失，但仍然能解析出至少两棵树，查看器会只加载有效的配对标签，而不是整窗失败。缺失 Protein Structure 树只作为可选缺失提示，不会视为必需方法失败。
 - 如果 `tree_meta_data.tsv` 里写的是失效路径或某台机器上的绝对路径，程序会自动回退到标准输出目录 `distance_method/`、`maximum_likelihood/`、`bayesian_method/`、`parsimony_method/` 里查找对应树文件。
 - 如果启动时不带 `-dir` 参数，界面会先保持空白，等待用户点击菜单导入 `tree_summary/`。
 
@@ -300,19 +306,20 @@ java -cp "phylotree_builder_v0.0.1\java_tanglegram;phylotree_builder_v0.0.1\lib/
 
 - Linux
 - Pixi 环境，依赖定义在 `phylotree_builder_v0.0.1/pixi.toml`
-- 主要依赖：`phylip`、`iqtree`、`mrbayes`、`biopython`、`ete4`、`r-treedist`、`matplotlib`、`mafft`
+- 主要依赖：`phylip`、`iqtree`、`mrbayes`、`biopython`、`ete4`、`r-treedist`、`matplotlib`、`mafft`、`foldseek`
 - 蛋白质管线会使用同目录下的 `help_utils.py` 和 `cal_pair_wise_tree_dist.R`
 - MAD 重新定根工具默认路径为 `phylotree_builder_v0.0.1/third_party/mad/mad`
 
 ## 示例数据
 
 - `input_demo/simu/`：模拟的对齐数据示例
+- `input_demo/prot_seqs_with_structure/`：Foldseek Protein Structure 工作流的蛋白质序列加结构示例数据
 - `test1/`：示例输出目录结构
 
 ## 其他模块
 
 - `phylo_pipeline_4dna.py`：DNA/CDS 管线主入口，对齐了蛋白质流程的本地辅助脚本、MAD 定根和名称恢复逻辑
-- `java_tanglegram/`：独立的 Java Swing 纠缠树（Tanglegram）查看器，会把四棵树按 6 种两两组合显示在标签页中
+- `java_tanglegram/`：独立的 Java Swing 纠缠树（Tanglegram）查看器，会比较四棵序列建树结果，并在存在 Protein Structure 树时额外加入结构树比较
 
 ## 说明
 

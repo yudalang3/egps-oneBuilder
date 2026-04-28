@@ -4,27 +4,31 @@
 
 Chinese documentation: [`README_zh.md`](README_zh.md)
 
+Citation guide: [`how_to_cite.md`](how_to_cite.md)
+
 A Linux-based phylogenetic workflow that combines scriptable CLI wrappers with Java Swing GUIs. The actual alignment and tree-building pipeline is Linux-only. On Windows, the Swing tools are limited to GUI configuration export and standalone tanglegram viewing for existing results.
 
 ## 0. Highlights
 
 - The repository provides one workflow for protein input and one for DNA/CDS input.
-- Supports MAFFT alignment, PHYLIP distance/parsimony methods, IQ-TREE maximum likelihood, and MrBayes Bayesian inference.
+- Supports MAFFT alignment, PHYLIP distance/parsimony methods, IQ-TREE maximum likelihood, MrBayes Bayesian inference, and optional Foldseek protein-structure similarity for protein inputs.
 - Adds `onebuilder.launcher`, a Java Swing workflow GUI with `Input / Align`, `Tree Parameters`, `Tree Build`, and `Tanglegram`. On Linux it can run the existing pipeline; on Windows it is limited to workflow setup, config export, and standalone result viewing.
 - Keeps the CLI wrappers for scripted and batch-style runs, so the same workflow can be driven either from the GUI or from shell automation.
 - Lets the GUI pass MAFFT, method enable/disable, maximum-likelihood, Bayesian, and raw passthrough settings into the existing shell wrappers and Python pipelines through `--config` runtime JSON.
 - Generates tree visualizations plus TreeDist / Robinson-Foulds matrices and a combined summary heatmap in `tree_summary/`.
-- Provides a standalone Java tanglegram viewer for interactive comparison of the four inferred trees across six fixed pair views on both Linux and Windows.
-- `tanglegram.launcher` can directly load one `tree_summary/` result and render the four trees as six pairwise comparison tabs.
+- Provides a standalone Java tanglegram viewer for interactive comparison of inferred trees on both Linux and Windows.
+- `tanglegram.launcher` can directly load one `tree_summary/` result and render the four sequence-derived trees, plus an optional Protein Structure tree when available.
 
 ## 0.1 New Features
 
-- `onebuilder.launcher` adds an interactive Java Swing workflow GUI with a four-step workspace: `Input / Align`, `Tree Parameters`, `Tree Build`, and `Tanglegram`.
+- `onebuilder.launcher` adds an interactive Java Swing workflow GUI with left-side workflow sections for input, method parameters, rerooting, running, tanglegram inspection, viewer launching, and citation guidance.
 - The parameter editor is now separated from the run page: method settings live in `Tree Parameters`, while `Tree Build` focuses on draft review, run/export controls, live logs, and compact method-status indicators.
 - The existing CLI wrappers remain first-class entrypoints, so the same workflow can still be scripted for repeated or batch-style runs.
 - GUI and CLI now work together through a shared `--config` runtime JSON bridge instead of maintaining separate execution logic.
 - `tanglegram.launcher` loads one `tree_summary/` result and renders the four inferred trees as six fixed pairwise comparison tabs.
 - `tree_summary/` now includes a combined TreeDist + Robinson-Foulds heatmap figure in addition to the raw distance matrices.
+- Protein runs can add a Foldseek-based `Protein Structure` step with basic TSV/FASTA controls, an Advanced Parameters drawer for Foldseek search flags, and optional structure-tree generation for tanglegram comparison.
+- The left workflow includes `7. How to cite`, which loads the citation guide from `phylotree_builder_v0.0.1/how_to_cite.md`; the repository root also exposes it through the `how_to_cite.md` symlink.
 - On Windows, `onebuilder.launcher` now shows a startup warning explaining that pipeline execution is disabled there, with a preference toggle to hide or re-enable that notice later.
 
 ## 1. Input and Output
@@ -42,6 +46,7 @@ A Linux-based phylogenetic workflow that combines scriptable CLI wrappers with J
 - `maximum_likelihood/`
 - `bayesian_method/`
 - `parsimony_method/`
+- `protein_structure/` when enabled for protein input
 - `visualizations/`
 - `tree_summary/`
 
@@ -164,7 +169,7 @@ The timings below come from real runs of the bundled demo inputs on the current 
 The repository now includes two standalone Java Swing entrypoints:
 
 - `onebuilder.launcher`: the full workflow GUI with `Input / Align`, `Tree Parameters`, `Tree Build`, and `Tanglegram`. Linux can run the pipeline; Windows is for setup and JSON config export only.
-- `tanglegram.launcher`: the focused pairwise tanglegram viewer for loading an existing `tree_summary/` on Linux or Windows.
+- `tanglegram.launcher`: the focused pairwise tanglegram viewer for loading an existing `tree_summary/` on Linux or Windows, including the optional Protein Structure tree when it exists.
 - `run_onebuilder_config.zsh`: the Linux-only JSON runner that replays a GUI-exported `.onebuilder.json` without re-entering the input file or output prefix.
 
 Compile from the repository root:
@@ -227,7 +232,7 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 
 Usage notes:
 
-- The top-level workflow is fixed to `Input / Align`, `Tree Parameters`, `Tree Build`, and `Tanglegram`.
+- The left workflow is `Input / Align`, `Tree Parameters`, `Reroot Tree`, `Tree Build`, `Tanglegram`, `Vis. Launching`, and `How to cite`.
 - `Input / Align` is the only page that must be completed first. If required fields are missing, later sections stay clickable but explain why navigation is blocked.
 - `Tree Parameters` uses a method tree with `Distance Method`, `Maximum Likelihood`, `Bayes Method`, `Maximum Parsimony`, and `Protein Structure`.
 - `Protein Structure` is always visible in the method tree. It is enabled for protein input and shown as `Protein only` for non-protein input.
@@ -239,9 +244,12 @@ Usage notes:
 - The input page includes input/output paths, remembered browse locations, MAFFT strategy, `Maxiterate`, sequence reorder control, `Advanced MAFFT`, `Export config file when running`, and `Export JSON`.
 - Advanced parameter groups are collapsed by default with a shared task-pane style and now appear in a consistent position directly below the primary controls in each method page.
 - The GUI lets you disable individual tree-building methods and tune the exposed ML, Bayesian, and structured PHYLIP common parameters before starting a run.
-- `Protein Structure` is a protein-only Foldseek step. It can run directly from the input FASTA through ProstT5/3Di mode, or from a mapping TSV where each non-comment row is `sequence_id<TAB>structure_file`; relative structure paths are resolved from the TSV directory.
-- The Foldseek step writes `protein_structure/pairwise_scores.tsv`, `protein_structure/similarity_matrix.tsv`, `protein_structure/distance_matrix.tsv`, and `protein_structure/run_config.json`. Runtime-only `structure_inputs/` and `foldseek_tmp/` directories are intentionally ignored by Git.
+- `Protein Structure` is a protein-only Foldseek step. Basic Parameters include `Enable Foldseek protein structure similarity`, `Use protein structure mapping TSV`, and `Protein structure TSV`. When no TSV is selected, Foldseek uses the input FASTA through ProstT5/3Di mode; when a TSV is selected, each non-comment row must be `sequence_id<TAB>structure_file`, and relative structure paths are resolved from the TSV directory.
+- `Protein Structure > Advanced Parameters` exposes Foldseek search controls: `Threads (--threads)`, `Sensitivity (-s)`, `E-value (-e)`, `Max seqs (--max-seqs)`, `Coverage threshold (-c)`, `Coverage mode (--cov-mode)`, `Alignment type (--alignment-type)`, `TM-score threshold`, `Verbosity (-v)`, `--exhaustive-search`, `--exact-tmscore`, `--gpu`, and `Extra Foldseek args` with one token per line.
+- After Foldseek creates the distance matrix, oneBuilder can build `protein_structure/structure_tree.nwk` with either `NJ` or `Swift NJ`. That tree is treated as an optional fifth tree in tanglegram loading, so runs without Protein Structure still show the original four-method comparisons.
+- The Foldseek step writes `protein_structure/pairwise_scores.tsv`, `protein_structure/similarity_matrix.tsv`, `protein_structure/distance_matrix.tsv`, `protein_structure/structure_tree.nwk`, and `protein_structure/run_config.json`. Runtime-only `structure_inputs/` and `foldseek_tmp/` directories are intentionally ignored by Git.
 - The default structure distance policy is `distance = 1 - similarity`, using the mean of `qtmscore` and `ttmscore` when real structures are provided. Missing Foldseek pairs are written as distance `1` by default so the distance matrix stays numeric.
+- The Tree Build progress bar starts with an indeterminate animation during preparation, then switches to determinate `completed/total` progress once method or post-build events are available. Long-running Bayesian, Protein Structure, and tree-distance steps keep the same counter while showing a `please wait...` text animation.
 - The ML page now gives non-blocking bootstrap guidance: `1000` remains the recommended default, `0` explicitly means "skip -bb", and very large values show a runtime warning instead of hard-blocking the run.
 - The PHYLIP pages now keep `menu_overrides` as the advanced escape hatch, while exposing stable common controls such as DNA distance model settings, neighbor type/outgroup, protein `protpars` print toggles, and DNA `dnapars` outgroup/transversion options directly in the GUI.
 - The window also includes `Preference > Settings...` for shared UI preferences such as global font family, global font size, window-size restore, the default tanglegram label-font size, and `Show Windows oneBuilder startup warning`.
@@ -254,6 +262,7 @@ Usage notes:
 - Inside `onebuilder.launcher`, the `Tanglegram` page unlocks only after a successful Linux run and then auto-loads the current output directory. On Windows, use the standalone `tanglegram.launcher` to inspect an existing `tree_summary/`.
 - Inside the GUI, the `Tanglegram` page also exposes label-font size, horizontal/vertical padding, auto-fit, and a `Reload from current run` action.
 - The launchers explicitly disable FlatLaf's native library integration with `flatlaf.useNativeLibrary=false`, so JDK 24+ does not print the `--enable-native-access=ALL-UNNAMED` warning.
+- `How to cite` displays the English citation guide as its own left-side workflow section. The canonical file lives at `phylotree_builder_v0.0.1/how_to_cite.md`, and the repository root `how_to_cite.md` is a symlink to the same document.
 
 ### 5.2 Tanglegram Viewer
 
@@ -295,8 +304,8 @@ Usage notes:
 - `Preference` shares the same global UI settings as `onebuilder.launcher`, including the global font and the default tanglegram label-font size.
 - Those shared UI settings are stored in `~/.egps.onebuilder.prop`.
 - `Open` expects a `tree_summary/` directory from a pipeline run.
-- The viewer always lays out the available comparisons as fixed pair tabs in this order: `NJ-ML`, `NJ-BI`, `NJ-MP`, `ML-BI`, `ML-MP`, `BI-MP`.
-- If one method is missing but at least two trees can still be resolved, the viewer loads only the valid pair tabs instead of failing the whole window.
+- The viewer arranges the four sequence-derived trees in the fixed six-tab order: `NJ-ML`, `NJ-BI`, `NJ-MP`, `ML-BI`, `ML-MP`, `BI-MP`. If `protein_structure/structure_tree.nwk` exists, additional tabs compare `PS` against the available sequence-derived trees.
+- If one required sequence method is missing but at least two trees can still be resolved, the viewer loads only the valid pair tabs instead of failing the whole window. Missing Protein Structure trees are optional and reported as optional warnings.
 - If `tree_meta_data.tsv` contains stale or machine-specific paths, the viewer falls back to the standard sibling folders `distance_method/`, `maximum_likelihood/`, `bayesian_method/`, and `parsimony_method/`.
 - If no `-dir` argument is provided, the app starts empty and waits for the user to import a `tree_summary/` directory from the menu.
 
@@ -304,19 +313,20 @@ Usage notes:
 
 - Linux
 - Pixi environment, declared in `phylotree_builder_v0.0.1/pixi.toml`
-- Core dependencies: `phylip`, `iqtree`, `mrbayes`, `biopython`, `ete4`, `r-treedist`, `matplotlib`, `mafft`
+- Core dependencies: `phylip`, `iqtree`, `mrbayes`, `biopython`, `ete4`, `r-treedist`, `matplotlib`, `mafft`, `foldseek`
 - The protein pipeline uses the local `help_utils.py` and `cal_pair_wise_tree_dist.R`
 - MAD rerooting defaults to `phylotree_builder_v0.0.1/third_party/mad/mad`
 
 ## Example Data
 
 - `input_demo/simu/`: simulated aligned input data
+- `input_demo/prot_seqs_with_structure/`: protein plus structure demo data for the Foldseek Protein Structure workflow
 - `test1/`: example output directory layout
 
 ## Other Modules
 
 - `phylo_pipeline_4dna.py`: DNA/CDS pipeline entrypoint, now aligned with the protein workflow's local helper scripts, MAD rerooting, and name-restoration flow
-- `java_tanglegram/`: standalone Java Swing tanglegram viewer for comparing the four pipeline trees in six pairwise tabs
+- `java_tanglegram/`: standalone Java Swing tanglegram viewer for comparing the four sequence-derived pipeline trees, plus the optional Protein Structure tree when present
 
 ## Notes
 

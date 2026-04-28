@@ -192,6 +192,28 @@ def _build_dna_mrbayes_commands(nexus_file_name, settings):
     return commands
 
 
+def _stream_subprocess(command, logger, cwd=None, stdin_text=None):
+    """Run a command and forward each output line to the pipeline logger."""
+    proc = subprocess.Popen(
+        command,
+        cwd=cwd,
+        stdin=subprocess.PIPE if stdin_text is not None else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    if stdin_text is not None and proc.stdin is not None:
+        proc.stdin.write(stdin_text)
+        proc.stdin.close()
+    if proc.stdout is not None:
+        for raw_line in proc.stdout:
+            line = raw_line.rstrip()
+            if line:
+                logger.info(line)
+    return proc.wait()
+
+
 class PhylogeneticPipeline:
     def __init__(self, input_file, output_dir="phylo_results", runtime_config=None):
         """
@@ -575,19 +597,14 @@ class PhylogeneticPipeline:
 
             # 运行MrBayes
             os.chdir(work_dir)
-            proc = subprocess.Popen(
-                [mb_exec],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            stdout, stderr = proc.communicate(input=mb_input_str)  # FIX: 传字符串
-            self.logger.debug("==Stdout of MrBayes==")
-            self.logger.debug(stdout)
-            if proc.returncode != 0:
-                print(self.translator.text("Standard error:", "标准错误:"))
-                print(stderr)
+            return_code = _stream_subprocess([mb_exec], self.logger, stdin_text=mb_input_str)
+            if return_code != 0:
+                self.logger.error(
+                    self.translator.text(
+                        f"MrBayes failed with exit code {return_code}",
+                        f"MrBayes运行失败，退出码：{return_code}",
+                    )
+                )
                 sys.exit(1)
 
             # 查找输出的树文件（*.con.tre）

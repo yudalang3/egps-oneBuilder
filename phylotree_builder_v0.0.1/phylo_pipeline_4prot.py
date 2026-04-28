@@ -173,6 +173,28 @@ def _build_protein_mrbayes_commands(nexus_file_name, settings):
     return commands
 
 
+def _stream_subprocess(command, logger, cwd=None, stdin_text=None):
+    """Run a command and forward each output line to the pipeline logger."""
+    proc = subprocess.Popen(
+        command,
+        cwd=cwd,
+        stdin=subprocess.PIPE if stdin_text is not None else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    if stdin_text is not None and proc.stdin is not None:
+        proc.stdin.write(stdin_text)
+        proc.stdin.close()
+    if proc.stdout is not None:
+        for raw_line in proc.stdout:
+            line = raw_line.rstrip()
+            if line:
+                logger.info(line)
+    return proc.wait()
+
+
 class ProteinPhylogeneticPipeline:
     def __init__(self, input_file, output_dir="phylo_results_protein", runtime_config=None):
         """
@@ -596,19 +618,9 @@ class ProteinPhylogeneticPipeline:
 
             # run MrBayes
             os.chdir(work_dir)
-            proc = subprocess.Popen(
-                [mb_exec],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            stdout, stderr = proc.communicate(input=mb_input_str)
-            self.logger.debug("==Stdout of MrBayes==")
-            self.logger.debug(stdout)
-            if proc.returncode != 0:
-                print("Standard error:")
-                print(stderr)
+            return_code = _stream_subprocess([mb_exec], self.logger, stdin_text=mb_input_str)
+            if return_code != 0:
+                self.logger.error(f"MrBayes failed with exit code {return_code}")
                 sys.exit(1)
 
             # find consensus tree output (*.con.tre)
@@ -1159,11 +1171,9 @@ class ProteinPhylogeneticPipeline:
         cmd.extend(self.protein_structure_foldseek_args(settings))
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            if result.stdout:
-                self.logger.info(result.stdout.strip())
-            if result.stderr:
-                self.logger.debug(result.stderr.strip())
+            return_code = _stream_subprocess(cmd, self.logger)
+            if return_code != 0:
+                raise subprocess.CalledProcessError(return_code, cmd)
             pairwise_scores_path = work_dir / "pairwise_scores.tsv"
             distance_matrix_path = work_dir / "distance_matrix.tsv"
             if pairwise_scores_path.exists() and distance_matrix_path.exists():

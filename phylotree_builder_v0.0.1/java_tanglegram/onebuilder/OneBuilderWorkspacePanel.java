@@ -26,6 +26,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
     private final TreeBuildPanel treeBuildPanel;
     private final CurrentRunTanglegramPanel currentRunTanglegramPanel;
     private final VisLaunchingPanel visLaunchingPanel;
+    private final HowToCitePanel howToCitePanel;
     private final PipelineRunner pipelineRunner;
     private final PipelineConfigWriter pipelineConfigWriter;
     private final PlatformSupport platformSupport;
@@ -57,6 +58,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
                 this::handleStopRequested);
         currentRunTanglegramPanel = new CurrentRunTanglegramPanel();
         visLaunchingPanel = new VisLaunchingPanel(scriptDirectory, () -> latestCompletedOutputDirectory);
+        howToCitePanel = new HowToCitePanel(scriptDirectory);
         pipelineRunner = new PipelineRunner(scriptDirectory, new RunnerListener());
         pipelineConfigWriter = new PipelineConfigWriter();
         inputAlignPanel = new InputAlignPanel(
@@ -81,6 +83,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
         contentPanel.add(treeBuildPanel, WorkspaceSection.TREE_BUILD.name());
         contentPanel.add(currentRunTanglegramPanel, WorkspaceSection.TANGLEGRAM.name());
         contentPanel.add(visLaunchingPanel, WorkspaceSection.VIS_LAUNCHING.name());
+        contentPanel.add(howToCitePanel, WorkspaceSection.HOW_TO_CITE.name());
 
         JPanel centerPanel = WorkbenchStyles.createCanvasPanel(new BorderLayout(0, 16));
         centerPanel.setBorder(WorkbenchStyles.PAGE_PADDING);
@@ -130,6 +133,10 @@ final class OneBuilderWorkspacePanel extends JPanel {
 
     RerootTreePanel rerootTreePanel() {
         return rerootTreePanel;
+    }
+
+    HowToCitePanel howToCitePanel() {
+        return howToCitePanel;
     }
 
     InputAlignPanel inputAlignPanel() {
@@ -213,6 +220,9 @@ final class OneBuilderWorkspacePanel extends JPanel {
                 break;
             case VIS_LAUNCHING:
                 headerContextLabel.setText("Open the standalone interactive Tanglegram viewer for the latest completed run.");
+                break;
+            case HOW_TO_CITE:
+                headerContextLabel.setText("Review citation guidance for eGPS-onebuilder and the software used by this workflow.");
                 break;
             default:
                 throw new IllegalStateException("Unexpected section: " + section);
@@ -388,6 +398,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
                 WorkspaceSection.VIS_LAUNCHING,
                 tanglegramEnabled && workflowTabsState.visLaunchingEnabled(),
                 lockedSectionMessage(WorkspaceSection.VIS_LAUNCHING));
+        navigationRail.setSectionEnabled(WorkspaceSection.HOW_TO_CITE, true);
         visLaunchingPanel.setReady(tanglegramEnabled && workflowTabsState.visLaunchingEnabled());
     }
 
@@ -422,6 +433,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
                 }
                 return "Finish Tree Build first. Run the pipeline and generate the current run results before opening Tanglegram.";
             case INPUT_ALIGN:
+            case HOW_TO_CITE:
                 return null;
             default:
                 throw new IllegalStateException("Unexpected section: " + section);

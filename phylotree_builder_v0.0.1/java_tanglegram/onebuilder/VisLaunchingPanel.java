@@ -24,7 +24,7 @@ final class VisLaunchingPanel extends JPanel {
 
         JPanel header = WorkbenchStyles.createSurfacePanel(new BorderLayout(0, 6));
         header.add(WorkbenchStyles.createSectionTitle("Vis. Launching"), BorderLayout.NORTH);
-        header.add(WorkbenchStyles.createSubtitleLabel("Highly interactive visulization of various trees"), BorderLayout.CENTER);
+        header.add(WorkbenchStyles.createSubtitleLabel("Highly interactive visualization of various trees"), BorderLayout.CENTER);
         add(header, BorderLayout.NORTH);
 
         JPanel body = WorkbenchStyles.createSurfacePanel(new BorderLayout(0, 12));

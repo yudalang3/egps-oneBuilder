@@ -131,6 +131,7 @@ final class PipelineRunner {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.directory(scriptDirectory.toFile());
         processBuilder.redirectErrorStream(true);
+        processBuilder.environment().put("PYTHONUNBUFFERED", "1");
 
         Process process = processBuilder.start();
         currentProcess = process;
