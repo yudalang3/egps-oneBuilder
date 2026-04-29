@@ -7,7 +7,6 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.nio.file.Path;
 import javax.swing.BorderFactory;
-import javax.swing.BoxLayout;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -30,7 +29,6 @@ final class CurrentRunTanglegramPanel extends JPanel {
     private JSpinner verticalPaddingSpinner;
     private JCheckBox autoFitCheckBox;
     private final JLabel summaryLabel;
-    private final JLabel snapshotLabel;
     private final JideTabbedPane comparisonTabs;
     private final Object loadMonitor;
     private JPanel controlsPanel;
@@ -57,15 +55,9 @@ final class CurrentRunTanglegramPanel extends JPanel {
         add(comparisonTabs, BorderLayout.CENTER);
 
         summaryLabel = new JLabel(UiText.text("No current run loaded.", "当前没有已加载的运行结果。"));
-        snapshotLabel = WorkbenchStyles.createStatusChip("Quick Snapshot of the Tanglegram");
-        JPanel footer = new JPanel();
+        JPanel footer = new JPanel(new BorderLayout());
         footer.setOpaque(false);
-        footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
-        summaryLabel.setAlignmentX(LEFT_ALIGNMENT);
-        snapshotLabel.setAlignmentX(LEFT_ALIGNMENT);
-        footer.add(summaryLabel);
-        footer.add(javax.swing.Box.createVerticalStrut(8));
-        footer.add(snapshotLabel);
+        footer.add(summaryLabel, BorderLayout.CENTER);
         add(footer, BorderLayout.SOUTH);
     }
 

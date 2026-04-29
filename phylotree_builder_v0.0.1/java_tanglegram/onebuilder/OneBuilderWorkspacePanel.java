@@ -5,6 +5,7 @@ import java.awt.CardLayout;
 import java.awt.FlowLayout;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -15,6 +16,7 @@ import tanglegram.UiPreferences;
 final class OneBuilderWorkspacePanel extends JPanel {
     private final NavigationRailPanel navigationRail;
     private final JPanel headerPanel;
+    private final JLabel headerSnapshotChip;
     private final JLabel headerStatusChip;
     private final JLabel headerContextLabel;
     private final JPanel headerRightPanel;
@@ -68,10 +70,13 @@ final class OneBuilderWorkspacePanel extends JPanel {
 
         headerContextLabel = WorkbenchStyles.createSubtitleLabel(
                 "Prepare one alignment, review the method tree, run the pipeline, then inspect the tanglegram.");
+        headerSnapshotChip = WorkbenchStyles.createStatusChip("Quick Snapshot of the Tanglegram");
+        headerSnapshotChip.setVisible(false);
         headerStatusChip = WorkbenchStyles.createStatusChip("Setup");
         navigationRail = new NavigationRailPanel(this::handleSectionSelectionRequest);
         headerPanel = buildHeaderPanel();
         headerRightPanel = (JPanel) headerPanel.getComponent(1);
+        headerRightPanel.add(headerSnapshotChip);
         headerRightPanel.add(headerStatusChip);
 
         contentLayout = new CardLayout();
@@ -123,6 +128,20 @@ final class OneBuilderWorkspacePanel extends JPanel {
         return headerPanel != null;
     }
 
+    boolean headerSnapshotChipVisibleForTest() {
+        return headerSnapshotChip.isVisible();
+    }
+
+    List<String> headerRightLabelsForTest() {
+        List<String> labels = new ArrayList<>();
+        for (java.awt.Component component : headerRightPanel.getComponents()) {
+            if (component instanceof JLabel && component.isVisible()) {
+                labels.add(((JLabel) component).getText());
+            }
+        }
+        return labels;
+    }
+
     TreeParametersPanel treeParametersPanel() {
         return treeParametersPanel;
     }
@@ -145,6 +164,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
 
     void applyPreferences(UiPreferences preferences) {
         currentRunTanglegramPanel.applyPreferences(preferences);
+        howToCitePanel.applyPreferences();
         treeParametersPanel.applyPreferences();
         treeBuildPanel.applyPreferences();
         revalidate();
@@ -200,6 +220,9 @@ final class OneBuilderWorkspacePanel extends JPanel {
     }
 
     private void updateHeaderForSection(WorkspaceSection section) {
+        headerSnapshotChip.setVisible(section == WorkspaceSection.TANGLEGRAM);
+        headerRightPanel.revalidate();
+        headerRightPanel.repaint();
         switch (section) {
             case INPUT_ALIGN:
                 headerContextLabel.setText(platformSupport.supportsPipelineExecution()

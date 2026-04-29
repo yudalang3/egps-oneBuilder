@@ -41,6 +41,7 @@ public final class OneBuilderStandaloneTest {
             run("blocksNavigationUntilRequiredInputIsReady", OneBuilderStandaloneTest::blocksNavigationUntilRequiredInputIsReady);
             run("prefersInputParentDirectoryWhenInputPathIsAFile", OneBuilderStandaloneTest::prefersInputParentDirectoryWhenInputPathIsAFile);
             run("rejectsInvalidOutputDirectoryPath", OneBuilderStandaloneTest::rejectsInvalidOutputDirectoryPath);
+            run("rejectsRunWhenAllTreeMethodsAreDisabled", OneBuilderStandaloneTest::rejectsRunWhenAllTreeMethodsAreDisabled);
             run("requiresProstt5ModelPathForFastaOnlyProteinStructure", OneBuilderStandaloneTest::requiresProstt5ModelPathForFastaOnlyProteinStructure);
             run("autoDetectsDnaInputTypeForExportedConfig", OneBuilderStandaloneTest::autoDetectsDnaInputTypeForExportedConfig);
             run("autoEnablesAlignmentForUnequalSequenceLengths", OneBuilderStandaloneTest::autoEnablesAlignmentForUnequalSequenceLengths);
@@ -57,6 +58,8 @@ public final class OneBuilderStandaloneTest {
             run("keepsTreeBuildCaretAtEndAfterAppendingLogs", OneBuilderStandaloneTest::keepsTreeBuildCaretAtEndAfterAppendingLogs);
             run("storesLanguageInExportedConfig", OneBuilderStandaloneTest::storesLanguageInExportedConfig);
             run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
+            run("usesGlobalFontForCitationText", OneBuilderStandaloneTest::usesGlobalFontForCitationText);
+            run("showsTanglegramSnapshotChipBeforeStatus", OneBuilderStandaloneTest::showsTanglegramSnapshotChipBeforeStatus);
         } finally {
             UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
             UiPreferenceStore.clearNodeForTests();
@@ -546,6 +549,8 @@ public final class OneBuilderStandaloneTest {
             assertEquals(RerootMethod.MAD, workspacePanel.rerootTreePanel().toConfig().method(), "MAD should be the default reroot method");
             assertTrue(workspacePanel.treeBuildPanel().hasRunButtonForTest(), "expected tree build run button");
             assertTrue(workspacePanel.treeBuildPanel().hasExportConfigButtonForTest(), "expected tree build export button");
+            assertEquals(Arrays.asList("Setup"), workspacePanel.headerRightLabelsForTest(),
+                    "initial header should only show run-state status");
         });
     }
 
@@ -622,6 +627,29 @@ public final class OneBuilderStandaloneTest {
             throw new AssertionError("expected invalid output path to be rejected");
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains("Output"), "expected output-path validation message");
+        }
+    }
+
+    private static void rejectsRunWhenAllTreeMethodsAreDisabled() throws Exception {
+        Path tempInputFile = Files.createTempFile("onebuilder-input-", ".fasta");
+        Path tempOutputDirectory = Files.createTempDirectory("onebuilder-output-");
+        Files.writeString(tempInputFile, ">seq1\nMPEPTIDE\n>seq2\nMPEPTIDK\n", StandardCharsets.UTF_8);
+        PipelineRuntimeConfig runtimeConfig = PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN)
+                .withDistance(new SimpleMethodConfig(false))
+                .withMaximumLikelihood(new MaximumLikelihoodConfig(false, 1000, "MFP", ""))
+                .withBayesian(new BayesianConfig(false, "mixed", "invgamma", 50000, 100, 1000, 5000))
+                .withParsimony(new SimpleMethodConfig(false))
+                .withProteinStructure(ProteinStructureConfig.defaults());
+        InputAlignPanel panel = new InputAlignPanel(PlatformSupport.LINUX, () -> { }, () -> runtimeConfig);
+        setTextField(panel, "inputFileField", tempInputFile.toString());
+        setTextField(panel, "outputDirField", tempOutputDirectory.toString());
+
+        try {
+            panel.buildRunRequestForExport();
+            throw new AssertionError("expected all-disabled method configuration to be rejected");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("Enable at least one tree-building method"),
+                    "expected all-methods-disabled validation message");
         }
     }
 
@@ -1228,6 +1256,46 @@ public final class OneBuilderStandaloneTest {
         } finally {
             Files.deleteIfExists(tempFile);
         }
+    }
+
+    private static void usesGlobalFontForCitationText() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            HowToCitePanel panel = new HowToCitePanel(Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"));
+            java.awt.Font textAreaFont = javax.swing.UIManager.getFont("TextArea.font");
+            if (textAreaFont != null) {
+                assertEquals(textAreaFont.getFamily(), panel.citationFontFamilyForTest(),
+                        "citation text should use the global TextArea font family");
+            }
+        });
+    }
+
+    private static void showsTanglegramSnapshotChipBeforeStatus() throws Exception {
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                OneBuilderWorkspacePanel workspacePanel = new OneBuilderWorkspacePanel(
+                        Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"),
+                        PlatformSupport.LINUX);
+                java.lang.reflect.Method updateHeader = OneBuilderWorkspacePanel.class.getDeclaredMethod(
+                        "updateHeaderForSection",
+                        WorkspaceSection.class);
+                updateHeader.setAccessible(true);
+                updateHeader.invoke(workspacePanel, WorkspaceSection.TANGLEGRAM);
+                assertTrue(workspacePanel.headerSnapshotChipVisibleForTest(),
+                        "snapshot chip should be visible on the Tanglegram page");
+                assertEquals(
+                        Arrays.asList("Quick Snapshot of the Tanglegram", "Setup"),
+                        workspacePanel.headerRightLabelsForTest(),
+                        "snapshot chip should appear before the run-state status chip");
+                updateHeader.invoke(workspacePanel, WorkspaceSection.TREE_BUILD);
+                assertTrue(!workspacePanel.headerSnapshotChipVisibleForTest(),
+                        "snapshot chip should be hidden outside the Tanglegram page");
+            } catch (ReflectiveOperationException exception) {
+                throw new RuntimeException(exception);
+            }
+        });
     }
 
     private static void run(String name, ThrowingRunnable test) throws Exception {

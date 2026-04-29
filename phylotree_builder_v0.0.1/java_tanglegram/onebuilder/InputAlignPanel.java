@@ -506,7 +506,7 @@ final class InputAlignPanel extends JPanel {
         }
 
         PipelineRuntimeConfig runtimeConfig = runtimeConfigSupplier.get();
-        validateProteinStructureConfig(runtimeConfig);
+        validateRunConfiguration(runtimeConfig);
 
         RunRequest request = RunRequest.builder()
                 .inputType(selectedInputType())
@@ -529,6 +529,62 @@ final class InputAlignPanel extends JPanel {
                 ? ExecutionPlanBuilder.alignedOutputPath(request.inputFile())
                 : request.inputFile());
         return request;
+    }
+
+    private void validateRunConfiguration(PipelineRuntimeConfig runtimeConfig) {
+        if (runtimeConfig == null) {
+            throw new IllegalArgumentException("Tree parameters are not available. Review Tree Parameters before running or exporting.");
+        }
+        boolean hasEnabledMethod = runtimeConfig.distance().enabled()
+                || runtimeConfig.maximumLikelihood().enabled()
+                || runtimeConfig.bayesian().enabled()
+                || runtimeConfig.parsimony().enabled()
+                || (selectedInputType() == InputType.PROTEIN && runtimeConfig.proteinStructure().enabled());
+        if (!hasEnabledMethod) {
+            throw new IllegalArgumentException("Enable at least one tree-building method before running or exporting.");
+        }
+        validateMaximumLikelihoodConfig(runtimeConfig.maximumLikelihood());
+        validateBayesianConfig(runtimeConfig.bayesian());
+        validateProteinStructureConfig(runtimeConfig);
+    }
+
+    private void validateMaximumLikelihoodConfig(MaximumLikelihoodConfig maximumLikelihood) {
+        if (maximumLikelihood == null || !maximumLikelihood.enabled()) {
+            return;
+        }
+        if (maximumLikelihood.bootstrapReplicates() < 0) {
+            throw new IllegalArgumentException("Maximum Likelihood bootstrap replicates cannot be negative.");
+        }
+        if (maximumLikelihood.threadsMax() != null && maximumLikelihood.threadsMax().intValue() < 1) {
+            throw new IllegalArgumentException("Maximum Likelihood thread cap must be at least 1 when set.");
+        }
+        if (maximumLikelihood.alrt() != null && maximumLikelihood.alrt().intValue() < 0) {
+            throw new IllegalArgumentException("Maximum Likelihood SH-aLRT replicates cannot be negative.");
+        }
+    }
+
+    private void validateBayesianConfig(BayesianConfig bayesian) {
+        if (bayesian == null || !bayesian.enabled()) {
+            return;
+        }
+        if (bayesian.ngen() <= 0 || bayesian.samplefreq() <= 0 || bayesian.printfreq() <= 0 || bayesian.diagnfreq() <= 0) {
+            throw new IllegalArgumentException("Bayes Method ngen, samplefreq, printfreq, and diagnfreq must be positive.");
+        }
+        if (bayesian.nruns() != null && bayesian.nruns().intValue() <= 0) {
+            throw new IllegalArgumentException("Bayes Method nruns must be positive when set.");
+        }
+        if (bayesian.nchains() != null && bayesian.nchains().intValue() <= 0) {
+            throw new IllegalArgumentException("Bayes Method nchains must be positive when set.");
+        }
+        if (bayesian.temp() != null && bayesian.temp().doubleValue() <= 0.0d) {
+            throw new IllegalArgumentException("Bayes Method temperature must be positive when set.");
+        }
+        if (bayesian.burnin() != null && bayesian.burnin().intValue() < 0) {
+            throw new IllegalArgumentException("Bayes Method burnin cannot be negative.");
+        }
+        if (bayesian.burninfrac() != null && (bayesian.burninfrac().doubleValue() < 0.0d || bayesian.burninfrac().doubleValue() > 1.0d)) {
+            throw new IllegalArgumentException("Bayes Method burninfrac must be between 0 and 1 when set.");
+        }
     }
 
     private void validateProteinStructureConfig(PipelineRuntimeConfig runtimeConfig) {

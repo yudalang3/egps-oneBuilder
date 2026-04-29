@@ -9,6 +9,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 
 final class HowToCitePanel extends JPanel {
     private final Path scriptDirectory;
@@ -28,7 +29,7 @@ final class HowToCitePanel extends JPanel {
         citationArea.setEditable(false);
         citationArea.setLineWrap(true);
         citationArea.setWrapStyleWord(true);
-        WorkbenchStyles.styleMonospaceLog(citationArea);
+        updateCitationFont();
 
         JPanel body = WorkbenchStyles.createSurfacePanel(new BorderLayout(0, 8));
         body.add(WorkbenchStyles.createNoteArea(
@@ -46,6 +47,23 @@ final class HowToCitePanel extends JPanel {
 
     Path citationDocumentPathForTest() {
         return resolveCitationDocument(scriptDirectory);
+    }
+
+    String citationFontFamilyForTest() {
+        return citationArea.getFont().getFamily();
+    }
+
+    void applyPreferences() {
+        updateCitationFont();
+        revalidate();
+        repaint();
+    }
+
+    private void updateCitationFont() {
+        java.awt.Font textAreaFont = UIManager.getFont("TextArea.font");
+        if (textAreaFont != null) {
+            citationArea.setFont(textAreaFont);
+        }
     }
 
     private void loadCitationDocument() {
