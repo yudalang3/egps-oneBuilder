@@ -535,17 +535,35 @@ final class InputAlignPanel extends JPanel {
         if (runtimeConfig == null) {
             throw new IllegalArgumentException("Tree parameters are not available. Review Tree Parameters before running or exporting.");
         }
-        boolean hasEnabledMethod = runtimeConfig.distance().enabled()
-                || runtimeConfig.maximumLikelihood().enabled()
-                || runtimeConfig.bayesian().enabled()
-                || runtimeConfig.parsimony().enabled()
-                || (selectedInputType() == InputType.PROTEIN && runtimeConfig.proteinStructure().enabled());
-        if (!hasEnabledMethod) {
+        if (countEnabledTreeMethods(runtimeConfig, selectedInputType()) == 0) {
             throw new IllegalArgumentException("Enable at least one tree-building method before running or exporting.");
         }
         validateMaximumLikelihoodConfig(runtimeConfig.maximumLikelihood());
         validateBayesianConfig(runtimeConfig.bayesian());
         validateProteinStructureConfig(runtimeConfig);
+    }
+
+    static int countEnabledTreeMethods(PipelineRuntimeConfig runtimeConfig, InputType inputType) {
+        if (runtimeConfig == null) {
+            return 0;
+        }
+        int count = 0;
+        if (runtimeConfig.distance().enabled()) {
+            count++;
+        }
+        if (runtimeConfig.maximumLikelihood().enabled()) {
+            count++;
+        }
+        if (runtimeConfig.bayesian().enabled()) {
+            count++;
+        }
+        if (runtimeConfig.parsimony().enabled()) {
+            count++;
+        }
+        if (inputType == InputType.PROTEIN && runtimeConfig.proteinStructure().enabled()) {
+            count++;
+        }
+        return count;
     }
 
     private void validateMaximumLikelihoodConfig(MaximumLikelihoodConfig maximumLikelihood) {

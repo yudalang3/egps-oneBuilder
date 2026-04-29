@@ -268,7 +268,11 @@ final class OneBuilderWorkspacePanel extends JPanel {
     private void handleRunButtonPressed() {
         refreshTreeBuildDraft();
         try {
-            handleRunRequested(inputAlignPanel.buildRunRequestForExecution());
+            RunRequest request = inputAlignPanel.buildRunRequestForExecution();
+            if (!confirmSingleMethodRunIfNeeded(request)) {
+                return;
+            }
+            handleRunRequested(request);
         } catch (IllegalArgumentException exception) {
             JOptionPane.showMessageDialog(this, exception.getMessage(), "eGPS oneBuilder", JOptionPane.ERROR_MESSAGE);
         }
@@ -277,7 +281,11 @@ final class OneBuilderWorkspacePanel extends JPanel {
     private void handleExportButtonPressed() {
         refreshTreeBuildDraft();
         try {
-            handleExportRequested(inputAlignPanel.buildRunRequestForExport());
+            RunRequest request = inputAlignPanel.buildRunRequestForExport();
+            if (!confirmSingleMethodRunIfNeeded(request)) {
+                return;
+            }
+            handleExportRequested(request);
         } catch (IllegalArgumentException exception) {
             JOptionPane.showMessageDialog(this, exception.getMessage(), "eGPS oneBuilder", JOptionPane.ERROR_MESSAGE);
         }
@@ -395,6 +403,19 @@ final class OneBuilderWorkspacePanel extends JPanel {
             return null;
         }
         return request.withOverwriteExistingOutput(true);
+    }
+
+    private boolean confirmSingleMethodRunIfNeeded(RunRequest request) {
+        if (request == null || InputAlignPanel.countEnabledTreeMethods(request.runtimeConfig(), request.inputType()) != 1) {
+            return true;
+        }
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Only one tree-building method is enabled. The run can produce a single tree, but Tanglegram and TreeDist comparisons require at least two readable trees.\n\nContinue anyway?",
+                "Only One Method Enabled",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        return choice == JOptionPane.OK_OPTION;
     }
 
     private void syncWorkflowTabs() {

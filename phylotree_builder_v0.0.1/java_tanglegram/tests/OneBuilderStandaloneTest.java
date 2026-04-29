@@ -42,6 +42,7 @@ public final class OneBuilderStandaloneTest {
             run("prefersInputParentDirectoryWhenInputPathIsAFile", OneBuilderStandaloneTest::prefersInputParentDirectoryWhenInputPathIsAFile);
             run("rejectsInvalidOutputDirectoryPath", OneBuilderStandaloneTest::rejectsInvalidOutputDirectoryPath);
             run("rejectsRunWhenAllTreeMethodsAreDisabled", OneBuilderStandaloneTest::rejectsRunWhenAllTreeMethodsAreDisabled);
+            run("countsEnabledTreeMethodsForSingleMethodWarning", OneBuilderStandaloneTest::countsEnabledTreeMethodsForSingleMethodWarning);
             run("requiresProstt5ModelPathForFastaOnlyProteinStructure", OneBuilderStandaloneTest::requiresProstt5ModelPathForFastaOnlyProteinStructure);
             run("autoDetectsDnaInputTypeForExportedConfig", OneBuilderStandaloneTest::autoDetectsDnaInputTypeForExportedConfig);
             run("autoEnablesAlignmentForUnequalSequenceLengths", OneBuilderStandaloneTest::autoEnablesAlignmentForUnequalSequenceLengths);
@@ -651,6 +652,32 @@ public final class OneBuilderStandaloneTest {
             assertTrue(expected.getMessage().contains("Enable at least one tree-building method"),
                     "expected all-methods-disabled validation message");
         }
+    }
+
+    private static void countsEnabledTreeMethodsForSingleMethodWarning() {
+        PipelineRuntimeConfig distanceOnly = PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN)
+                .withDistance(new SimpleMethodConfig(true))
+                .withMaximumLikelihood(new MaximumLikelihoodConfig(false, 1000, "MFP", ""))
+                .withBayesian(new BayesianConfig(false, "mixed", "invgamma", 50000, 100, 1000, 5000))
+                .withParsimony(new SimpleMethodConfig(false))
+                .withProteinStructure(ProteinStructureConfig.defaults());
+        assertEquals(Integer.valueOf(1), Integer.valueOf(InputAlignPanel.countEnabledTreeMethods(distanceOnly, InputType.PROTEIN)),
+                "expected exactly one enabled tree method");
+
+        PipelineRuntimeConfig proteinStructureOnly = PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN)
+                .withDistance(new SimpleMethodConfig(false))
+                .withMaximumLikelihood(new MaximumLikelihoodConfig(false, 1000, "MFP", ""))
+                .withBayesian(new BayesianConfig(false, "mixed", "invgamma", 50000, 100, 1000, 5000))
+                .withParsimony(new SimpleMethodConfig(false))
+                .withProteinStructure(new ProteinStructureConfig(true, true, "/data/structures.tsv"));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(InputAlignPanel.countEnabledTreeMethods(proteinStructureOnly, InputType.PROTEIN)),
+                "protein structure should count as one protein tree method");
+        assertEquals(Integer.valueOf(0), Integer.valueOf(InputAlignPanel.countEnabledTreeMethods(proteinStructureOnly, InputType.DNA_CDS)),
+                "protein structure should not count for DNA/CDS input");
+
+        PipelineRuntimeConfig defaultProtein = PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN);
+        assertEquals(Integer.valueOf(4), Integer.valueOf(InputAlignPanel.countEnabledTreeMethods(defaultProtein, InputType.PROTEIN)),
+                "expected default protein sequence methods to count as four enabled methods");
     }
 
     private static void requiresProstt5ModelPathForFastaOnlyProteinStructure() throws Exception {
