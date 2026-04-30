@@ -25,6 +25,14 @@
       ]
     }
   },
+  "reroot": {
+    "method": "MAD",
+    "ladderization": {
+      "direction": "UP",
+      "sort_by_clade_size": true,
+      "sort_by_branch_length": true
+    }
+  },
   "methods": {
     "distance": {
       "enabled": true,

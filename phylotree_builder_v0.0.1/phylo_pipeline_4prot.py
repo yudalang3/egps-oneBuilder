@@ -283,6 +283,8 @@ class ProteinPhylogeneticPipeline:
         clamp_negative_branch_lengths=False,
         set_all_branch_lengths=None,
         ladderize_direction=None,
+        sort_by_clade_size=False,
+        sort_by_branch_length=False,
     ) -> Optional[Path]:
         input_path = Path(tree_file)
         output_path = Path(output_file) if output_file is not None else input_path
@@ -304,6 +306,10 @@ class ProteinPhylogeneticPipeline:
             cmd.extend(["--set-all-branch-lengths", str(set_all_branch_lengths)])
         if ladderize_direction:
             cmd.extend(["--ladderize-direction", str(ladderize_direction)])
+        if sort_by_clade_size:
+            cmd.append("--sort-by-clade-size")
+        if sort_by_branch_length:
+            cmd.append("--sort-by-branch-length")
         self.logger.info(cmd)
         try:
             result = subprocess.run(
@@ -325,6 +331,17 @@ class ProteinPhylogeneticPipeline:
             if exception.stderr:
                 self.logger.error(exception.stderr.strip())
             return None
+
+    def _ladderization_settings(self):
+        ladderization = self.runtime_settings.get("reroot", {}).get("ladderization", {})
+        direction = str(ladderization.get("direction") or "UP").strip().upper()
+        if direction not in {"UP", "DOWN"}:
+            direction = "UP"
+        return {
+            "direction": direction,
+            "sort_by_clade_size": bool(ladderization.get("sort_by_clade_size", True)),
+            "sort_by_branch_length": bool(ladderization.get("sort_by_branch_length", True)),
+        }
 
     def name_convention(self):
         """Set name convention for input sequences.
@@ -1171,11 +1188,14 @@ class ProteinPhylogeneticPipeline:
             path_output = tree_file.with_name(tree_file.name + ".ladderize")
 
             try:
+                ladderization = self._ladderization_settings()
                 ladderized_tree = self._postprocess_tree_with_egps(
                     tree_file,
                     output_file=path_output,
                     set_all_branch_lengths=1 if make_branch_equal else None,
-                    ladderize_direction="UP",
+                    ladderize_direction=ladderization["direction"],
+                    sort_by_clade_size=ladderization["sort_by_clade_size"],
+                    sort_by_branch_length=ladderization["sort_by_branch_length"],
                 )
                 if ladderized_tree is None:
                     raise RuntimeError("tree postprocess command returned no output")

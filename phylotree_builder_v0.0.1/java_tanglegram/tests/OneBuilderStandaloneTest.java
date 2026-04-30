@@ -31,6 +31,7 @@ public final class OneBuilderStandaloneTest {
             run("roundTripsProteinStructureTreeBuilderMethod", OneBuilderStandaloneTest::roundTripsProteinStructureTreeBuilderMethod);
             run("proteinStructureTreeCommandBuildsNewick", OneBuilderStandaloneTest::proteinStructureTreeCommandBuildsNewick);
             run("serializesRerootRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesRerootRuntimeConfigAsJson);
+            run("defaultsRerootPanelToVisibleLadderizationRules", OneBuilderStandaloneTest::defaultsRerootPanelToVisibleLadderizationRules);
             run("rerootTreeCommandUsesEgpsMidpointRooting", OneBuilderStandaloneTest::rerootTreeCommandUsesEgpsMidpointRooting);
             run("treePostprocessCommandUsesEgpsTreeUtilities", OneBuilderStandaloneTest::treePostprocessCommandUsesEgpsTreeUtilities);
             run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
@@ -409,7 +410,7 @@ public final class OneBuilderStandaloneTest {
     private static void serializesRerootRuntimeConfigAsJson() throws Exception {
         Path tempFile = Files.createTempFile("onebuilder-reroot-config-", ".json");
         PipelineRuntimeConfig config = PipelineRuntimeConfig.defaultsFor(InputType.DNA_CDS)
-                .withReroot(new RerootConfig(RerootMethod.ROOT_AT_MIDDLE_POINT));
+                .withReroot(new RerootConfig(RerootMethod.ROOT_AT_MIDDLE_POINT, LadderizeDirection.DOWN, true, true));
 
         RunRequest request = RunRequest.builder()
                 .inputType(InputType.DNA_CDS)
@@ -428,6 +429,19 @@ public final class OneBuilderStandaloneTest {
                 "root-at-middle-point",
                 root.getJSONObject("reroot").getString("method"),
                 "unexpected midpoint reroot JSON value");
+        JSONObject ladderization = root.getJSONObject("reroot").getJSONObject("ladderization");
+        assertEquals("DOWN", ladderization.getString("direction"), "unexpected ladderization direction");
+        assertTrue(ladderization.getBoolean("sort_by_clade_size"), "expected clade-size sorting flag");
+        assertTrue(ladderization.getBoolean("sort_by_branch_length"), "expected branch-length sorting flag");
+    }
+
+    private static void defaultsRerootPanelToVisibleLadderizationRules() {
+        RerootTreePanel panel = new RerootTreePanel();
+        RerootConfig config = panel.toConfig();
+        assertEquals(RerootMethod.MAD, config.method(), "expected MAD as the default reroot method");
+        assertEquals(LadderizeDirection.UP, config.ladderizeDirection(), "expected UP as the default ladderization direction");
+        assertTrue(config.sortByCladeSize(), "expected clade-size sorting to stay enabled");
+        assertTrue(config.sortByBranchLength(), "expected branch-length sorting to stay enabled");
     }
 
     private static void rerootTreeCommandUsesEgpsMidpointRooting() throws Exception {
@@ -464,7 +478,9 @@ public final class OneBuilderStandaloneTest {
                 "--rename-map", renameMap.toString(),
                 "--clamp-negative-branch-lengths",
                 "--set-all-branch-lengths", "1",
-                "--ladderize-direction", "UP"
+                "--ladderize-direction", "UP",
+                "--sort-by-clade-size",
+                "--sort-by-branch-length"
         });
 
         assertEquals(Integer.valueOf(0), Integer.valueOf(exitCode), "tree postprocess command should succeed");

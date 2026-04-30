@@ -85,6 +85,11 @@ PROTEIN_DEFAULTS = {
     },
     "reroot": {
         "method": "MAD",
+        "ladderization": {
+            "direction": "UP",
+            "sort_by_clade_size": True,
+            "sort_by_branch_length": True,
+        },
     },
 }
 
@@ -170,6 +175,11 @@ DNA_DEFAULTS = {
     },
     "reroot": {
         "method": "MAD",
+        "ladderization": {
+            "direction": "UP",
+            "sort_by_clade_size": True,
+            "sort_by_branch_length": True,
+        },
     },
 }
 
@@ -256,6 +266,24 @@ def _merge_reroot(target, overrides):
     if method not in {"MAD", "root-at-middle-point"}:
         method = "MAD"
     target["method"] = method
+    ladderization = target.setdefault(
+        "ladderization",
+        {
+            "direction": "UP",
+            "sort_by_clade_size": True,
+            "sort_by_branch_length": True,
+        },
+    )
+    override_ladderization = overrides.get("ladderization")
+    if isinstance(override_ladderization, dict):
+        direction = str(override_ladderization.get("direction") or ladderization.get("direction") or "UP").strip().upper()
+        if direction not in {"UP", "DOWN"}:
+            direction = "UP"
+        ladderization["direction"] = direction
+        if "sort_by_clade_size" in override_ladderization:
+            ladderization["sort_by_clade_size"] = bool(override_ladderization.get("sort_by_clade_size"))
+        if "sort_by_branch_length" in override_ladderization:
+            ladderization["sort_by_branch_length"] = bool(override_ladderization.get("sort_by_branch_length"))
 
 
 def _normalize_input_type_specific_settings(merged, input_type):

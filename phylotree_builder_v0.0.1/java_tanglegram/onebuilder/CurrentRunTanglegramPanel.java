@@ -197,8 +197,19 @@ final class CurrentRunTanglegramPanel extends JPanel {
 
         TanglegramRenderOptions renderOptions = new TanglegramRenderOptions(
                 ((Integer) labelFontSizeSpinner.getValue()).intValue(),
+                javax.swing.UIManager.getFont("Label.font") == null
+                        ? java.awt.Font.SANS_SERIF
+                        : javax.swing.UIManager.getFont("Label.font").getFamily(),
+                javax.swing.UIManager.getFont("Label.font") == null
+                        ? java.awt.Font.PLAIN
+                        : javax.swing.UIManager.getFont("Label.font").getStyle(),
+                true,
                 ((Integer) horizontalPaddingSpinner.getValue()).intValue(),
                 ((Integer) verticalPaddingSpinner.getValue()).intValue(),
+                160,
+                1.0f,
+                6.0f,
+                5.0f,
                 autoFitCheckBox.isSelected());
         TanglegramPanelFactory panelFactory = new TanglegramPanelFactory(renderOptions);
         for (TreePairSpec pairSpec : loadResult.availablePairs()) {

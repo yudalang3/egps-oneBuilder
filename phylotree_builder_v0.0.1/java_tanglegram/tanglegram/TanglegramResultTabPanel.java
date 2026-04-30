@@ -5,8 +5,10 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
@@ -17,6 +19,9 @@ import javax.swing.JTabbedPane;
 final class TanglegramResultTabPanel extends JPanel implements ExportableView {
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private final JideTabbedPane pairTabs;
+    private final List<TreePairSpec> pairSpecs;
+    private final JButton visualPropertiesButton;
+    private TanglegramRenderOptions renderOptions;
 
     TanglegramResultTabPanel(
             String sourceName,
@@ -29,17 +34,16 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
         setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
         setOpaque(false);
 
+        this.pairSpecs = List.copyOf(pairSpecs);
         this.pairTabs = createPairTabs();
-
-        TanglegramPanelFactory panelFactory = new TanglegramPanelFactory(
-                new TanglegramRenderOptions(UiPreferenceStore.load().defaultTanglegramLabelFontSize(), 4, 2, true));
-        for (TreePairSpec pairSpec : pairSpecs) {
-            this.pairTabs.addTab(pairSpec.tabName(), new ResizableTanglegramView(pairSpec, panelFactory));
-        }
+        this.renderOptions = initialRenderOptions();
+        this.visualPropertiesButton = new JButton(UiText.text("Visual properties", "可视化属性"));
+        this.visualPropertiesButton.addActionListener(event -> openVisualPropertiesDialog());
 
         JButton treeAlignmentButton = new JButton(UiText.text("3D Tree Alignment", "3D 树对齐"));
         treeAlignmentButton.addActionListener(event -> openThreeDAlignmentAction.run());
-        this.pairTabs.setTabTrailingComponent(treeAlignmentButton);
+        this.pairTabs.setTabTrailingComponent(createTrailingActions(treeAlignmentButton));
+        rebuildPairTabs(0);
 
         JTextArea summaryArea = new JTextArea(buildSummary(sourceName, sourceKind, importedTrees, pairSpecs, warnings));
         summaryArea.setEditable(false);
@@ -57,6 +61,28 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
         splitPane.setDividerSize(6);
         splitPane.setBorder(null);
         add(splitPane, BorderLayout.CENTER);
+    }
+
+    boolean hasVisualPropertiesButtonForTest() {
+        return visualPropertiesButton != null;
+    }
+
+    int pairTabCountForTest() {
+        return pairTabs.getTabCount();
+    }
+
+    TanglegramRenderOptions renderOptionsForTest() {
+        return renderOptions;
+    }
+
+    void applyRenderOptionsForTest(TanglegramRenderOptions updatedOptions) {
+        applyRenderOptions(updatedOptions);
+    }
+
+    static List<String> standaloneActionLabelsForTest() {
+        return Arrays.asList(
+                UiText.text("Visual properties", "可视化属性"),
+                UiText.text("3D Tree Alignment", "3D 树对齐"));
     }
 
     @Override
@@ -83,6 +109,59 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
         tabs.setColorTheme(JideTabbedPane.COLOR_THEME_WINXP);
         tabs.setTabResizeMode(JideTabbedPane.RESIZE_MODE_FIT);
         return tabs;
+    }
+
+    private JPanel createTrailingActions(JButton treeAlignmentButton) {
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setOpaque(false);
+        buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.X_AXIS));
+        buttonPanel.add(visualPropertiesButton);
+        buttonPanel.add(javax.swing.Box.createHorizontalStrut(6));
+        buttonPanel.add(treeAlignmentButton);
+        return buttonPanel;
+    }
+
+    private TanglegramRenderOptions initialRenderOptions() {
+        TanglegramRenderOptions defaults = TanglegramRenderOptions.defaults();
+        return new TanglegramRenderOptions(
+                defaults.labelFontSize(),
+                defaults.labelFontFamily(),
+                defaults.labelFontStyle(),
+                defaults.showLeafLabels(),
+                4,
+                2,
+                160,
+                defaults.connectorStrokeWidth(),
+                defaults.connectorDashLength(),
+                defaults.connectorDashGap(),
+                true);
+    }
+
+    private void openVisualPropertiesDialog() {
+        java.awt.Window owner = javax.swing.SwingUtilities.getWindowAncestor(this);
+        TanglegramVisualPropertiesDialog.showDialog(owner, renderOptions, this::applyRenderOptions);
+    }
+
+    private void applyRenderOptions(TanglegramRenderOptions updatedOptions) {
+        if (updatedOptions == null) {
+            return;
+        }
+        int selectedIndex = pairTabs.getSelectedIndex();
+        renderOptions = updatedOptions;
+        rebuildPairTabs(selectedIndex);
+    }
+
+    private void rebuildPairTabs(int selectedIndex) {
+        pairTabs.removeAll();
+        TanglegramPanelFactory panelFactory = new TanglegramPanelFactory(renderOptions);
+        for (TreePairSpec pairSpec : pairSpecs) {
+            pairTabs.addTab(pairSpec.tabName(), new ResizableTanglegramView(pairSpec, panelFactory, renderOptions));
+        }
+        if (pairTabs.getTabCount() > 0) {
+            pairTabs.setSelectedIndex(Math.max(0, Math.min(selectedIndex, pairTabs.getTabCount() - 1)));
+        }
+        pairTabs.revalidate();
+        pairTabs.repaint();
     }
 
     private static String buildSummary(

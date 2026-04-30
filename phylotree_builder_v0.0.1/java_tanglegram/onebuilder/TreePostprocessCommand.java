@@ -33,9 +33,9 @@ public final class TreePostprocessCommand {
             if (options.renameMapFile != null) {
                 renameLeaves(root, readRenameMap(options.renameMapFile));
             }
-            if (options.ladderizeDirection != LadderizeDirection.NONE) {
+            if (options.ladderizeDirection != null) {
                 EvolNodeUtil.initializeSize(root);
-                EvolNodeUtil.ladderizeNodeAccording2sizeAndLength(root, options.ladderizeDirection == LadderizeDirection.UP);
+                applyLadderization(root, options);
             }
             writeTree(root, options.outputFile);
             return 0;
@@ -107,24 +107,17 @@ public final class TreePostprocessCommand {
         return renameMap;
     }
 
-    private enum LadderizeDirection {
-        NONE,
-        UP,
-        DOWN;
-
-        private static LadderizeDirection parse(String rawValue) {
-            String value = rawValue == null ? "" : rawValue.trim();
-            if (value.isEmpty() || "NONE".equalsIgnoreCase(value)) {
-                return NONE;
-            }
-            if ("UP".equalsIgnoreCase(value)) {
-                return UP;
-            }
-            if ("DOWN".equalsIgnoreCase(value)) {
-                return DOWN;
-            }
-            throw new IllegalArgumentException("Unsupported ladderize direction: " + rawValue);
+    private static void applyLadderization(DefaultPhyNode root, CommandOptions options) {
+        boolean upwards = options.ladderizeDirection == LadderizeDirection.UP;
+        if (options.sortByCladeSize && options.sortByBranchLength) {
+            EvolNodeUtil.ladderizeNodeAccording2sizeAndLength(root, upwards);
+            return;
         }
+        if (options.sortByCladeSize) {
+            EvolNodeUtil.ladderizeNodeAccording2size(root, upwards);
+            return;
+        }
+        EvolNodeUtil.ladderizeNode(root, upwards);
     }
 
     private static final class CommandOptions {
@@ -134,6 +127,8 @@ public final class TreePostprocessCommand {
         private final boolean clampNegativeBranchLengths;
         private final Double setAllBranchLengths;
         private final LadderizeDirection ladderizeDirection;
+        private final boolean sortByCladeSize;
+        private final boolean sortByBranchLength;
 
         private CommandOptions(
                 Path inputFile,
@@ -141,13 +136,17 @@ public final class TreePostprocessCommand {
                 Path renameMapFile,
                 boolean clampNegativeBranchLengths,
                 Double setAllBranchLengths,
-                LadderizeDirection ladderizeDirection) {
+                LadderizeDirection ladderizeDirection,
+                boolean sortByCladeSize,
+                boolean sortByBranchLength) {
             this.inputFile = inputFile;
             this.outputFile = outputFile;
             this.renameMapFile = renameMapFile;
             this.clampNegativeBranchLengths = clampNegativeBranchLengths;
             this.setAllBranchLengths = setAllBranchLengths;
             this.ladderizeDirection = ladderizeDirection;
+            this.sortByCladeSize = sortByCladeSize;
+            this.sortByBranchLength = sortByBranchLength;
         }
 
         private static CommandOptions parse(String[] args) {
@@ -156,7 +155,9 @@ public final class TreePostprocessCommand {
             Path renameMapFile = null;
             boolean clampNegativeBranchLengths = false;
             Double setAllBranchLengths = null;
-            LadderizeDirection ladderizeDirection = LadderizeDirection.NONE;
+            LadderizeDirection ladderizeDirection = null;
+            boolean sortByCladeSize = false;
+            boolean sortByBranchLength = false;
             for (int index = 0; index < args.length; index++) {
                 String arg = args[index];
                 if ("--input".equals(arg)) {
@@ -170,14 +171,18 @@ public final class TreePostprocessCommand {
                 } else if ("--set-all-branch-lengths".equals(arg)) {
                     setAllBranchLengths = Double.valueOf(requireValue(args, ++index, arg));
                 } else if ("--ladderize-direction".equals(arg)) {
-                    ladderizeDirection = LadderizeDirection.parse(requireValue(args, ++index, arg));
+                    ladderizeDirection = LadderizeDirection.fromJsonValue(requireValue(args, ++index, arg));
+                } else if ("--sort-by-clade-size".equals(arg)) {
+                    sortByCladeSize = true;
+                } else if ("--sort-by-branch-length".equals(arg)) {
+                    sortByBranchLength = true;
                 } else {
                     throw new IllegalArgumentException("Unknown argument: " + arg);
                 }
             }
             if (inputFile == null || outputFile == null) {
                 throw new IllegalArgumentException(
-                        "Usage: onebuilder.TreePostprocessCommand --input input.nwk --output output.nwk [--rename-map names.tsv] [--clamp-negative-branch-lengths] [--set-all-branch-lengths 1] [--ladderize-direction NONE|UP|DOWN]");
+                        "Usage: onebuilder.TreePostprocessCommand --input input.nwk --output output.nwk [--rename-map names.tsv] [--clamp-negative-branch-lengths] [--set-all-branch-lengths 1] [--ladderize-direction UP|DOWN] [--sort-by-clade-size] [--sort-by-branch-length]");
             }
             return new CommandOptions(
                     inputFile,
@@ -185,7 +190,9 @@ public final class TreePostprocessCommand {
                     renameMapFile,
                     clampNegativeBranchLengths,
                     setAllBranchLengths,
-                    ladderizeDirection);
+                    ladderizeDirection,
+                    sortByCladeSize,
+                    sortByBranchLength);
         }
 
         private static String requireValue(String[] args, int index, String option) {

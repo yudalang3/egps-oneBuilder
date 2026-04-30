@@ -36,6 +36,7 @@ public final class TanglegramStandaloneTest {
             run("keepsFourMethodPairsWhenProteinStructureTreeIsMissing", TanglegramStandaloneTest::keepsFourMethodPairsWhenProteinStructureTreeIsMissing);
             run("loadsOnlyAvailablePairsWhenOneMethodIsMissing", TanglegramStandaloneTest::loadsOnlyAvailablePairsWhenOneMethodIsMissing);
             run("rendersPairPanelForResolvedTrees", TanglegramStandaloneTest::rendersPairPanelForResolvedTrees);
+            run("supportsStandaloneVisualPropertiesControls", TanglegramStandaloneTest::supportsStandaloneVisualPropertiesControls);
         } finally {
             UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
             UiPreferenceStore.clearNodeForTests();
@@ -205,6 +206,34 @@ public final class TanglegramStandaloneTest {
         view.renderNowForTest(new Dimension(900, 700));
 
         assertTrue(view.getComponentCount() > 0 && view.getComponent(0) != null, "expected rendered viewport content");
+    }
+
+    private static void supportsStandaloneVisualPropertiesControls() throws Exception {
+        Path movedOutput = copySampleOutput();
+        TreeSummaryLoadResult result = TreeSummaryLoader.load(movedOutput.resolve("tree_summary"));
+        TreePairSpec firstPair = result.availablePairs().get(0);
+        TanglegramRenderOptions current = TanglegramRenderOptions.defaults();
+        TanglegramRenderOptions updated = new TanglegramRenderOptions(
+                18,
+                current.labelFontFamily(),
+                java.awt.Font.BOLD,
+                false,
+                4,
+                2,
+                220,
+                1.8f,
+                10.0f,
+                7.0f,
+                true);
+        ResizableTanglegramView view = new ResizableTanglegramView(firstPair, new TanglegramPanelFactory(updated), updated);
+        view.setSize(900, 700);
+        view.renderNowForTest(new Dimension(900, 700));
+
+        assertTrue(view.getComponentCount() > 0 && view.getComponent(0) != null,
+                "expected custom visual properties rendering content");
+        assertTrue(!updated.showLeafLabels(), "expected updated leaf label visibility");
+        assertEquals(Integer.valueOf(220), Integer.valueOf(updated.connectorGap()),
+                "expected updated connector gap");
     }
 
     private static Path copySampleOutput() throws Exception {

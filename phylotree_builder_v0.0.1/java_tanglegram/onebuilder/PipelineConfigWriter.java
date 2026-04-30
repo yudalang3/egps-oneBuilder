@@ -54,7 +54,12 @@ public final class PipelineConfigWriter {
 
     private static JSONObject buildRerootSection(PipelineRuntimeConfig config) {
         RerootConfig reroot = config == null ? RerootConfig.defaults() : config.reroot();
-        return new JSONObject().put("method", reroot.method().jsonValue());
+        return new JSONObject()
+                .put("method", reroot.method().jsonValue())
+                .put("ladderization", new JSONObject()
+                        .put("direction", reroot.ladderizeDirection().jsonValue())
+                        .put("sort_by_clade_size", reroot.sortByCladeSize())
+                        .put("sort_by_branch_length", reroot.sortByBranchLength()));
     }
 
     private static JSONObject buildDistanceSection(PipelineRuntimeConfig config) {
