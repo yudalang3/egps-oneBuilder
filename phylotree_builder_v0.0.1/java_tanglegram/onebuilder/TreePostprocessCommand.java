@@ -82,9 +82,13 @@ public final class TreePostprocessCommand {
     private static void renameLeaves(DefaultPhyNode root, Map<String, String> renameMap) {
         List<DefaultPhyNode> leaves = EvolNodeUtil.getLeaves(root);
         for (DefaultPhyNode leaf : leaves) {
-            String replacement = renameMap.get(leaf.getName());
+            String currentName = leaf.getName();
+            String normalizedName = currentName == null ? "" : currentName.trim();
+            String replacement = renameMap.get(normalizedName);
             if (replacement != null) {
                 leaf.setName(replacement);
+            } else if (!normalizedName.equals(currentName)) {
+                leaf.setName(normalizedName);
             }
         }
     }

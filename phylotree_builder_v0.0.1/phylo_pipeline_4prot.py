@@ -286,8 +286,8 @@ class ProteinPhylogeneticPipeline:
         sort_by_clade_size=False,
         sort_by_branch_length=False,
     ) -> Optional[Path]:
-        input_path = Path(tree_file)
-        output_path = Path(output_file) if output_file is not None else input_path
+        input_path = Path(tree_file).resolve()
+        output_path = Path(output_file).resolve() if output_file is not None else input_path
         cmd = [
             "java",
             "-cp",
@@ -330,6 +330,41 @@ class ProteinPhylogeneticPipeline:
                 self.logger.error(exception.stdout.strip())
             if exception.stderr:
                 self.logger.error(exception.stderr.strip())
+            return None
+
+    @staticmethod
+    def _tree_file_has_content(tree_path) -> bool:
+        path = Path(tree_path)
+        if not path.exists() or not path.is_file():
+            return False
+        try:
+            return bool(path.read_text(encoding="utf-8").strip())
+        except Exception:
+            return False
+
+    def _rewrite_tree_with_biophylo(
+        self,
+        tree_file,
+        output_file=None,
+        rename_leaves=False,
+        clamp_negative_branch_lengths=False,
+    ) -> Optional[Path]:
+        input_path = Path(tree_file).resolve()
+        output_path = Path(output_file).resolve() if output_file is not None else input_path
+        try:
+            tree = Phylo.read(str(input_path), "newick")
+            if clamp_negative_branch_lengths:
+                for clade in tree.find_clades():
+                    if clade.branch_length is not None and clade.branch_length < 0:
+                        clade.branch_length = 0.0
+            if rename_leaves and self.new_name2ori_name_dict:
+                for terminal in tree.get_terminals():
+                    if terminal.name in self.new_name2ori_name_dict:
+                        terminal.name = self.new_name2ori_name_dict[terminal.name]
+            Phylo.write(tree, str(output_path), "newick")
+            return output_path
+        except Exception as exception:
+            self.logger.error(f"Bio.Phylo tree rewrite failed: {input_path}: {exception}")
             return None
 
     def _ladderization_settings(self):
@@ -540,14 +575,19 @@ class ProteinPhylogeneticPipeline:
             if os.path.exists("outfile"):
                 shutil.move("outfile", "distance_tree.nwk.txt")
 
-            normalized_tree = self._postprocess_tree_with_egps(
-                Path("distance_tree.nwk"),
+            distance_tree_path = Path("distance_tree.nwk").resolve()
+            normalized_output = distance_tree_path.with_name(distance_tree_path.name + ".normalized")
+            normalized_tree = self._rewrite_tree_with_biophylo(
+                distance_tree_path,
+                output_file=normalized_output,
                 clamp_negative_branch_lengths=True,
             )
-            if normalized_tree is None:
+            if normalized_tree is None or not self._tree_file_has_content(normalized_output):
                 self.logger.warning(
                     "Could not normalize distance tree branch lengths with eGPS; keeping the original tree file"
                 )
+            else:
+                shutil.move(str(normalized_output), str(distance_tree_path))
 
             self.logger.info("Distance-based inference completed")
             return work_dir / "distance_tree.nwk"
@@ -786,7 +826,7 @@ class ProteinPhylogeneticPipeline:
             )
 
             try:
-                renamed_tree = self._postprocess_tree_with_egps(
+                renamed_tree = self._rewrite_tree_with_biophylo(
                     tree_file,
                     output_file=path_output,
                     rename_leaves=True,
@@ -800,6 +840,38 @@ class ProteinPhylogeneticPipeline:
                 self.logger.error(f"Failed to restore names in {tree_file}: {e}")
                 ret_paths.append(tree_file)  # return original tree file
         return ret_paths
+
+    def publish_final_newick_exports(self, tree_files):
+        """Copy final postprocessed trees to stable method-level Newick filenames."""
+        export_paths = [
+            self.output_dir / "distance_method" / "distance_tree.nwk",
+            self.output_dir / "maximum_likelihood" / "ml_tree.nwk",
+            self.output_dir / "bayesian_method" / "alignment.nex.con.tre.nwk",
+            self.output_dir / "parsimony_method" / "parsimony_tree.nwk",
+        ]
+        published_trees: List[Optional[Path]] = []
+
+        for tree_file, export_path in zip(tree_files[:4], export_paths):
+            if tree_file is None or not Path(tree_file).exists():
+                published_trees.append(tree_file)
+                continue
+
+            source_path = Path(tree_file).resolve()
+            export_path = export_path.resolve()
+            try:
+                export_path.parent.mkdir(parents=True, exist_ok=True)
+                if source_path != export_path:
+                    shutil.copy2(source_path, export_path)
+                published_trees.append(export_path)
+                self.logger.info(f"Published final Newick export: {export_path}")
+            except Exception as exception:
+                self.logger.warning(
+                    f"Could not publish final Newick export {export_path}: {exception}"
+                )
+                published_trees.append(Path(tree_file))
+
+        published_trees.extend(tree_files[4:])
+        return published_trees
 
     def visualize_trees(self, tree_files, method_names):
         """Generate visualizations for inferred phylogenies"""
@@ -1072,12 +1144,15 @@ class ProteinPhylogeneticPipeline:
                 ret_paths.append(None)
                 continue
 
+            tree_file = Path(tree_file)
             tree_file_str = str(tree_file)
-            path_output = tree_file_str + ".rooted"
+            path_output = tree_file.with_name(tree_file.name + ".rooted")
 
             if not Path(self.mad_method_path).exists():
                 self.logger.warning(f"MAD tool not found: {self.mad_method_path}")
-                ret_paths.append(tree_file)  # return original tree file
+                self.logger.warning("Falling back to eGPS midpoint rerooting")
+                fallback_paths = self.reroot_tree_by_egps_midpoint([tree_file])
+                ret_paths.append(fallback_paths[0] if fallback_paths else tree_file)
                 continue
 
             cmd = [
@@ -1101,13 +1176,28 @@ class ProteinPhylogeneticPipeline:
                     print("Standard error:")
                     print(stderr)
                     self.logger.error(f"MAD rerooting failed: {tree_file}")
-                    ret_paths.append(tree_file)  # return original tree file
+                    self.logger.warning("Falling back to eGPS midpoint rerooting")
+                    fallback_paths = self.reroot_tree_by_egps_midpoint([tree_file])
+                    ret_paths.append(fallback_paths[0] if fallback_paths else tree_file)
+                elif not self._tree_file_has_content(path_output):
+                    self.logger.warning(
+                        f"MAD produced an empty rooted tree for {tree_file}"
+                    )
+                    try:
+                        path_output.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                    self.logger.warning("Falling back to eGPS midpoint rerooting")
+                    fallback_paths = self.reroot_tree_by_egps_midpoint([tree_file])
+                    ret_paths.append(fallback_paths[0] if fallback_paths else tree_file)
                 else:
                     self.logger.info(f"Rerooting completed: {tree_file}")
-                    ret_paths.append(Path(path_output))
+                    ret_paths.append(path_output)
             except Exception as e:
                 self.logger.error(f"MAD rerooting exception: {e}")
-                ret_paths.append(tree_file)  # return original tree file
+                self.logger.warning("Falling back to eGPS midpoint rerooting")
+                fallback_paths = self.reroot_tree_by_egps_midpoint([tree_file])
+                ret_paths.append(fallback_paths[0] if fallback_paths else tree_file)
 
         return ret_paths
 
@@ -1443,6 +1533,7 @@ class ProteinPhylogeneticPipeline:
         )
 
         result_trees = self.restore_names_in_trees(rooted_ladd_tree_files)
+        result_trees = self.publish_final_newick_exports(result_trees)
         result_trees.append(protein_structure_tree)
         # 6. Visualization and summary
         os.chdir(entry_path)

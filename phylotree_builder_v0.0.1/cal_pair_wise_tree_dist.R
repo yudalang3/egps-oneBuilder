@@ -19,6 +19,13 @@ read_tree_metadata <- function(tsv_file) {
   metadata <- read.table(tsv_file, sep = "\t", header = FALSE, 
                         col.names = c("Method", "TreeFile"), 
                         stringsAsFactors = FALSE)
+  metadata <- metadata[
+    !is.na(metadata$TreeFile) &
+      nzchar(trimws(metadata$TreeFile)) &
+      toupper(trimws(metadata$TreeFile)) != "NULL",
+    ,
+    drop = FALSE
+  ]
   return(metadata)
 }
 
@@ -35,7 +42,7 @@ read_all_trees <- function(metadata, language = "english") {
     if (file.exists(tree_file)) {
       # 读取树文件
       tree <- read.tree(tree_file)
-      trees[[method]] <- tree
+      trees[[length(trees) + 1]] <- tree
       tree_names <- c(tree_names, method)
       cat(runtime_text(language, "Successfully read tree:", "成功读取树:"), method, "\n")
     } else {
@@ -48,7 +55,7 @@ read_all_trees <- function(metadata, language = "english") {
 
 # 计算距离矩阵
 calculate_distance_matrices <- function(trees, tree_names, language = "english") {
-  n_trees <- length(trees)
+  n_trees <- length(tree_names)
   
   # 初始化距离矩阵
   tree_distance_matrix <- matrix(0, nrow = n_trees, ncol = n_trees)
