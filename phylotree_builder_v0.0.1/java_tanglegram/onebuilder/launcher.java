@@ -14,6 +14,7 @@ import tanglegram.GlobalUiPreferenceController;
 import tanglegram.UiPreferenceStore;
 import tanglegram.UiPreferences;
 import tanglegram.UiText;
+import tanglegram.WindowFocusSupport;
 
 public final class launcher {
     private launcher() {
@@ -28,6 +29,7 @@ public final class launcher {
             OneBuilderFrame frame = new OneBuilderFrame(scriptDirectory);
             frame.setVisible(true);
             showWindowsStartupWarningIfNeeded(frame);
+            WindowFocusSupport.requestFrameFocus(frame);
         });
     }
 

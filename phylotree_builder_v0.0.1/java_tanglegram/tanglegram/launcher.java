@@ -15,6 +15,7 @@ public final class launcher {
             TanglegramFrame frame = new TanglegramFrame();
             frame.setVisible(true);
             frame.handleStartup(options);
+            WindowFocusSupport.requestFrameFocus(frame);
         });
     }
 }

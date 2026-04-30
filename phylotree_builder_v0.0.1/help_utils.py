@@ -2,7 +2,6 @@
 """Parse MrBayes NEXUS trees and export Newick output."""
 
 import re
-from ete4 import Tree
 
 
 def _is_chinese(language):
@@ -72,21 +71,22 @@ def parse_nexus_tree(nexus_file_path, output_nwk_path=None, language="english"):
     if not newick_string.endswith(';'):
         newick_string += ';'
 
-    # 创建 ete4 Tree 对象
-    tree = Tree(newick_string)
-
     # 如果没有指定输出路径，自动生成
     if output_nwk_path is None:
         output_nwk_path = nexus_file_path + '.nwk'
 
-    # 导出为 newick 格式
-    tree.write(outfile=output_nwk_path)
+    # 直接导出清洗后的 Newick 文本
+    with open(output_nwk_path, 'w', encoding='utf-8') as handle:
+        handle.write(newick_string)
+        handle.write('\n')
+
+    leaf_count = len(translate_dict) if translate_dict else (newick_string.count(',') + 1 if newick_string else 0)
 
     print(_runtime_text(language, f"Successfully parsed nexus file: {nexus_file_path}", f"成功解析 nexus 文件: {nexus_file_path}"))
     print(_runtime_text(language, f"Tree exported in Newick format: {output_nwk_path}", f"树已导出为 newick 格式: {output_nwk_path}"))
-    print(_runtime_text(language, f"Tree contains {len(list(tree.leaves()))} leaf nodes", f"树包含 {len(list(tree.leaves()))} 个叶节点"))
+    print(_runtime_text(language, f"Tree contains {leaf_count} leaf nodes", f"树包含 {leaf_count} 个叶节点"))
 
-    return tree
+    return newick_string
 
 
 if __name__ == "__main__":

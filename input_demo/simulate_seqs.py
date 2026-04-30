@@ -284,21 +284,15 @@ for row in summary_rows:
 with readme_path.open("w", encoding="utf-8") as f:
     f.write(readme)
 
-from ete4 import Tree as EteTree
-def build_ete(nt: Tree) -> EteTree:
-    """从自定义 TreeNT 递归构造 ETE 树。
-    注意：边长写到“子节点”.dist 上，根的 bl 一般忽略或为 0."""
-    root = EteTree()          # 新建一个空树节点
-    root.name = nt.name       # 记录内部节点名（可选）
-    # 根节点的 nt.bl 通常是 0.0，不用设置到 root.dist
-    for ch in nt.children:
-        child = build_ete(ch)
-        child.dist = ch.bl    # 分支长度是父->子这条边的长度，写在“子”的 dist 上
-        root.add_child(child)
-    return root
+def to_newick(nt: Tree) -> str:
+    if not nt.children:
+        return f"{nt.name}:{nt.bl}"
+    children = ",".join(to_newick(child) for child in nt.children)
+    if nt.bl:
+        return f"({children}){nt.name}:{nt.bl}"
+    return f"({children}){nt.name}"
 
-t = build_ete(guide_tree)
-print(t.to_str(props=["name","dist"]))
+print(to_newick(guide_tree) + ";")
 
 # Return paths for the user
 ret = {"protein_fasta": str(prot_fa_path), "dna_fasta": str(dna_fa_path), "readme": str(readme_path), "dir": str(out_dir)}

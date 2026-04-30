@@ -28,7 +28,6 @@ from tree_summary_plot import create_tree_distance_heatmaps
 mpl.set_loglevel("warning")  # or "error"
 mpl.use("Agg", force=True)
 import warnings
-from ete4 import Tree
 
 warnings.filterwarnings("ignore")
 
@@ -207,6 +206,7 @@ class ProteinPhylogeneticPipeline:
         self.input_file = Path(input_file).resolve()
         self.original_file = None  # original input file path
         self.new_name2ori_name_dict: Dict[str, str] = None
+        self.name_mapping_file: Optional[Path] = None
         self.output_dir = Path(output_dir).resolve()
         self.script_dir = Path(__file__).parent.resolve()
         self.translator = RuntimeTranslator.from_runtime_config(runtime_config)
@@ -256,6 +256,76 @@ class ProteinPhylogeneticPipeline:
         )
         self.logger = LocalizedLogger(logging.getLogger(__name__), self.translator)
 
+    def _onebuilder_java_classpath(self) -> str:
+        return os.pathsep.join(
+            [
+                str(self.script_dir / "java_tanglegram"),
+                str(self.script_dir / "lib" / "*"),
+            ]
+        )
+
+    def _write_name_mapping_file(self):
+        if not self.new_name2ori_name_dict:
+            self.name_mapping_file = None
+            return None
+        mapping_file = self.output_dir / "tree_name_mapping.tsv"
+        with open(mapping_file, "w", encoding="utf-8") as handle:
+            for renamed, original in self.new_name2ori_name_dict.items():
+                handle.write(f"{renamed}\t{original}\n")
+        self.name_mapping_file = mapping_file
+        return mapping_file
+
+    def _postprocess_tree_with_egps(
+        self,
+        tree_file,
+        output_file=None,
+        rename_leaves=False,
+        clamp_negative_branch_lengths=False,
+        set_all_branch_lengths=None,
+        ladderize_direction=None,
+    ) -> Optional[Path]:
+        input_path = Path(tree_file)
+        output_path = Path(output_file) if output_file is not None else input_path
+        cmd = [
+            "java",
+            "-cp",
+            self._onebuilder_java_classpath(),
+            "onebuilder.TreePostprocessCommand",
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+        ]
+        if rename_leaves and self.name_mapping_file is not None:
+            cmd.extend(["--rename-map", str(self.name_mapping_file)])
+        if clamp_negative_branch_lengths:
+            cmd.append("--clamp-negative-branch-lengths")
+        if set_all_branch_lengths is not None:
+            cmd.extend(["--set-all-branch-lengths", str(set_all_branch_lengths)])
+        if ladderize_direction:
+            cmd.extend(["--ladderize-direction", str(ladderize_direction)])
+        self.logger.info(cmd)
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=str(self.script_dir),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            if result.stdout:
+                self.logger.debug(result.stdout.strip())
+            if result.stderr:
+                self.logger.debug(result.stderr.strip())
+            return output_path
+        except subprocess.CalledProcessError as exception:
+            self.logger.error(f"eGPS tree postprocess failed: {input_path}")
+            if exception.stdout:
+                self.logger.error(exception.stdout.strip())
+            if exception.stderr:
+                self.logger.error(exception.stderr.strip())
+            return None
+
     def name_convention(self):
         """Set name convention for input sequences.
 
@@ -279,6 +349,7 @@ class ProteinPhylogeneticPipeline:
         self.input_file = self.output_dir / (
             self.input_file.stem + "_tmp" + self.input_file.suffix
         )
+        self._write_name_mapping_file()
 
         SeqIO.write(records, self.input_file, "fasta")
 
@@ -452,24 +523,14 @@ class ProteinPhylogeneticPipeline:
             if os.path.exists("outfile"):
                 shutil.move("outfile", "distance_tree.nwk.txt")
 
-            # check branch lengths: protdist/neighbor may produce negative branch lengths
-            content = Path("distance_tree.nwk").read_text().replace("\n", "")
-            my_tree = Tree(content)
-            has_value_less0 = False
-            for node in my_tree.traverse():
-                # Check whether dist is None; root may have no distance
-                if node.dist is not None:
-                    if node.dist < 0:
-                        node.dist = 0.0
-                        has_value_less0 = True
-                else:
-                    # handle None values
-                    node.dist = 0.0
-            if has_value_less0:
+            normalized_tree = self._postprocess_tree_with_egps(
+                Path("distance_tree.nwk"),
+                clamp_negative_branch_lengths=True,
+            )
+            if normalized_tree is None:
                 self.logger.warning(
-                    "Found negative branch lengths; set negatives to 0 and rewrote tree"
+                    "Could not normalize distance tree branch lengths with eGPS; keeping the original tree file"
                 )
-                my_tree.write(outfile="distance_tree.nwk")
 
             self.logger.info("Distance-based inference completed")
             return work_dir / "distance_tree.nwk"
@@ -693,7 +754,6 @@ class ProteinPhylogeneticPipeline:
                 "No name mapping available; skipping name restoration in trees"
             )
             return tree_files
-        """Use the ete4 library to read and rewrite trees with original names"""
         ret_paths: List[Path] = []
         for tree_file in tree_files:
             if tree_file is None or not tree_file.exists():
@@ -709,21 +769,13 @@ class ProteinPhylogeneticPipeline:
             )
 
             try:
-                # Read the tree
-                t = Tree(str(tree_file))
-
-                # Replace leaf names using mapping
-                for leaf in t.leaves():
-                    if leaf.name in self.new_name2ori_name_dict:
-                        leaf.name = self.new_name2ori_name_dict[leaf.name]
-                    else:
-                        self.logger.warning(
-                            f"Leaf name {leaf.name} not found in mapping dictionary"
-                        )
-
-                # Write to a new file
-                t.write(outfile=str(path_output))
-
+                renamed_tree = self._postprocess_tree_with_egps(
+                    tree_file,
+                    output_file=path_output,
+                    rename_leaves=True,
+                )
+                if renamed_tree is None:
+                    raise RuntimeError("tree postprocess command returned no output")
                 ret_paths.append(path_output)
                 self.logger.info(f"Restored names in tree: {tree_file}")
 
@@ -1105,7 +1157,7 @@ class ProteinPhylogeneticPipeline:
             return self.reroot_tree_by_egps_midpoint(tree_files)
         return self.reroot_tree_by_MAD(tree_files)
 
-    def ladderize_tree_by_ete4(self, tree_files, make_branch_equal=False) -> List[Path]:
+    def ladderize_tree_with_egps(self, tree_files, make_branch_equal=False) -> List[Path]:
         ret_paths: List[Path] = []
 
         for tree_file in tree_files:
@@ -1119,18 +1171,14 @@ class ProteinPhylogeneticPipeline:
             path_output = tree_file.with_name(tree_file.name + ".ladderize")
 
             try:
-                # Read the tree
-                t = Tree(str(tree_file))
-
-                if make_branch_equal:
-                    for node in t.traverse():
-                        node.dist = 1
-
-                # Ladderize (default increasing order, reverse=True for decreasing)
-                t.ladderize()
-                # Write to new file
-                t.write(outfile=str(path_output))
-
+                ladderized_tree = self._postprocess_tree_with_egps(
+                    tree_file,
+                    output_file=path_output,
+                    set_all_branch_lengths=1 if make_branch_equal else None,
+                    ladderize_direction="UP",
+                )
+                if ladderized_tree is None:
+                    raise RuntimeError("tree postprocess command returned no output")
                 ret_paths.append(path_output)
                 self.logger.info(f"Ladderize completed: {tree_file}")
 
@@ -1369,9 +1417,9 @@ class ProteinPhylogeneticPipeline:
         rooted_tree_files = self.reroot_trees(tree_files[:3])
 
         os.chdir(entry_path)
-        rooted_ladd_tree_files = self.ladderize_tree_by_ete4(rooted_tree_files)
+        rooted_ladd_tree_files = self.ladderize_tree_with_egps(rooted_tree_files)
         rooted_ladd_tree_files.extend(
-            self.ladderize_tree_by_ete4([tree_files[3]], make_branch_equal=True)
+            self.ladderize_tree_with_egps([tree_files[3]], make_branch_equal=True)
         )
 
         result_trees = self.restore_names_in_trees(rooted_ladd_tree_files)

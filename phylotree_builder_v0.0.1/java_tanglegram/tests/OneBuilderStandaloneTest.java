@@ -32,6 +32,7 @@ public final class OneBuilderStandaloneTest {
             run("proteinStructureTreeCommandBuildsNewick", OneBuilderStandaloneTest::proteinStructureTreeCommandBuildsNewick);
             run("serializesRerootRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesRerootRuntimeConfigAsJson);
             run("rerootTreeCommandUsesEgpsMidpointRooting", OneBuilderStandaloneTest::rerootTreeCommandUsesEgpsMidpointRooting);
+            run("treePostprocessCommandUsesEgpsTreeUtilities", OneBuilderStandaloneTest::treePostprocessCommandUsesEgpsTreeUtilities);
             run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
             run("tracksWorkflowTabUnlocks", OneBuilderStandaloneTest::tracksWorkflowTabUnlocks);
             run("relocksTanglegramWhenNewRunStarts", OneBuilderStandaloneTest::relocksTanglegramWhenNewRunStarts);
@@ -447,6 +448,36 @@ public final class OneBuilderStandaloneTest {
         assertTrue(output.endsWith(";"), "expected Newick output");
         assertTrue(output.contains("A") && output.contains("B") && output.contains("C"),
                 "expected all leaves to be preserved");
+    }
+
+    private static void treePostprocessCommandUsesEgpsTreeUtilities() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("onebuilder-tree-postprocess-");
+        Path inputTree = tempDirectory.resolve("input.nwk");
+        Path outputTree = tempDirectory.resolve("output.nwk");
+        Path renameMap = tempDirectory.resolve("rename_map.tsv");
+        Files.writeString(inputTree, "((seq1:-2,seq2:3):4,seq3:5);", StandardCharsets.UTF_8);
+        Files.writeString(renameMap, "seq1\tHuman\nseq2\tMouse\nseq3\tDog\n", StandardCharsets.UTF_8);
+
+        int exitCode = TreePostprocessCommand.run(new String[] {
+                "--input", inputTree.toString(),
+                "--output", outputTree.toString(),
+                "--rename-map", renameMap.toString(),
+                "--clamp-negative-branch-lengths",
+                "--set-all-branch-lengths", "1",
+                "--ladderize-direction", "UP"
+        });
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(exitCode), "tree postprocess command should succeed");
+        String output = Files.readString(outputTree, StandardCharsets.UTF_8).trim();
+        assertTrue(output.endsWith(";"), "expected Newick output");
+        assertTrue(output.contains("Human") && output.contains("Mouse") && output.contains("Dog"),
+                "expected renamed leaves in output tree");
+        assertTrue(!output.contains("seq1") && !output.contains("seq2") && !output.contains("seq3"),
+                "expected indexed names to be removed");
+        assertTrue(!output.contains(":-"), "expected negative branch lengths to be clamped");
+        assertTrue(output.contains(":1"), "expected branch lengths to be rewritten to one");
+        assertTrue(!output.contains(":3") && !output.contains(":4") && !output.contains(":5"),
+                "expected original branch lengths to be replaced");
     }
 
     private static void detectsPlatformSupport() {

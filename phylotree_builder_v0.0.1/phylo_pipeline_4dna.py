@@ -20,7 +20,6 @@ import argparse
 from Bio import SeqIO, Phylo
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from ete4 import Tree
 from onebuilder_localization import LocalizedLogger, RuntimeTranslator
 from onebuilder_runtime_config import dna_runtime_settings, load_runtime_config
 from tree_summary_plot import create_tree_distance_heatmaps
@@ -226,6 +225,7 @@ class PhylogeneticPipeline:
         self.input_file = Path(input_file).resolve()
         self.original_file = None
         self.new_name2ori_name_dict: Dict[str, str] = None
+        self.name_mapping_file: Optional[Path] = None
         self.output_dir = Path(output_dir).resolve()
         self.script_dir = Path(__file__).parent.resolve()
         self.translator = RuntimeTranslator.from_runtime_config(runtime_config)
@@ -277,6 +277,7 @@ class PhylogeneticPipeline:
         self.input_file = self.output_dir / (
             self.input_file.stem + "_tmp" + self.input_file.suffix
         )
+        self._write_name_mapping_file()
 
         SeqIO.write(records, self.input_file, "fasta")
         self.logger.info("为输入序列设置临时命名规则...")
@@ -290,6 +291,76 @@ class PhylogeneticPipeline:
             handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
         )
         self.logger = LocalizedLogger(logging.getLogger(__name__), self.translator)
+
+    def _onebuilder_java_classpath(self) -> str:
+        return os.pathsep.join(
+            [
+                str(self.script_dir / "java_tanglegram"),
+                str(self.script_dir / "lib" / "*"),
+            ]
+        )
+
+    def _write_name_mapping_file(self):
+        if not self.new_name2ori_name_dict:
+            self.name_mapping_file = None
+            return None
+        mapping_file = self.output_dir / "tree_name_mapping.tsv"
+        with open(mapping_file, "w", encoding="utf-8") as handle:
+            for renamed, original in self.new_name2ori_name_dict.items():
+                handle.write(f"{renamed}\t{original}\n")
+        self.name_mapping_file = mapping_file
+        return mapping_file
+
+    def _postprocess_tree_with_egps(
+        self,
+        tree_file,
+        output_file=None,
+        rename_leaves=False,
+        clamp_negative_branch_lengths=False,
+        set_all_branch_lengths=None,
+        ladderize_direction=None,
+    ) -> Optional[Path]:
+        input_path = Path(tree_file)
+        output_path = Path(output_file) if output_file is not None else input_path
+        cmd = [
+            "java",
+            "-cp",
+            self._onebuilder_java_classpath(),
+            "onebuilder.TreePostprocessCommand",
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+        ]
+        if rename_leaves and self.name_mapping_file is not None:
+            cmd.extend(["--rename-map", str(self.name_mapping_file)])
+        if clamp_negative_branch_lengths:
+            cmd.append("--clamp-negative-branch-lengths")
+        if set_all_branch_lengths is not None:
+            cmd.extend(["--set-all-branch-lengths", str(set_all_branch_lengths)])
+        if ladderize_direction:
+            cmd.extend(["--ladderize-direction", str(ladderize_direction)])
+        self.logger.info(cmd)
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=str(self.script_dir),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            if result.stdout:
+                self.logger.debug(result.stdout.strip())
+            if result.stderr:
+                self.logger.debug(result.stderr.strip())
+            return output_path
+        except subprocess.CalledProcessError as exception:
+            self.logger.error(f"eGPS tree postprocess failed: {input_path}")
+            if exception.stdout:
+                self.logger.error(exception.stdout.strip())
+            if exception.stderr:
+                self.logger.error(exception.stderr.strip())
+            return None
 
     def create_directories(self):
         """创建输出目录结构"""
@@ -996,12 +1067,13 @@ class PhylogeneticPipeline:
             )
 
             try:
-                t = Tree(str(tree_file))
-                for leaf in t.leaves():
-                    if leaf.name in self.new_name2ori_name_dict:
-                        leaf.name = self.new_name2ori_name_dict[leaf.name]
-
-                t.write(outfile=str(path_output))
+                renamed_tree = self._postprocess_tree_with_egps(
+                    tree_file,
+                    output_file=path_output,
+                    rename_leaves=True,
+                )
+                if renamed_tree is None:
+                    raise RuntimeError("tree postprocess command returned no output")
                 ret_paths.append(path_output)
                 self.logger.info(f"已恢复树文件名称: {tree_file}")
             except Exception as e:
@@ -1046,9 +1118,7 @@ class PhylogeneticPipeline:
             else:
                 self.logger.info(f"定根完成，{tree_file}")
 
-    def ladderize_tree_by_ete4(self, tree_files) -> List[Path]:
-        from ete4 import Tree
-
+    def ladderize_tree_with_egps(self, tree_files) -> List[Path]:
         ret_paths: List[Path] = []
         for tree_file in tree_files:
             if tree_file is None or not Path(tree_file).exists():
@@ -1060,16 +1130,18 @@ class PhylogeneticPipeline:
             # 输出路径：原文件名后面加 .ladderize
             path_output = tree_file.with_name(tree_file.name + ".ladderize")
 
-            # 读入树
-            t = Tree(str(tree_file))
-
-            # 阶梯化（默认递增，reverse=True 为递减）
-            t.ladderize()
-
-            # 保存到新文件
-            t.write(outfile=str(path_output))
-
-            ret_paths.append(path_output)
+            try:
+                ladderized_tree = self._postprocess_tree_with_egps(
+                    tree_file,
+                    output_file=path_output,
+                    ladderize_direction="UP",
+                )
+                if ladderized_tree is None:
+                    raise RuntimeError("tree postprocess command returned no output")
+                ret_paths.append(path_output)
+            except Exception as e:
+                self.logger.error(f"Ladderize failed {tree_file}: {e}")
+                ret_paths.append(tree_file)
 
         return ret_paths
 
@@ -1143,7 +1215,7 @@ class PhylogeneticPipeline:
         os.chdir(entry_path)
         rooted_tree_files = self.reroot_trees(tree_files)
         os.chdir(entry_path)
-        rooted_ladd_tree_files = self.ladderize_tree_by_ete4(rooted_tree_files)
+        rooted_ladd_tree_files = self.ladderize_tree_with_egps(rooted_tree_files)
 
         result_trees = self.restore_names_in_trees(rooted_ladd_tree_files)
 
