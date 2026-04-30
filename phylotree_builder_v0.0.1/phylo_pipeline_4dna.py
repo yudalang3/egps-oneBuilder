@@ -321,6 +321,7 @@ class PhylogeneticPipeline:
         ladderize_direction=None,
         sort_by_clade_size=False,
         sort_by_branch_length=False,
+        sanitize_for_mad=False,
     ) -> Optional[Path]:
         input_path = Path(tree_file).resolve()
         output_path = Path(output_file).resolve() if output_file is not None else input_path
@@ -338,6 +339,8 @@ class PhylogeneticPipeline:
             cmd.extend(["--rename-map", str(self.name_mapping_file)])
         if clamp_negative_branch_lengths:
             cmd.append("--clamp-negative-branch-lengths")
+        if sanitize_for_mad:
+            cmd.append("--sanitize-for-mad")
         if set_all_branch_lengths is not None:
             cmd.extend(["--set-all-branch-lengths", str(set_all_branch_lengths)])
         if ladderize_direction:
@@ -358,7 +361,10 @@ class PhylogeneticPipeline:
             if result.stdout:
                 self.logger.debug(result.stdout.strip())
             if result.stderr:
-                self.logger.debug(result.stderr.strip())
+                if "WARNING:" in result.stderr:
+                    self.logger.warning(result.stderr.strip())
+                else:
+                    self.logger.debug(result.stderr.strip())
             return output_path
         except subprocess.CalledProcessError as exception:
             self.logger.error(f"eGPS tree postprocess failed: {input_path}")
@@ -1126,10 +1132,11 @@ class PhylogeneticPipeline:
             )
 
             try:
-                renamed_tree = self._rewrite_tree_with_biophylo(
+                renamed_tree = self._postprocess_tree_with_egps(
                     tree_file,
                     output_file=path_output,
                     rename_leaves=True,
+                    sanitize_for_mad=True,
                 )
                 if renamed_tree is None:
                     raise RuntimeError("tree postprocess command returned no output")

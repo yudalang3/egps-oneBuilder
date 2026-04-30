@@ -11,8 +11,12 @@ import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public final class TreePostprocessCommand {
+    private static final Pattern ROOT_BRANCH_LENGTH_PATTERN = Pattern.compile(
+            "\\)\\s*:[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?\\s*;\\s*$");
+
     private TreePostprocessCommand() {
     }
 
@@ -23,8 +27,17 @@ public final class TreePostprocessCommand {
     static int run(String[] args) {
         try {
             CommandOptions options = CommandOptions.parse(args);
-            DefaultPhyNode root = readTree(options.inputFile);
-            if (options.clampNegativeBranchLengths) {
+            String inputNewick = readTreeText(options.inputFile);
+            DefaultPhyNode root = decodeTree(inputNewick);
+            int negativeBranchCount = countNegativeBranchLengths(root);
+            if (negativeBranchCount > 0 && (options.clampNegativeBranchLengths || options.sanitizeForMad)) {
+                System.err.println("WARNING: detected " + negativeBranchCount
+                        + " negative branch length(s); clamping to 0.0");
+            }
+            if (hasRootBranchLength(inputNewick) && options.sanitizeForMad) {
+                System.err.println("WARNING: detected a root branch length; removing it for MAD-compatible Newick");
+            }
+            if (options.clampNegativeBranchLengths || options.sanitizeForMad) {
                 clampNegativeBranchLengths(root);
             }
             if (options.setAllBranchLengths != null) {
@@ -37,7 +50,7 @@ public final class TreePostprocessCommand {
                 EvolNodeUtil.initializeSize(root);
                 applyLadderization(root, options);
             }
-            writeTree(root, options.outputFile);
+            writeTree(root, options.outputFile, options.sanitizeForMad);
             return 0;
         } catch (Exception exception) {
             System.err.println("Failed to postprocess tree: " + exception.getMessage());
@@ -45,7 +58,7 @@ public final class TreePostprocessCommand {
         }
     }
 
-    private static DefaultPhyNode readTree(Path inputFile) throws Exception {
+    private static String readTreeText(Path inputFile) throws Exception {
         if (!Files.isRegularFile(inputFile)) {
             throw new IllegalArgumentException("Input tree does not exist: " + inputFile);
         }
@@ -53,18 +66,43 @@ public final class TreePostprocessCommand {
         if (newick.isEmpty()) {
             throw new IllegalArgumentException("Input tree is empty: " + inputFile);
         }
+        return newick;
+    }
+
+    private static DefaultPhyNode decodeTree(String newick) throws Exception {
         return new PhyloTreeEncoderDecoder().decode(newick);
     }
 
-    private static void writeTree(DefaultPhyNode root, Path outputFile) throws Exception {
+    private static void writeTree(DefaultPhyNode root, Path outputFile, boolean sanitizeForMad) throws Exception {
         String output = new PhyloTreeEncoderDecoder().encode(root).trim();
         if (!output.endsWith(";")) {
             output += ";";
+        }
+        if (sanitizeForMad && hasRootBranchLength(output)) {
+            output = removeRootBranchLength(output);
         }
         if (outputFile.getParent() != null) {
             Files.createDirectories(outputFile.getParent());
         }
         Files.writeString(outputFile, output + System.lineSeparator(), StandardCharsets.UTF_8);
+    }
+
+    private static boolean hasRootBranchLength(String newick) {
+        return ROOT_BRANCH_LENGTH_PATTERN.matcher(newick.trim()).find();
+    }
+
+    private static String removeRootBranchLength(String newick) {
+        return ROOT_BRANCH_LENGTH_PATTERN.matcher(newick.trim()).replaceFirst(");");
+    }
+
+    private static int countNegativeBranchLengths(DefaultPhyNode root) {
+        int[] count = new int[] { 0 };
+        EvolNodeUtil.recursiveIterateTreeIF(root, node -> {
+            if (node.getLength() < 0.0d) {
+                count[0]++;
+            }
+        });
+        return count[0];
     }
 
     private static void clampNegativeBranchLengths(DefaultPhyNode root) {
@@ -133,6 +171,7 @@ public final class TreePostprocessCommand {
         private final LadderizeDirection ladderizeDirection;
         private final boolean sortByCladeSize;
         private final boolean sortByBranchLength;
+        private final boolean sanitizeForMad;
 
         private CommandOptions(
                 Path inputFile,
@@ -142,7 +181,8 @@ public final class TreePostprocessCommand {
                 Double setAllBranchLengths,
                 LadderizeDirection ladderizeDirection,
                 boolean sortByCladeSize,
-                boolean sortByBranchLength) {
+                boolean sortByBranchLength,
+                boolean sanitizeForMad) {
             this.inputFile = inputFile;
             this.outputFile = outputFile;
             this.renameMapFile = renameMapFile;
@@ -151,6 +191,7 @@ public final class TreePostprocessCommand {
             this.ladderizeDirection = ladderizeDirection;
             this.sortByCladeSize = sortByCladeSize;
             this.sortByBranchLength = sortByBranchLength;
+            this.sanitizeForMad = sanitizeForMad;
         }
 
         private static CommandOptions parse(String[] args) {
@@ -162,6 +203,7 @@ public final class TreePostprocessCommand {
             LadderizeDirection ladderizeDirection = null;
             boolean sortByCladeSize = false;
             boolean sortByBranchLength = false;
+            boolean sanitizeForMad = false;
             for (int index = 0; index < args.length; index++) {
                 String arg = args[index];
                 if ("--input".equals(arg)) {
@@ -180,13 +222,15 @@ public final class TreePostprocessCommand {
                     sortByCladeSize = true;
                 } else if ("--sort-by-branch-length".equals(arg)) {
                     sortByBranchLength = true;
+                } else if ("--sanitize-for-mad".equals(arg)) {
+                    sanitizeForMad = true;
                 } else {
                     throw new IllegalArgumentException("Unknown argument: " + arg);
                 }
             }
             if (inputFile == null || outputFile == null) {
                 throw new IllegalArgumentException(
-                        "Usage: onebuilder.TreePostprocessCommand --input input.nwk --output output.nwk [--rename-map names.tsv] [--clamp-negative-branch-lengths] [--set-all-branch-lengths 1] [--ladderize-direction UP|DOWN] [--sort-by-clade-size] [--sort-by-branch-length]");
+                        "Usage: onebuilder.TreePostprocessCommand --input input.nwk --output output.nwk [--rename-map names.tsv] [--clamp-negative-branch-lengths] [--sanitize-for-mad] [--set-all-branch-lengths 1] [--ladderize-direction UP|DOWN] [--sort-by-clade-size] [--sort-by-branch-length]");
             }
             return new CommandOptions(
                     inputFile,
@@ -196,7 +240,8 @@ public final class TreePostprocessCommand {
                     setAllBranchLengths,
                     ladderizeDirection,
                     sortByCladeSize,
-                    sortByBranchLength);
+                    sortByBranchLength,
+                    sanitizeForMad);
         }
 
         private static String requireValue(String[] args, int index, String option) {

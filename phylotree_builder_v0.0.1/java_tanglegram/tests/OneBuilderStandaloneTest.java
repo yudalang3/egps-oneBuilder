@@ -469,7 +469,7 @@ public final class OneBuilderStandaloneTest {
         Path inputTree = tempDirectory.resolve("input.nwk");
         Path outputTree = tempDirectory.resolve("output.nwk");
         Path renameMap = tempDirectory.resolve("rename_map.tsv");
-        Files.writeString(inputTree, "((seq1:-2,seq2:3):4,seq3:5);", StandardCharsets.UTF_8);
+        Files.writeString(inputTree, "((seq1:-2,seq2:3):4,seq3:5):0;", StandardCharsets.UTF_8);
         Files.writeString(renameMap, "seq1\tHuman\nseq2\tMouse\nseq3\tDog\n", StandardCharsets.UTF_8);
 
         int exitCode = TreePostprocessCommand.run(new String[] {
@@ -477,6 +477,7 @@ public final class OneBuilderStandaloneTest {
                 "--output", outputTree.toString(),
                 "--rename-map", renameMap.toString(),
                 "--clamp-negative-branch-lengths",
+                "--sanitize-for-mad",
                 "--set-all-branch-lengths", "1",
                 "--ladderize-direction", "UP",
                 "--sort-by-clade-size",
@@ -491,6 +492,8 @@ public final class OneBuilderStandaloneTest {
         assertTrue(!output.contains("seq1") && !output.contains("seq2") && !output.contains("seq3"),
                 "expected indexed names to be removed");
         assertTrue(!output.contains(":-"), "expected negative branch lengths to be clamped");
+        assertTrue(!output.matches(".*\\)\\s*:[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?\\s*;\\s*$"),
+                "expected root branch length to be removed for MAD compatibility");
         assertTrue(output.contains(":1"), "expected branch lengths to be rewritten to one");
         assertTrue(!output.contains(":3") && !output.contains(":4") && !output.contains(":5"),
                 "expected original branch lengths to be replaced");
