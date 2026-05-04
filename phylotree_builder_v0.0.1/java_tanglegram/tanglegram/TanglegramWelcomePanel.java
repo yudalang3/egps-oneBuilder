@@ -46,7 +46,6 @@ final class TanglegramWelcomePanel extends JPanel {
     private JButton loadTsvButton;
     private JButton exportTsvButton;
     private JButton addTreesButton;
-    private JButton browseSelectedButton;
     private JButton removeSelectedButton;
     private JButton loadButton;
     private Path lastRunningResultDir;
@@ -144,22 +143,19 @@ final class TanglegramWelcomePanel extends JPanel {
         buttonPanel.setOpaque(false);
 
         loadRunningResultButton = new JButton(UiText.text("Load Running Result", "加载运行结果"));
+        loadRunningResultButton.setToolTipText(runningResultTooltip());
         loadRunningResultButton.addActionListener(event -> chooseRunningResult());
 
         loadTsvButton = new JButton(UiText.text("Load Config File", "加载配置文件"));
-        loadTsvButton.setToolTipText(UiText.text(
-                "Lines starting with # are comments. Column 1 is label name. Column 2 is the tree path.",
-                "以 # 开头的行会被视为注释。第 1 列是标签名，第 2 列是树文件路径。"));
+        loadTsvButton.setToolTipText(configFileTooltip());
         loadTsvButton.addActionListener(event -> chooseTsvConfig());
 
         exportTsvButton = new JButton(UiText.text("Export Config File", "导出配置文件"));
+        exportTsvButton.setToolTipText(configFileTooltip());
         exportTsvButton.addActionListener(event -> exportTsvConfig());
 
         addTreesButton = new JButton(UiText.text("Add Trees...", "添加树文件..."));
         addTreesButton.addActionListener(event -> addTrees());
-
-        browseSelectedButton = new JButton(UiText.text("Browse Selected...", "浏览所选项..."));
-        browseSelectedButton.addActionListener(event -> browseSelectedRow());
 
         removeSelectedButton = new JButton(UiText.text("Remove Selected", "移除所选项"));
         removeSelectedButton.addActionListener(event -> removeSelectedRows());
@@ -171,7 +167,6 @@ final class TanglegramWelcomePanel extends JPanel {
         buttonPanel.add(loadTsvButton);
         buttonPanel.add(exportTsvButton);
         buttonPanel.add(addTreesButton);
-        buttonPanel.add(browseSelectedButton);
         buttonPanel.add(removeSelectedButton);
 
         JPanel primaryActionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
@@ -220,14 +215,12 @@ final class TanglegramWelcomePanel extends JPanel {
                 "Load running results, TSV configs, or custom tree files and open a result tab.",
                 "加载运行结果、TSV 配置或自定义树文件，并打开结果标签页。"));
         loadRunningResultButton.setText(UiText.text(preferences, "Load Running Result", "加载运行结果"));
+        loadRunningResultButton.setToolTipText(runningResultTooltip(preferences));
         loadTsvButton.setText(UiText.text(preferences, "Load Config File", "加载配置文件"));
-        loadTsvButton.setToolTipText(UiText.text(
-                preferences,
-                "Lines starting with # are comments. Column 1 is label name. Column 2 is the tree path.",
-                "以 # 开头的行会被视为注释。第 1 列是标签名，第 2 列是树文件路径。"));
+        loadTsvButton.setToolTipText(configFileTooltip(preferences));
         exportTsvButton.setText(UiText.text(preferences, "Export Config File", "导出配置文件"));
+        exportTsvButton.setToolTipText(configFileTooltip(preferences));
         addTreesButton.setText(UiText.text(preferences, "Add Trees...", "添加树文件..."));
-        browseSelectedButton.setText(UiText.text(preferences, "Browse Selected...", "浏览所选项..."));
         removeSelectedButton.setText(UiText.text(preferences, "Remove Selected", "移除所选项"));
         loadButton.setText(UiText.text(preferences, "Load Tree Data", "加载树数据"));
         if (statusLabel.getText() == null || statusLabel.getText().isBlank() || statusLabel.getText().equals(defaultStatusText())
@@ -250,6 +243,32 @@ final class TanglegramWelcomePanel extends JPanel {
         return UiText.text(
                 "No problems yet. If loading fails, this area will explain what happened and what to do next.",
                 "目前没有问题。如果加载失败，这里会说明发生了什么以及下一步该怎么做。");
+    }
+
+    private static String runningResultTooltip() {
+        return UiText.text(
+                "Import a oneBuilder result folder directly. Select the main output folder that contains tree_summary.",
+                "直接导入 oneBuilder 结果目录。请选择包含 tree_summary 的主输出目录。");
+    }
+
+    private static String runningResultTooltip(UiPreferences preferences) {
+        return UiText.text(
+                preferences,
+                "Import a oneBuilder result folder directly. Select the main output folder that contains tree_summary.",
+                "直接导入 oneBuilder 结果目录。请选择包含 tree_summary 的主输出目录。");
+    }
+
+    private static String configFileTooltip() {
+        return UiText.text(
+                "Use a TSV config file for tree labels and tree paths. Lines starting with # are comments; column 1 is label name and column 2 is tree path.",
+                "使用 TSV 配置文件记录树标签和树文件路径。以 # 开头的行是注释；第 1 列是标签名，第 2 列是树文件路径。");
+    }
+
+    private static String configFileTooltip(UiPreferences preferences) {
+        return UiText.text(
+                preferences,
+                "Use a TSV config file for tree labels and tree paths. Lines starting with # are comments; column 1 is label name and column 2 is tree path.",
+                "使用 TSV 配置文件记录树标签和树文件路径。以 # 开头的行是注释；第 1 列是标签名，第 2 列是树文件路径。");
     }
 
     private void chooseRunningResult() {
@@ -350,8 +369,8 @@ final class TanglegramWelcomePanel extends JPanel {
             showUserError(
                     UiText.text("No row is selected.", "尚未选择任何行。"),
                     UiText.text(
-                            "Select one row first, then click Browse Selected... or double-click the Tree Path cell you want to fill.",
-                            "请先选择一行，再点击“浏览所选项...”，或双击你要填写的 Tree Path 单元格。"));
+                            "Select one row first, then double-click the Tree Path cell you want to fill.",
+                            "请先选择一行，再双击你要填写的 Tree Path 单元格。"));
             return;
         }
         String currentPathText = TreeImportConfigIO.normalizePathText(valueAt(selectedRow, 1));
@@ -624,10 +643,10 @@ final class TanglegramWelcomePanel extends JPanel {
             return "One row is missing a label name.\n\nWhat to do:\n- Fill in the Label Name column for that row.\n- Example labels: NJ, ML, BI, MP, or any custom display name you want to show in the result tabs.";
         }
         if (lowerCaseMessage.contains("missing a tree path")) {
-            return "One row is missing a tree path.\n\nWhat to do:\n- Fill in the Tree Path column for that row.\n- You can use Add Trees... or Browse Selected... to avoid typing mistakes.";
+            return "One row is missing a tree path.\n\nWhat to do:\n- Fill in the Tree Path column for that row.\n- Use Add Trees... or double-click the Tree Path cell to avoid typing mistakes.";
         }
         if (lowerCaseMessage.contains("does not exist at row")) {
-            return "One of the tree file paths does not point to a real file.\n\nWhat to do:\n- Check the path in that row.\n- Use Browse Selected... or double-click the Tree Path cell to choose the file again.\n- If you pasted the path manually, remove extra spaces or quotes and try again.";
+            return "One of the tree file paths does not point to a real file.\n\nWhat to do:\n- Check the path in that row.\n- Double-click the Tree Path cell to choose the file again.\n- If you pasted the path manually, remove extra spaces or quotes and try again.";
         }
         if (lowerCaseMessage.contains("directory does not exist")) {
             return "The selected folder cannot be found.\n\nWhat to do:\n- Check whether the folder was moved or renamed.\n- Choose the folder again from the file dialog.";

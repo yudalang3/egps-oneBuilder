@@ -9,8 +9,10 @@
 /test4*/
 /dev_test/
 /AGENTS.md
+/CLAUDE.md
 /launch.md
 /docs/
+/old_archive/
 /input_demo/prot_seqs_with_structure/demo_outputs/
 /input_demo/prot_seqs_with_structure/foldseek_structure_similarity/
 /input_demo/prot_seqs_with_structure/*.aligned.*

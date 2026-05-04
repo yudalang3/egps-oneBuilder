@@ -1,15 +1,21 @@
 package tanglegram;
 
 import java.awt.Dimension;
+import java.awt.Component;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.swing.JButton;
+import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 
 public final class TanglegramStandaloneTest {
     private static final String SUITE_PREFERENCE_NODE = "/egps-onebuilder/tests/tanglegram/suite";
@@ -30,6 +36,7 @@ public final class TanglegramStandaloneTest {
             run("roundTripsUiPreferences", TanglegramStandaloneTest::roundTripsUiPreferences);
             run("resolvesStoredWindowSizes", TanglegramStandaloneTest::resolvesStoredWindowSizes);
             run("usesPreferenceBackedTanglegramDefaults", TanglegramStandaloneTest::usesPreferenceBackedTanglegramDefaults);
+            run("configuresWelcomeImportActions", TanglegramStandaloneTest::configuresWelcomeImportActions);
             run("resolvesMovedSampleTreesFromFallbackLayout", TanglegramStandaloneTest::resolvesMovedSampleTreesFromFallbackLayout);
             run("buildsFixedPairOrderForAllMethods", TanglegramStandaloneTest::buildsFixedPairOrderForAllMethods);
             run("buildsProteinStructurePairsWhenStructureTreeExists", TanglegramStandaloneTest::buildsProteinStructurePairsWhenStructureTreeExists);
@@ -135,6 +142,22 @@ public final class TanglegramStandaloneTest {
                     "expected fallback-resolved tree inside copied output for " + entry.getKey());
             assertTrue(Files.exists(entry.getValue()), "resolved tree should exist for " + entry.getKey());
         }
+    }
+
+    private static void configuresWelcomeImportActions() throws Exception {
+        TanglegramWelcomePanel panel = createWelcomePanel();
+        List<JButton> buttons = findButtons(panel);
+
+        JButton loadRunningResultButton = findButton(buttons, "Load Running Result");
+        JButton loadConfigButton = findButton(buttons, "Load Config File");
+        JButton exportConfigButton = findButton(buttons, "Export Config File");
+
+        assertTrue(loadRunningResultButton.getToolTipText().contains("oneBuilder result folder"),
+                "expected running result tooltip to describe oneBuilder import");
+        assertEquals(loadConfigButton.getToolTipText(), exportConfigButton.getToolTipText(),
+                "load/export config file tooltips should match");
+        assertNull(findButtonOrNull(buttons, "Browse Selected..."),
+                "Browse Selected button should be removed from the import panel");
     }
 
     private static void buildsFixedPairOrderForAllMethods() throws Exception {
@@ -270,6 +293,47 @@ public final class TanglegramStandaloneTest {
                 Files.deleteIfExists(path);
             }
         }
+    }
+
+    private static TanglegramWelcomePanel createWelcomePanel() throws Exception {
+        AtomicReference<TanglegramWelcomePanel> panelRef = new AtomicReference<>();
+        SwingUtilities.invokeAndWait(() -> panelRef.set(new TanglegramWelcomePanel(session -> {
+        })));
+        return panelRef.get();
+    }
+
+    private static List<JButton> findButtons(Component component) {
+        List<JButton> buttons = new ArrayList<>();
+        collectButtons(component, buttons);
+        return buttons;
+    }
+
+    private static void collectButtons(Component component, List<JButton> buttons) {
+        if (component instanceof JButton button) {
+            buttons.add(button);
+        }
+        if (component instanceof JPanel panel) {
+            for (Component child : panel.getComponents()) {
+                collectButtons(child, buttons);
+            }
+        }
+    }
+
+    private static JButton findButton(List<JButton> buttons, String text) {
+        JButton button = findButtonOrNull(buttons, text);
+        if (button == null) {
+            throw new AssertionError("Missing button: " + text);
+        }
+        return button;
+    }
+
+    private static JButton findButtonOrNull(List<JButton> buttons, String text) {
+        for (JButton button : buttons) {
+            if (text.equals(button.getText())) {
+                return button;
+            }
+        }
+        return null;
     }
 
     private static void run(String name, ThrowingRunnable test) throws Exception {
