@@ -88,7 +88,13 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
         paintFloorShadow(graphics2d, preparedLayers);
         for (PreparedLayer preparedLayer : preparedLayers) {
-            paintLayer(graphics2d, preparedLayer);
+            paintLayerShadow(graphics2d, preparedLayer);
+        }
+        for (PreparedLayer preparedLayer : preparedLayers) {
+            paintLayerSheet(graphics2d, preparedLayer);
+        }
+        for (PreparedLayer preparedLayer : preparedLayers) {
+            paintLayerTree(graphics2d, preparedLayer);
         }
         graphics2d.dispose();
     }
@@ -221,14 +227,16 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         graphics2d.fillPolygon(floor);
     }
 
-    private static void paintLayer(Graphics2D graphics2d, PreparedLayer preparedLayer) {
+    private static void paintLayerShadow(Graphics2D graphics2d, PreparedLayer preparedLayer) {
         Graphics2D shadowGraphics = (Graphics2D) graphics2d.create();
         shadowGraphics.translate(preparedLayer.x() + SHADOW_OFFSET_X, preparedLayer.y() + SHADOW_OFFSET_Y);
         shadowGraphics.shear(0.0d, SHEAR_Y);
         shadowGraphics.setColor(preparedLayer.shadowColor());
         shadowGraphics.fill(new RoundRectangle2D.Double(0, 0, preparedLayer.sheetWidth(), preparedLayer.sheetHeight(), CORNER_ARC, CORNER_ARC));
         shadowGraphics.dispose();
+    }
 
+    private static void paintLayerSheet(Graphics2D graphics2d, PreparedLayer preparedLayer) {
         Graphics2D layerGraphics = (Graphics2D) graphics2d.create();
         layerGraphics.translate(preparedLayer.x(), preparedLayer.y());
         layerGraphics.shear(0.0d, SHEAR_Y);
@@ -243,6 +251,16 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         layerGraphics.setFont(resolveTitleFont());
         layerGraphics.setColor(new Color(92, 102, 114, 170));
         layerGraphics.drawString(preparedLayer.label(), preparedLayer.contentX(), CONTENT_PADDING_TOP + 2);
+
+        layerGraphics.dispose();
+    }
+
+    private static void paintLayerTree(Graphics2D graphics2d, PreparedLayer preparedLayer) {
+        Graphics2D layerGraphics = (Graphics2D) graphics2d.create();
+        layerGraphics.translate(preparedLayer.x(), preparedLayer.y());
+        layerGraphics.shear(0.0d, SHEAR_Y);
+
+        RoundRectangle2D.Double sheetShape = new RoundRectangle2D.Double(0, 0, preparedLayer.sheetWidth(), preparedLayer.sheetHeight(), CORNER_ARC, CORNER_ARC);
 
         Graphics2D treeGraphics = (Graphics2D) layerGraphics.create();
         Shape previousClip = treeGraphics.getClip();
@@ -335,11 +353,11 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     }
 
     private static Color treeLineColor() {
-        return new Color(88, 96, 107, 180);
+        return Color.BLACK;
     }
 
     private static Color treeLabelColor() {
-        return new Color(96, 103, 113, 170);
+        return Color.BLACK;
     }
 
     private static Color sheetFillColor(int index) {
