@@ -4,8 +4,10 @@ import evoltree.struct.EvolNode;
 import evoltree.struct.util.EvolNodeUtil;
 import evoltree.txtdisplay.ReflectGraphicNode;
 import java.awt.BasicStroke;
+import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
@@ -16,11 +18,18 @@ import java.awt.Shape;
 import java.awt.Stroke;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.geom.Path2D;
+import java.awt.geom.Point2D;
+import java.awt.geom.Ellipse2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.geom.Line2D;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -43,64 +52,96 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     private static final int CONTENT_PADDING_X = 20;
     private static final int CONTENT_PADDING_TOP = 20;
 
-    private final List<ImportedTreeSpec> importedTrees;
+    private final AlignmentCanvas canvas;
     private final Timer renderTimer;
     private final AtomicLong renderSequence;
+    private List<ImportedTreeSpec> displayedTrees;
+    private List<ConsistencyAnnotation> consistencyAnnotations;
+    private boolean usingDefaultRootAnnotation;
     private volatile List<PreparedLayer> preparedLayers;
     private volatile String errorMessage;
     private volatile boolean loading;
 
     ThreeDTreeAlignmentView(List<ImportedTreeSpec> importedTrees) {
-        this.importedTrees = List.copyOf(importedTrees);
+        super(new BorderLayout(0, 8));
+        this.displayedTrees = new ArrayList<>(importedTrees == null ? List.of() : importedTrees);
+        this.consistencyAnnotations = defaultRootAnnotations(displayedTrees);
+        this.usingDefaultRootAnnotation = true;
+        this.canvas = new AlignmentCanvas();
         this.renderTimer = new Timer(RENDER_DELAY_MS, event -> renderForCurrentSize());
         this.renderSequence = new AtomicLong();
         this.preparedLayers = List.of();
         this.loading = true;
         this.renderTimer.setRepeats(false);
-        setOpaque(true);
-        setBackground(Color.WHITE);
-        addComponentListener(new ComponentAdapter() {
+        setOpaque(false);
+        canvas.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent event) {
                 scheduleRender();
             }
         });
+        add(canvas, BorderLayout.CENTER);
+        add(createControlPanel(), BorderLayout.SOUTH);
         SwingUtilities.invokeLater(this::scheduleRender);
-    }
-
-    @Override
-    protected void paintComponent(Graphics graphics) {
-        super.paintComponent(graphics);
-        Graphics2D graphics2d = (Graphics2D) graphics.create();
-        graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        graphics2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
-        if (loading) {
-            paintCenteredMessage(graphics2d, "Preparing 3D tree alignment...", new Color(94, 112, 137));
-            graphics2d.dispose();
-            return;
-        }
-        if (errorMessage != null) {
-            paintCenteredMessage(graphics2d, errorMessage, new Color(184, 41, 41));
-            graphics2d.dispose();
-            return;
-        }
-
-        paintFloorShadow(graphics2d, preparedLayers);
-        for (PreparedLayer preparedLayer : preparedLayers) {
-            paintLayerShadow(graphics2d, preparedLayer);
-        }
-        for (PreparedLayer preparedLayer : preparedLayers) {
-            paintLayerSheet(graphics2d, preparedLayer);
-        }
-        for (PreparedLayer preparedLayer : preparedLayers) {
-            paintLayerTree(graphics2d, preparedLayer);
-        }
-        graphics2d.dispose();
     }
 
     private void scheduleRender() {
         renderTimer.restart();
+    }
+
+    private JPanel createControlPanel() {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        panel.setOpaque(false);
+        panel.setBorder(BorderFactory.createEmptyBorder(0, 8, 8, 8));
+
+        JButton treeOrderButton = new JButton("Tree order");
+        treeOrderButton.setToolTipText("Reorder the trees in this 3D alignment view without changing the imported data or tree files.");
+        treeOrderButton.addActionListener(event -> openTreeOrderDialog());
+
+        JButton consistencyAnnotationButton = new JButton("Consistency annotation");
+        consistencyAnnotationButton.setToolTipText(
+                "Connect clades or clusters that contain exactly the same leaf set across the aligned trees using translucent Sankey ribbons.");
+        consistencyAnnotationButton.addActionListener(event -> openConsistencyAnnotationDialog());
+
+        panel.add(treeOrderButton);
+        panel.add(consistencyAnnotationButton);
+        return panel;
+    }
+
+    List<ConsistencyAnnotation> consistencyAnnotationsForTest() {
+        return List.copyOf(consistencyAnnotations);
+    }
+
+    List<String> displayedTreeLabelsForTest() {
+        List<String> labels = new ArrayList<>();
+        for (ImportedTreeSpec tree : displayedTrees) {
+            labels.add(tree.label());
+        }
+        return labels;
+    }
+
+    private void openTreeOrderDialog() {
+        ThreeDTreeOrderDialog.showDialog(
+                SwingUtilities.getWindowAncestor(this),
+                displayedTrees,
+                updatedOrder -> {
+                    displayedTrees = new ArrayList<>(updatedOrder);
+                    if (usingDefaultRootAnnotation) {
+                        consistencyAnnotations = defaultRootAnnotations(displayedTrees);
+                    }
+                    scheduleRender();
+                });
+    }
+
+    private void openConsistencyAnnotationDialog() {
+        ConsistencyAnnotationDialog.showDialog(
+                SwingUtilities.getWindowAncestor(this),
+                consistencyAnnotations,
+                updatedAnnotations -> {
+                    consistencyAnnotations = List.copyOf(updatedAnnotations);
+                    usingDefaultRootAnnotation = false;
+                    canvas.repaint();
+                });
     }
 
     private void renderForCurrentSize() {
@@ -108,7 +149,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         final Dimension viewportSize = currentViewportSize();
         loading = true;
         errorMessage = null;
-        repaint();
+        canvas.repaint();
         Thread renderThread = new Thread(() -> {
             try {
                 List<PreparedLayer> layers = prepareLayers(viewportSize);
@@ -119,7 +160,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                     preparedLayers = layers;
                     errorMessage = null;
                     loading = false;
-                    repaint();
+                    canvas.repaint();
                 });
             } catch (Exception exception) {
                 SwingUtilities.invokeLater(() -> {
@@ -129,7 +170,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                     preparedLayers = List.of();
                     errorMessage = exception.getMessage() == null ? "3D tree alignment could not be rendered." : exception.getMessage();
                     loading = false;
-                    repaint();
+                    canvas.repaint();
                 });
             }
         }, "tanglegram-3d-renderer");
@@ -138,7 +179,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     }
 
     private Dimension currentViewportSize() {
-        Dimension size = getSize();
+        Dimension size = canvas.getSize();
         if (size.width <= 0 || size.height <= 0) {
             return new Dimension(1320, 920);
         }
@@ -146,11 +187,11 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     }
 
     private List<PreparedLayer> prepareLayers(Dimension viewportSize) {
-        if (importedTrees.isEmpty()) {
+        if (displayedTrees.isEmpty()) {
             throw new IllegalStateException("No trees are available for 3D alignment.");
         }
 
-        int layerCount = importedTrees.size();
+        int layerCount = displayedTrees.size();
         int availableWidth = Math.max(1, viewportSize.width - (HORIZONTAL_MARGIN * 2) - (SHEET_GAP * Math.max(0, layerCount - 1)));
         int availableHeight = Math.max(1, viewportSize.height - (VERTICAL_MARGIN * 2) - 90);
         int sheetWidth = Math.max(1, availableWidth / Math.max(1, layerCount));
@@ -174,7 +215,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
         List<PreparedLayer> layers = new ArrayList<>(layerCount);
         for (int index = 0; index < layerCount; index++) {
-            ImportedTreeSpec importedTree = importedTrees.get(index);
+            ImportedTreeSpec importedTree = displayedTrees.get(index);
             if (importedTree.root() == null) {
                 throw new IllegalStateException("The tree '" + importedTree.label() + "' is not loaded in memory yet.");
             }
@@ -276,6 +317,222 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         layerGraphics.dispose();
     }
 
+    private static void paintConsistencyAnnotations(
+            Graphics2D graphics2d,
+            List<PreparedLayer> layers,
+            List<ConsistencyAnnotation> annotations) {
+        if (layers.size() < 2 || annotations == null || annotations.isEmpty()) {
+            return;
+        }
+        Graphics2D ribbonGraphics = (Graphics2D) graphics2d.create();
+        ribbonGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        for (ConsistencyAnnotation annotation : annotations) {
+            List<Point2D.Double> anchors = new ArrayList<>(layers.size());
+            Set<String> targetLeafNames = new HashSet<>(annotation.leafNames());
+            for (PreparedLayer layer : layers) {
+                ReflectGraphicNode<EvolNode> matchingNode = findExactCladeNode(layer.root(), targetLeafNames);
+                anchors.add(matchingNode == null ? null : globalAnchorPoint(layer, matchingNode));
+            }
+            paintAnnotationRibbonSegments(ribbonGraphics, anchors, annotation.color(), annotation.ribbonWidth());
+        }
+        ribbonGraphics.dispose();
+    }
+
+    private static void paintConsistencyAnnotationMarkers(
+            Graphics2D graphics2d,
+            List<PreparedLayer> layers,
+            List<ConsistencyAnnotation> annotations) {
+        if (layers.isEmpty() || annotations == null || annotations.isEmpty()) {
+            return;
+        }
+        Graphics2D markerGraphics = (Graphics2D) graphics2d.create();
+        markerGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        for (ConsistencyAnnotation annotation : annotations) {
+            Set<String> targetLeafNames = new HashSet<>(annotation.leafNames());
+            for (PreparedLayer layer : layers) {
+                ReflectGraphicNode<EvolNode> matchingNode = findExactCladeNode(layer.root(), targetLeafNames);
+                if (matchingNode != null) {
+                    paintAnnotationMarker(markerGraphics, globalAnchorPoint(layer, matchingNode), annotation.color(), annotation.ribbonWidth());
+                }
+            }
+        }
+        markerGraphics.dispose();
+    }
+
+    private static void paintAnnotationRibbonSegments(
+            Graphics2D graphics2d,
+            List<Point2D.Double> anchors,
+            Color color,
+            double width) {
+        for (int index = 0; index < anchors.size() - 1; index++) {
+            Point2D.Double left = anchors.get(index);
+            Point2D.Double right = anchors.get(index + 1);
+            if (left == null || right == null) {
+                continue;
+            }
+            paintSankeyRibbon(graphics2d, left, right, color, width);
+        }
+    }
+
+    private static void paintSankeyRibbon(
+            Graphics2D graphics2d,
+            Point2D.Double left,
+            Point2D.Double right,
+            Color color,
+            double width) {
+        double halfWidth = width / 2.0d;
+        double controlDelta = Math.max(44.0d, Math.abs(right.x - left.x) * 0.36d);
+        double leftControlX = left.x + controlDelta;
+        double rightControlX = right.x - controlDelta;
+
+        Path2D.Double ribbon = new Path2D.Double();
+        ribbon.moveTo(left.x, left.y - halfWidth);
+        ribbon.curveTo(leftControlX, left.y - halfWidth, rightControlX, right.y - halfWidth, right.x, right.y - halfWidth);
+        ribbon.lineTo(right.x, right.y + halfWidth);
+        ribbon.curveTo(rightControlX, right.y + halfWidth, leftControlX, left.y + halfWidth, left.x, left.y + halfWidth);
+        ribbon.closePath();
+
+        graphics2d.setColor(color);
+        graphics2d.fill(ribbon);
+        graphics2d.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), Math.min(210, color.getAlpha() + 50)));
+        graphics2d.setStroke(new BasicStroke(0.8f));
+        graphics2d.draw(ribbon);
+    }
+
+    private static void paintAnnotationMarker(
+            Graphics2D graphics2d,
+            Point2D.Double anchor,
+            Color color,
+            double width) {
+        double radius = Math.max(3.5d, Math.min(9.0d, width * 0.85d));
+        Ellipse2D.Double marker = new Ellipse2D.Double(
+                anchor.x - radius,
+                anchor.y - radius,
+                radius * 2.0d,
+                radius * 2.0d);
+        graphics2d.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), Math.min(210, color.getAlpha() + 35)));
+        graphics2d.fill(marker);
+        graphics2d.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), Math.min(255, color.getAlpha() + 85)));
+        graphics2d.setStroke(new BasicStroke(1.2f));
+        graphics2d.draw(marker);
+    }
+
+    private static Point2D.Double globalAnchorPoint(PreparedLayer layer, ReflectGraphicNode<EvolNode> node) {
+        double localX = layer.contentX() + node.getYSelf();
+        double localY = layer.contentY() + node.getXSelf();
+        return new Point2D.Double(
+                layer.x() + localX,
+                layer.y() + localY + (SHEAR_Y * localX));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ReflectGraphicNode<EvolNode> findExactCladeNode(
+            ReflectGraphicNode<EvolNode> node,
+            Set<String> targetLeafNames) {
+        Set<String> nodeLeafNames = collectLeafNames(node);
+        if (nodeLeafNames.equals(targetLeafNames)) {
+            return node;
+        }
+        for (int index = 0; index < node.getChildCount(); index++) {
+            ReflectGraphicNode<EvolNode> match = findExactCladeNode(
+                    (ReflectGraphicNode<EvolNode>) node.getChildAt(index),
+                    targetLeafNames);
+            if (match != null) {
+                return match;
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<String> collectLeafNames(ReflectGraphicNode<EvolNode> node) {
+        Set<String> leafNames = new HashSet<>();
+        if (node.getChildCount() == 0) {
+            String name = node.getReflectNode().getName();
+            if (name != null && !name.trim().isEmpty()) {
+                leafNames.add(name.trim());
+            }
+            return leafNames;
+        }
+        for (int index = 0; index < node.getChildCount(); index++) {
+            leafNames.addAll(collectLeafNames((ReflectGraphicNode<EvolNode>) node.getChildAt(index)));
+        }
+        return leafNames;
+    }
+
+    private static List<ConsistencyAnnotation> defaultRootAnnotations(List<ImportedTreeSpec> importedTrees) {
+        if (importedTrees == null || importedTrees.isEmpty() || importedTrees.get(0).root() == null) {
+            return List.of();
+        }
+        List<String> leafNames = collectLeafNames(importedTrees.get(0).root());
+        if (leafNames.isEmpty()) {
+            return List.of();
+        }
+        return List.of(new ConsistencyAnnotation(leafNames, new Color(79, 140, 255, 160), ConsistencyAnnotation.DEFAULT_RIBBON_WIDTH));
+    }
+
+    private static List<String> collectLeafNames(EvolNode node) {
+        List<String> leafNames = new ArrayList<>();
+        collectLeafNames(node, leafNames);
+        return List.copyOf(leafNames);
+    }
+
+    private static void collectLeafNames(EvolNode node, List<String> leafNames) {
+        if (node == null) {
+            return;
+        }
+        if (node.getChildCount() == 0) {
+            String name = node.getName();
+            if (name != null && !name.trim().isEmpty()) {
+                leafNames.add(name.trim());
+            }
+            return;
+        }
+        for (int index = 0; index < node.getChildCount(); index++) {
+            collectLeafNames(EvolNodeUtil.getChildrenAt(node, index), leafNames);
+        }
+    }
+
+    private final class AlignmentCanvas extends JPanel {
+        private AlignmentCanvas() {
+            setOpaque(true);
+            setBackground(Color.WHITE);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            Graphics2D graphics2d = (Graphics2D) graphics.create();
+            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            if (loading) {
+                paintCenteredMessage(graphics2d, "Preparing 3D tree alignment...", new Color(94, 112, 137));
+                graphics2d.dispose();
+                return;
+            }
+            if (errorMessage != null) {
+                paintCenteredMessage(graphics2d, errorMessage, new Color(184, 41, 41));
+                graphics2d.dispose();
+                return;
+            }
+
+            paintFloorShadow(graphics2d, preparedLayers);
+            for (PreparedLayer preparedLayer : preparedLayers) {
+                paintLayerShadow(graphics2d, preparedLayer);
+            }
+            for (PreparedLayer preparedLayer : preparedLayers) {
+                paintLayerSheet(graphics2d, preparedLayer);
+            }
+            paintConsistencyAnnotations(graphics2d, preparedLayers, consistencyAnnotations);
+            for (PreparedLayer preparedLayer : preparedLayers) {
+                paintLayerTree(graphics2d, preparedLayer);
+            }
+            paintConsistencyAnnotationMarkers(graphics2d, preparedLayers, consistencyAnnotations);
+            graphics2d.dispose();
+        }
+    }
+
     private static void paintCenteredMessage(Graphics2D graphics2d, String message, Color color) {
         graphics2d.setColor(color);
         FontMetrics fontMetrics = graphics2d.getFontMetrics();
@@ -374,7 +631,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
     @Override
     public JComponent getExportComponent() {
-        return this;
+        return canvas;
     }
 
     @Override

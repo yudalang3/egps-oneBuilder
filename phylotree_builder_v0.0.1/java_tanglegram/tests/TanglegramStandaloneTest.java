@@ -2,6 +2,7 @@ package tanglegram;
 
 import evoltree.struct.EvolNode;
 import evoltree.struct.TreeDecoder;
+import java.awt.Color;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Component;
@@ -67,6 +68,10 @@ public final class TanglegramStandaloneTest {
             run("loadsOnlyAvailablePairsWhenOneMethodIsMissing", TanglegramStandaloneTest::loadsOnlyAvailablePairsWhenOneMethodIsMissing);
             run("rendersPairPanelForResolvedTrees", TanglegramStandaloneTest::rendersPairPanelForResolvedTrees);
             run("supportsStandaloneVisualPropertiesControls", TanglegramStandaloneTest::supportsStandaloneVisualPropertiesControls);
+            run("supportsThreeDAlignmentControls", TanglegramStandaloneTest::supportsThreeDAlignmentControls);
+            run("defaultsThreeDAlignmentRootAnnotation", TanglegramStandaloneTest::defaultsThreeDAlignmentRootAnnotation);
+            run("roundTripsConsistencyAnnotationTsv", TanglegramStandaloneTest::roundTripsConsistencyAnnotationTsv);
+            run("reordersThreeDTreeCards", TanglegramStandaloneTest::reordersThreeDTreeCards);
         } finally {
             UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
             UiPreferenceStore.clearNodeForTests();
@@ -285,6 +290,73 @@ public final class TanglegramStandaloneTest {
         assertTrue(!updated.showLeafLabels(), "expected updated leaf label visibility");
         assertEquals(Integer.valueOf(220), Integer.valueOf(updated.connectorGap()),
                 "expected updated connector gap");
+    }
+
+    private static void supportsThreeDAlignmentControls() throws Exception {
+        List<ImportedTreeSpec> trees = sampleImportedTrees();
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(trees);
+        List<JButton> buttons = findButtons(view);
+
+        JButton treeOrderButton = findButton(buttons, "Tree order");
+        JButton annotationButton = findButton(buttons, "Consistency annotation");
+
+        assertEquals(
+                "Reorder the trees in this 3D alignment view without changing the imported data or tree files.",
+                treeOrderButton.getToolTipText(),
+                "unexpected tree order tooltip");
+        assertEquals(
+                "Connect clades or clusters that contain exactly the same leaf set across the aligned trees using translucent Sankey ribbons.",
+                annotationButton.getToolTipText(),
+                "unexpected consistency annotation tooltip");
+        assertTrue(view.getExportComponent() != view, "3D alignment export should exclude bottom control buttons");
+    }
+
+    private static void defaultsThreeDAlignmentRootAnnotation() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
+
+        assertEquals(Arrays.asList("Tree A", "Tree B"), view.displayedTreeLabelsForTest(),
+                "unexpected initial 3D tree order");
+        assertEquals(Integer.valueOf(1), Integer.valueOf(view.consistencyAnnotationsForTest().size()),
+                "expected default root consistency annotation");
+        ConsistencyAnnotation annotation = view.consistencyAnnotationsForTest().get(0);
+        assertEquals(Arrays.asList("Dog", "Cow", "Frog"), annotation.leafNames(),
+                "default root annotation should use all leaves from the first tree");
+        assertEquals("#4F8CFFA0", annotation.colorText(), "unexpected default root annotation color");
+        assertEquals(Double.valueOf(5.0d), Double.valueOf(annotation.ribbonWidth()),
+                "default root annotation should use a thinner ribbon width");
+    }
+
+    private static void roundTripsConsistencyAnnotationTsv() throws Exception {
+        Path tempFile = Files.createTempFile("consistency-annotation-", ".tsv");
+        List<ConsistencyAnnotation> annotations = List.of(
+                new ConsistencyAnnotation(Arrays.asList("Dog", "Cow", "Frog"), new Color(255, 162, 52, 162), 3.5d));
+
+        ConsistencyAnnotationIO.writeTsv(tempFile, annotations);
+        List<ConsistencyAnnotation> loaded = ConsistencyAnnotationIO.readTsv(tempFile);
+
+        assertEquals(Integer.valueOf(1), Integer.valueOf(loaded.size()), "expected one annotation from TSV");
+        assertEquals(Arrays.asList("Dog", "Cow", "Frog"), loaded.get(0).leafNames(),
+                "unexpected loaded clade leaf names");
+        assertEquals("#FFA234A2", loaded.get(0).colorText(), "unexpected loaded RGBA color");
+        assertEquals(Double.valueOf(3.5d), Double.valueOf(loaded.get(0).ribbonWidth()),
+                "unexpected loaded ribbon width");
+
+        ConsistencyAnnotation legacyTwoColumn = ConsistencyAnnotationIO.parseRow("Dog,Cow,Frog", "#FFA234A2", 1);
+        assertEquals(Double.valueOf(5.0d), Double.valueOf(legacyTwoColumn.ribbonWidth()),
+                "two-column TSV rows should use the default thinner ribbon width");
+    }
+
+    private static void reordersThreeDTreeCards() throws Exception {
+        ThreeDTreeOrderControlPanel controlPanel = new ThreeDTreeOrderControlPanel(sampleImportedTrees());
+
+        assertEquals(Arrays.asList("Tree A", "Tree B"), controlPanel.treeLabelsForTest(),
+                "unexpected initial tree card order");
+        controlPanel.moveSelectedDownForTest();
+        assertEquals(Arrays.asList("Tree B", "Tree A"), controlPanel.treeLabelsForTest(),
+                "move-down should reorder tree cards");
+        controlPanel.moveSelectedUpForTest();
+        assertEquals(Arrays.asList("Tree A", "Tree B"), controlPanel.treeLabelsForTest(),
+                "move-up should reorder tree cards");
     }
 
     private static void defaultsTreeLeafArrangementRules() {
@@ -706,6 +778,12 @@ public final class TanglegramStandaloneTest {
 
     private static EvolNode decodeTree(String newick) throws Exception {
         return new TreeDecoder().decode(newick);
+    }
+
+    private static List<ImportedTreeSpec> sampleImportedTrees() throws Exception {
+        return Arrays.asList(
+                new ImportedTreeSpec(Path.of("tree-a.nwk"), "Tree A", decodeTree("((Dog:1,Cow:1):1,Frog:1);")),
+                new ImportedTreeSpec(Path.of("tree-b.nwk"), "Tree B", decodeTree("((Dog:1,Cow:1):1,Frog:1);")));
     }
 
     private static List<String> leafOrder(EvolNode root) {
