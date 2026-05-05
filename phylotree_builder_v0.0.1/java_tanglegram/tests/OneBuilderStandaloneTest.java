@@ -34,6 +34,7 @@ public final class OneBuilderStandaloneTest {
             run("defaultsRerootPanelToVisibleLadderizationRules", OneBuilderStandaloneTest::defaultsRerootPanelToVisibleLadderizationRules);
             run("rerootTreeCommandUsesEgpsMidpointRooting", OneBuilderStandaloneTest::rerootTreeCommandUsesEgpsMidpointRooting);
             run("treePostprocessCommandUsesEgpsTreeUtilities", OneBuilderStandaloneTest::treePostprocessCommandUsesEgpsTreeUtilities);
+            run("treePostprocessCommandUsesLeafNameStringRule", OneBuilderStandaloneTest::treePostprocessCommandUsesLeafNameStringRule);
             run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
             run("tracksWorkflowTabUnlocks", OneBuilderStandaloneTest::tracksWorkflowTabUnlocks);
             run("relocksTanglegramWhenNewRunStarts", OneBuilderStandaloneTest::relocksTanglegramWhenNewRunStarts);
@@ -410,7 +411,7 @@ public final class OneBuilderStandaloneTest {
     private static void serializesRerootRuntimeConfigAsJson() throws Exception {
         Path tempFile = Files.createTempFile("onebuilder-reroot-config-", ".json");
         PipelineRuntimeConfig config = PipelineRuntimeConfig.defaultsFor(InputType.DNA_CDS)
-                .withReroot(new RerootConfig(RerootMethod.ROOT_AT_MIDDLE_POINT, LadderizeDirection.DOWN, true, true));
+                .withReroot(new RerootConfig(RerootMethod.ROOT_AT_MIDDLE_POINT, LadderizeDirection.DOWN, true, true, true));
 
         RunRequest request = RunRequest.builder()
                 .inputType(InputType.DNA_CDS)
@@ -432,6 +433,7 @@ public final class OneBuilderStandaloneTest {
         JSONObject ladderization = root.getJSONObject("reroot").getJSONObject("ladderization");
         assertEquals("DOWN", ladderization.getString("direction"), "unexpected ladderization direction");
         assertTrue(ladderization.getBoolean("sort_by_clade_size"), "expected clade-size sorting flag");
+        assertTrue(ladderization.getBoolean("sort_by_leaf_name_string"), "expected leaf-name-string sorting flag");
         assertTrue(ladderization.getBoolean("sort_by_branch_length"), "expected branch-length sorting flag");
     }
 
@@ -441,7 +443,16 @@ public final class OneBuilderStandaloneTest {
         assertEquals(RerootMethod.MAD, config.method(), "expected MAD as the default reroot method");
         assertEquals(LadderizeDirection.UP, config.ladderizeDirection(), "expected UP as the default ladderization direction");
         assertTrue(config.sortByCladeSize(), "expected clade-size sorting to stay enabled");
+        assertTrue(config.sortByLeafNameString(), "expected leaf-name-string sorting to stay enabled");
         assertTrue(config.sortByBranchLength(), "expected branch-length sorting to stay enabled");
+        assertEquals(
+                Arrays.asList("Sorting with clade size", "Sorting with leaf name string", "Sorting with branch length"),
+                panel.ladderizationRuleLabelsForTest(),
+                "unexpected fixed ladderization rule labels");
+        assertEquals(
+                Arrays.asList(Boolean.FALSE, Boolean.FALSE, Boolean.FALSE),
+                panel.ladderizationRuleEnabledStatesForTest(),
+                "ladderization rule checkboxes should be visible but not editable");
     }
 
     private static void rerootTreeCommandUsesEgpsMidpointRooting() throws Exception {
@@ -481,6 +492,7 @@ public final class OneBuilderStandaloneTest {
                 "--set-all-branch-lengths", "1",
                 "--ladderize-direction", "UP",
                 "--sort-by-clade-size",
+                "--sort-by-leaf-name-string",
                 "--sort-by-branch-length"
         });
 
@@ -497,6 +509,25 @@ public final class OneBuilderStandaloneTest {
         assertTrue(output.contains(":1"), "expected branch lengths to be rewritten to one");
         assertTrue(!output.contains(":3") && !output.contains(":4") && !output.contains(":5"),
                 "expected original branch lengths to be replaced");
+    }
+
+    private static void treePostprocessCommandUsesLeafNameStringRule() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("onebuilder-tree-leaf-name-sort-");
+        Path inputTree = tempDirectory.resolve("input.nwk");
+        Path outputTree = tempDirectory.resolve("output.nwk");
+        Files.writeString(inputTree, "((Abd:0.1,Zed:0.1):0.2,(Abc:0.1,Bee:0.1):0.2);", StandardCharsets.UTF_8);
+
+        int exitCode = TreePostprocessCommand.run(new String[] {
+                "--input", inputTree.toString(),
+                "--output", outputTree.toString(),
+                "--ladderize-direction", "UP",
+                "--sort-by-leaf-name-string"
+        });
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(exitCode), "tree postprocess command should support leaf-name sorting");
+        String output = Files.readString(outputTree, StandardCharsets.UTF_8).trim();
+        assertTrue(output.indexOf("Abc") >= 0 && output.indexOf("Abc") < output.indexOf("Abd"),
+                "leaf-name sorting should compare cached full clade leaf-name lists");
     }
 
     private static void detectsPlatformSupport() {

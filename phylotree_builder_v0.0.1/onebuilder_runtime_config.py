@@ -88,6 +88,7 @@ PROTEIN_DEFAULTS = {
         "ladderization": {
             "direction": "UP",
             "sort_by_clade_size": True,
+            "sort_by_leaf_name_string": True,
             "sort_by_branch_length": True,
         },
     },
@@ -178,6 +179,7 @@ DNA_DEFAULTS = {
         "ladderization": {
             "direction": "UP",
             "sort_by_clade_size": True,
+            "sort_by_leaf_name_string": True,
             "sort_by_branch_length": True,
         },
     },
@@ -271,6 +273,7 @@ def _merge_reroot(target, overrides):
         {
             "direction": "UP",
             "sort_by_clade_size": True,
+            "sort_by_leaf_name_string": True,
             "sort_by_branch_length": True,
         },
     )
@@ -282,6 +285,8 @@ def _merge_reroot(target, overrides):
         ladderization["direction"] = direction
         if "sort_by_clade_size" in override_ladderization:
             ladderization["sort_by_clade_size"] = bool(override_ladderization.get("sort_by_clade_size"))
+        if "sort_by_leaf_name_string" in override_ladderization:
+            ladderization["sort_by_leaf_name_string"] = bool(override_ladderization.get("sort_by_leaf_name_string"))
         if "sort_by_branch_length" in override_ladderization:
             ladderization["sort_by_branch_length"] = bool(override_ladderization.get("sort_by_branch_length"))
 

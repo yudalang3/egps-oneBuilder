@@ -30,6 +30,7 @@
     "ladderization": {
       "direction": "UP",
       "sort_by_clade_size": true,
+      "sort_by_leaf_name_string": true,
       "sort_by_branch_length": true
     }
   },

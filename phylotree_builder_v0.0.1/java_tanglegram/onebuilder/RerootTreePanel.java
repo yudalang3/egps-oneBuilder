@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.util.List;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -14,6 +15,7 @@ final class RerootTreePanel extends JPanel {
     private final JComboBox<RerootMethod> methodCombo;
     private final JComboBox<LadderizeDirection> ladderizeDirectionCombo;
     private final JCheckBox sortByCladeSizeCheckBox;
+    private final JCheckBox sortByLeafNameStringCheckBox;
     private final JCheckBox sortByBranchLengthCheckBox;
 
     RerootTreePanel() {
@@ -76,6 +78,11 @@ final class RerootTreePanel extends JPanel {
         form.add(sortByCladeSizeCheckBox, constraints);
 
         constraints.gridy = 5;
+        sortByLeafNameStringCheckBox = new JCheckBox("Sorting with leaf name string", true);
+        sortByLeafNameStringCheckBox.setEnabled(false);
+        form.add(sortByLeafNameStringCheckBox, constraints);
+
+        constraints.gridy = 6;
         sortByBranchLengthCheckBox = new JCheckBox("Sorting with branch length", true);
         sortByBranchLengthCheckBox.setEnabled(false);
         form.add(sortByBranchLengthCheckBox, constraints);
@@ -87,8 +94,9 @@ final class RerootTreePanel extends JPanel {
         RerootConfig effectiveConfig = config == null ? RerootConfig.defaults() : config;
         methodCombo.setSelectedItem(effectiveConfig.method());
         ladderizeDirectionCombo.setSelectedItem(effectiveConfig.ladderizeDirection());
-        sortByCladeSizeCheckBox.setSelected(effectiveConfig.sortByCladeSize());
-        sortByBranchLengthCheckBox.setSelected(effectiveConfig.sortByBranchLength());
+        sortByCladeSizeCheckBox.setSelected(true);
+        sortByLeafNameStringCheckBox.setSelected(true);
+        sortByBranchLengthCheckBox.setSelected(true);
     }
 
     RerootConfig toConfig() {
@@ -97,12 +105,27 @@ final class RerootTreePanel extends JPanel {
         return new RerootConfig(
                 selected instanceof RerootMethod ? (RerootMethod) selected : RerootMethod.MAD,
                 selectedDirection instanceof LadderizeDirection ? (LadderizeDirection) selectedDirection : LadderizeDirection.UP,
-                sortByCladeSizeCheckBox.isSelected(),
-                sortByBranchLengthCheckBox.isSelected());
+                true,
+                true,
+                true);
     }
 
     void setRunning(boolean running) {
         methodCombo.setEnabled(!running);
         ladderizeDirectionCombo.setEnabled(!running);
+    }
+
+    List<String> ladderizationRuleLabelsForTest() {
+        return List.of(
+                sortByCladeSizeCheckBox.getText(),
+                sortByLeafNameStringCheckBox.getText(),
+                sortByBranchLengthCheckBox.getText());
+    }
+
+    List<Boolean> ladderizationRuleEnabledStatesForTest() {
+        return List.of(
+                Boolean.valueOf(sortByCladeSizeCheckBox.isEnabled()),
+                Boolean.valueOf(sortByLeafNameStringCheckBox.isEnabled()),
+                Boolean.valueOf(sortByBranchLengthCheckBox.isEnabled()));
     }
 }

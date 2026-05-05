@@ -8,6 +8,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -151,6 +154,10 @@ public final class TreePostprocessCommand {
 
     private static void applyLadderization(DefaultPhyNode root, CommandOptions options) {
         boolean upwards = options.ladderizeDirection == LadderizeDirection.UP;
+        if (options.sortByLeafNameString) {
+            applyRuleBasedLadderization(root, upwards, options);
+            return;
+        }
         if (options.sortByCladeSize && options.sortByBranchLength) {
             EvolNodeUtil.ladderizeNodeAccording2sizeAndLength(root, upwards);
             return;
@@ -162,6 +169,96 @@ public final class TreePostprocessCommand {
         EvolNodeUtil.ladderizeNode(root, upwards);
     }
 
+    private static void applyRuleBasedLadderization(DefaultPhyNode root, boolean upwards, CommandOptions options) {
+        Map<DefaultPhyNode, NodeMetrics> metrics = new IdentityHashMap<>();
+        collectMetrics(root, metrics);
+        sortChildrenByRules(root, upwards, options, metrics);
+    }
+
+    private static NodeMetrics collectMetrics(DefaultPhyNode node, Map<DefaultPhyNode, NodeMetrics> metrics) {
+        if (node.getChildCount() == 0) {
+            String name = node.getName() == null ? "" : node.getName().trim();
+            NodeMetrics nodeMetrics = new NodeMetrics(1, List.of(name));
+            metrics.put(node, nodeMetrics);
+            return nodeMetrics;
+        }
+
+        int leafCount = 0;
+        List<String> sortedLeafNames = new ArrayList<>();
+        for (int index = 0; index < node.getChildCount(); index++) {
+            NodeMetrics childMetrics = collectMetrics((DefaultPhyNode) node.getChildAt(index), metrics);
+            leafCount += childMetrics.leafCount();
+            sortedLeafNames.addAll(childMetrics.sortedLeafNames());
+        }
+        Collections.sort(sortedLeafNames);
+        NodeMetrics nodeMetrics = new NodeMetrics(leafCount, List.copyOf(sortedLeafNames));
+        metrics.put(node, nodeMetrics);
+        return nodeMetrics;
+    }
+
+    private static void sortChildrenByRules(
+            DefaultPhyNode node,
+            boolean upwards,
+            CommandOptions options,
+            Map<DefaultPhyNode, NodeMetrics> metrics) {
+        int childCount = node.getChildCount();
+        if (childCount <= 1) {
+            return;
+        }
+        List<DefaultPhyNode> children = new ArrayList<>(childCount);
+        for (int index = 0; index < childCount; index++) {
+            children.add((DefaultPhyNode) node.getChildAt(index));
+        }
+        children.sort((left, right) -> compareChildren(left, right, upwards, options, metrics));
+        node.removeAllChild();
+        for (DefaultPhyNode child : children) {
+            node.addChild(child);
+            if (child.getParent() != node) {
+                child.setParent(node);
+            }
+        }
+        for (DefaultPhyNode child : children) {
+            sortChildrenByRules(child, upwards, options, metrics);
+        }
+    }
+
+    private static int compareChildren(
+            DefaultPhyNode left,
+            DefaultPhyNode right,
+            boolean upwards,
+            CommandOptions options,
+            Map<DefaultPhyNode, NodeMetrics> metrics) {
+        int comparison = 0;
+        if (options.sortByCladeSize) {
+            comparison = Integer.compare(metrics.get(left).leafCount(), metrics.get(right).leafCount());
+        }
+        if (comparison == 0 && options.sortByLeafNameString) {
+            comparison = compareLeafNameLists(metrics.get(left).sortedLeafNames(), metrics.get(right).sortedLeafNames());
+        }
+        if (comparison == 0 && options.sortByBranchLength) {
+            comparison = Double.compare(normalizeLength(left.getLength()), normalizeLength(right.getLength()));
+        }
+        return upwards ? comparison : -comparison;
+    }
+
+    private static int compareLeafNameLists(List<String> leftLeafNames, List<String> rightLeafNames) {
+        int size = Math.min(leftLeafNames.size(), rightLeafNames.size());
+        for (int index = 0; index < size; index++) {
+            int comparison = leftLeafNames.get(index).compareTo(rightLeafNames.get(index));
+            if (comparison != 0) {
+                return comparison;
+            }
+        }
+        return Integer.compare(leftLeafNames.size(), rightLeafNames.size());
+    }
+
+    private static double normalizeLength(double length) {
+        return Double.isFinite(length) ? length : 0.0d;
+    }
+
+    private record NodeMetrics(int leafCount, List<String> sortedLeafNames) {
+    }
+
     private static final class CommandOptions {
         private final Path inputFile;
         private final Path outputFile;
@@ -170,6 +267,7 @@ public final class TreePostprocessCommand {
         private final Double setAllBranchLengths;
         private final LadderizeDirection ladderizeDirection;
         private final boolean sortByCladeSize;
+        private final boolean sortByLeafNameString;
         private final boolean sortByBranchLength;
         private final boolean sanitizeForMad;
 
@@ -181,6 +279,7 @@ public final class TreePostprocessCommand {
                 Double setAllBranchLengths,
                 LadderizeDirection ladderizeDirection,
                 boolean sortByCladeSize,
+                boolean sortByLeafNameString,
                 boolean sortByBranchLength,
                 boolean sanitizeForMad) {
             this.inputFile = inputFile;
@@ -190,6 +289,7 @@ public final class TreePostprocessCommand {
             this.setAllBranchLengths = setAllBranchLengths;
             this.ladderizeDirection = ladderizeDirection;
             this.sortByCladeSize = sortByCladeSize;
+            this.sortByLeafNameString = sortByLeafNameString;
             this.sortByBranchLength = sortByBranchLength;
             this.sanitizeForMad = sanitizeForMad;
         }
@@ -202,6 +302,7 @@ public final class TreePostprocessCommand {
             Double setAllBranchLengths = null;
             LadderizeDirection ladderizeDirection = null;
             boolean sortByCladeSize = false;
+            boolean sortByLeafNameString = false;
             boolean sortByBranchLength = false;
             boolean sanitizeForMad = false;
             for (int index = 0; index < args.length; index++) {
@@ -220,6 +321,8 @@ public final class TreePostprocessCommand {
                     ladderizeDirection = LadderizeDirection.fromJsonValue(requireValue(args, ++index, arg));
                 } else if ("--sort-by-clade-size".equals(arg)) {
                     sortByCladeSize = true;
+                } else if ("--sort-by-leaf-name-string".equals(arg)) {
+                    sortByLeafNameString = true;
                 } else if ("--sort-by-branch-length".equals(arg)) {
                     sortByBranchLength = true;
                 } else if ("--sanitize-for-mad".equals(arg)) {
@@ -230,7 +333,7 @@ public final class TreePostprocessCommand {
             }
             if (inputFile == null || outputFile == null) {
                 throw new IllegalArgumentException(
-                        "Usage: onebuilder.TreePostprocessCommand --input input.nwk --output output.nwk [--rename-map names.tsv] [--clamp-negative-branch-lengths] [--sanitize-for-mad] [--set-all-branch-lengths 1] [--ladderize-direction UP|DOWN] [--sort-by-clade-size] [--sort-by-branch-length]");
+                        "Usage: onebuilder.TreePostprocessCommand --input input.nwk --output output.nwk [--rename-map names.tsv] [--clamp-negative-branch-lengths] [--sanitize-for-mad] [--set-all-branch-lengths 1] [--ladderize-direction UP|DOWN] [--sort-by-clade-size] [--sort-by-leaf-name-string] [--sort-by-branch-length]");
             }
             return new CommandOptions(
                     inputFile,
@@ -240,6 +343,7 @@ public final class TreePostprocessCommand {
                     setAllBranchLengths,
                     ladderizeDirection,
                     sortByCladeSize,
+                    sortByLeafNameString,
                     sortByBranchLength,
                     sanitizeForMad);
         }

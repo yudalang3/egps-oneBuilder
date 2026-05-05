@@ -59,6 +59,7 @@ public final class PipelineConfigWriter {
                 .put("ladderization", new JSONObject()
                         .put("direction", reroot.ladderizeDirection().jsonValue())
                         .put("sort_by_clade_size", reroot.sortByCladeSize())
+                        .put("sort_by_leaf_name_string", reroot.sortByLeafNameString())
                         .put("sort_by_branch_length", reroot.sortByBranchLength()));
     }
 

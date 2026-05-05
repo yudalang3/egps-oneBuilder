@@ -4,25 +4,28 @@ final class RerootConfig {
     private final RerootMethod method;
     private final LadderizeDirection ladderizeDirection;
     private final boolean sortByCladeSize;
+    private final boolean sortByLeafNameString;
     private final boolean sortByBranchLength;
 
     RerootConfig(RerootMethod method) {
-        this(method, LadderizeDirection.UP, true, true);
+        this(method, LadderizeDirection.UP, true, true, true);
     }
 
     RerootConfig(
             RerootMethod method,
             LadderizeDirection ladderizeDirection,
             boolean sortByCladeSize,
+            boolean sortByLeafNameString,
             boolean sortByBranchLength) {
         this.method = method == null ? RerootMethod.MAD : method;
         this.ladderizeDirection = ladderizeDirection == null ? LadderizeDirection.UP : ladderizeDirection;
         this.sortByCladeSize = sortByCladeSize;
+        this.sortByLeafNameString = sortByLeafNameString;
         this.sortByBranchLength = sortByBranchLength;
     }
 
     static RerootConfig defaults() {
-        return new RerootConfig(RerootMethod.MAD, LadderizeDirection.UP, true, true);
+        return new RerootConfig(RerootMethod.MAD, LadderizeDirection.UP, true, true, true);
     }
 
     RerootMethod method() {
@@ -35,6 +38,10 @@ final class RerootConfig {
 
     boolean sortByCladeSize() {
         return sortByCladeSize;
+    }
+
+    boolean sortByLeafNameString() {
+        return sortByLeafNameString;
     }
 
     boolean sortByBranchLength() {

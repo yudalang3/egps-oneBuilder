@@ -381,6 +381,7 @@ class ProteinPhylogeneticPipeline:
         return {
             "direction": direction,
             "sort_by_clade_size": bool(ladderization.get("sort_by_clade_size", True)),
+            "sort_by_leaf_name_string": bool(ladderization.get("sort_by_leaf_name_string", True)),
             "sort_by_branch_length": bool(ladderization.get("sort_by_branch_length", True)),
         }
 
@@ -1293,6 +1294,7 @@ class ProteinPhylogeneticPipeline:
                     set_all_branch_lengths=1 if make_branch_equal else None,
                     ladderize_direction=ladderization["direction"],
                     sort_by_clade_size=ladderization["sort_by_clade_size"],
+                    sort_by_leaf_name_string=ladderization["sort_by_leaf_name_string"],
                     sort_by_branch_length=ladderization["sort_by_branch_length"],
                 )
                 if ladderized_tree is None:
