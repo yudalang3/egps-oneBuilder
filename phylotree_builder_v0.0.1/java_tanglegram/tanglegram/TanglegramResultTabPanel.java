@@ -12,16 +12,20 @@ import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
+import javax.swing.JSeparator;
 import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
 import javax.swing.JTabbedPane;
+import javax.swing.SwingConstants;
 
 final class TanglegramResultTabPanel extends JPanel implements ExportableView {
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private final JideTabbedPane pairTabs;
     private final List<TreePairSpec> pairSpecs;
+    private final JButton leafArrangementButton;
     private final JButton visualPropertiesButton;
     private TanglegramRenderOptions renderOptions;
+    private TreeLeafArrangementOptions leafArrangementOptions;
 
     TanglegramResultTabPanel(
             String sourceName,
@@ -37,10 +41,16 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
         this.pairSpecs = List.copyOf(pairSpecs);
         this.pairTabs = createPairTabs();
         this.renderOptions = initialRenderOptions();
+        this.leafArrangementOptions = TreeLeafArrangementOptions.disabled();
+        this.leafArrangementButton = new JButton(UiText.text("Tree leaf arrangement", "树叶节点排列"));
+        this.leafArrangementButton.setToolTipText(leafArrangementTooltip());
+        this.leafArrangementButton.addActionListener(event -> openLeafArrangementDialog());
         this.visualPropertiesButton = new JButton(UiText.text("Visual properties", "可视化属性"));
+        this.visualPropertiesButton.setToolTipText(visualPropertiesTooltip());
         this.visualPropertiesButton.addActionListener(event -> openVisualPropertiesDialog());
 
         JButton treeAlignmentButton = new JButton(UiText.text("3D Tree Alignment", "3D 树对齐"));
+        treeAlignmentButton.setToolTipText(threeDAlignmentTooltip());
         treeAlignmentButton.addActionListener(event -> openThreeDAlignmentAction.run());
         this.pairTabs.setTabTrailingComponent(createTrailingActions(treeAlignmentButton));
         rebuildPairTabs(0);
@@ -81,8 +91,13 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
 
     static List<String> standaloneActionLabelsForTest() {
         return Arrays.asList(
+                UiText.text("Tree leaf arrangement", "树叶节点排列"),
                 UiText.text("Visual properties", "可视化属性"),
                 UiText.text("3D Tree Alignment", "3D 树对齐"));
+    }
+
+    static List<String> standaloneActionTooltipsForTest() {
+        return Arrays.asList(leafArrangementTooltip(), visualPropertiesTooltip(), threeDAlignmentTooltip());
     }
 
     @Override
@@ -112,11 +127,31 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
     }
 
     private JPanel createTrailingActions(JButton treeAlignmentButton) {
+        return createStandaloneActionPanel(leafArrangementButton, visualPropertiesButton, treeAlignmentButton);
+    }
+
+    static JPanel createStandaloneActionPanelForTest(
+            JButton leafArrangementButton,
+            JButton visualPropertiesButton,
+            JButton treeAlignmentButton) {
+        return createStandaloneActionPanel(leafArrangementButton, visualPropertiesButton, treeAlignmentButton);
+    }
+
+    private static JPanel createStandaloneActionPanel(
+            JButton leafArrangementButton,
+            JButton visualPropertiesButton,
+            JButton treeAlignmentButton) {
         JPanel buttonPanel = new JPanel();
         buttonPanel.setOpaque(false);
         buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.X_AXIS));
-        buttonPanel.add(visualPropertiesButton);
+        buttonPanel.add(leafArrangementButton);
         buttonPanel.add(javax.swing.Box.createHorizontalStrut(6));
+        buttonPanel.add(visualPropertiesButton);
+        buttonPanel.add(javax.swing.Box.createHorizontalStrut(10));
+        JSeparator separator = new JSeparator(SwingConstants.VERTICAL);
+        separator.setMaximumSize(new java.awt.Dimension(1, 24));
+        buttonPanel.add(separator);
+        buttonPanel.add(javax.swing.Box.createHorizontalStrut(10));
         buttonPanel.add(treeAlignmentButton);
         return buttonPanel;
     }
@@ -142,6 +177,11 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
         TanglegramVisualPropertiesDialog.showDialog(owner, renderOptions, this::applyRenderOptions);
     }
 
+    private void openLeafArrangementDialog() {
+        java.awt.Window owner = javax.swing.SwingUtilities.getWindowAncestor(this);
+        TreeLeafArrangementDialog.showDialog(owner, leafArrangementOptions, this::applyLeafArrangementOptions);
+    }
+
     private void applyRenderOptions(TanglegramRenderOptions updatedOptions) {
         if (updatedOptions == null) {
             return;
@@ -151,9 +191,18 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
         rebuildPairTabs(selectedIndex);
     }
 
+    private void applyLeafArrangementOptions(TreeLeafArrangementOptions updatedOptions) {
+        if (updatedOptions == null) {
+            return;
+        }
+        int selectedIndex = pairTabs.getSelectedIndex();
+        leafArrangementOptions = updatedOptions.withEnabled(true);
+        rebuildPairTabs(selectedIndex);
+    }
+
     private void rebuildPairTabs(int selectedIndex) {
         pairTabs.removeAll();
-        TanglegramPanelFactory panelFactory = new TanglegramPanelFactory(renderOptions);
+        TanglegramPanelFactory panelFactory = new TanglegramPanelFactory(renderOptions, leafArrangementOptions);
         for (TreePairSpec pairSpec : pairSpecs) {
             pairTabs.addTab(pairSpec.tabName(), new ResizableTanglegramView(pairSpec, panelFactory, renderOptions));
         }
@@ -162,6 +211,18 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
         }
         pairTabs.revalidate();
         pairTabs.repaint();
+    }
+
+    private static String leafArrangementTooltip() {
+        return "Arrange branches (ladderize, swap...) to give better visual effects without change topology.";
+    }
+
+    private static String visualPropertiesTooltip() {
+        return "Adjust spacing, dashed connector style, and leaf-label appearance for the current tanglegram view.";
+    }
+
+    private static String threeDAlignmentTooltip() {
+        return "Open a separate 3D view to compare all loaded trees side by side.";
     }
 
     private static String buildSummary(

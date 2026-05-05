@@ -1138,8 +1138,7 @@ public final class OneBuilderStandaloneTest {
         if (GraphicsEnvironment.isHeadless()) {
             return;
         }
-        Path repoRoot = findRepoRoot();
-        Path sampleOutput = repoRoot.resolve("test1");
+        Path sampleOutput = findSampleOutput();
         CurrentRunTanglegramPanel[] panelRef = new CurrentRunTanglegramPanel[1];
 
         SwingUtilities.invokeAndWait(() -> {
@@ -1161,8 +1160,7 @@ public final class OneBuilderStandaloneTest {
     }
 
     private static void detectsCurrentRunTanglegramArtifacts() {
-        Path repoRoot = findRepoRoot();
-        Path sampleOutput = repoRoot.resolve("test1");
+        Path sampleOutput = findSampleOutput();
 
         assertTrue(CurrentRunArtifacts.hasRenderableTanglegram(sampleOutput), "expected sample output to be renderable");
         assertEquals(sampleOutput.resolve("tree_summary"), CurrentRunArtifacts.resolveTreeSummaryDir(sampleOutput),
@@ -1422,12 +1420,22 @@ public final class OneBuilderStandaloneTest {
         Path current = Paths.get("").toAbsolutePath().normalize();
         Path cursor = current;
         while (cursor != null) {
-            if (Files.isDirectory(cursor.resolve("test1"))) {
+            if (Files.isDirectory(cursor.resolve("test1"))
+                    || Files.isDirectory(cursor.resolve("old_archive").resolve("test1"))) {
                 return cursor;
             }
             cursor = cursor.getParent();
         }
         throw new IllegalStateException("Could not locate repo root from " + current);
+    }
+
+    private static Path findSampleOutput() {
+        Path repoRoot = findRepoRoot();
+        Path currentLayout = repoRoot.resolve("test1");
+        if (Files.isDirectory(currentLayout)) {
+            return currentLayout;
+        }
+        return repoRoot.resolve("old_archive").resolve("test1");
     }
 
     @FunctionalInterface

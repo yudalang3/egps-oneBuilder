@@ -1,7 +1,11 @@
 package tanglegram;
 
+import evoltree.struct.EvolNode;
+import evoltree.struct.TreeDecoder;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Component;
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -15,6 +19,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.swing.JButton;
 import javax.swing.JPanel;
+import javax.swing.JSeparator;
 import javax.swing.SwingUtilities;
 
 public final class TanglegramStandaloneTest {
@@ -33,10 +38,28 @@ public final class TanglegramStandaloneTest {
             run("parsesDirectoryArgument", TanglegramStandaloneTest::parsesDirectoryArgument);
             run("rejectsMissingDirectoryValue", TanglegramStandaloneTest::rejectsMissingDirectoryValue);
             run("disablesFlatlafNativeLibraryByDefault", TanglegramStandaloneTest::disablesFlatlafNativeLibraryByDefault);
+            run("loadsEgpsWindowIcons", TanglegramStandaloneTest::loadsEgpsWindowIcons);
             run("roundTripsUiPreferences", TanglegramStandaloneTest::roundTripsUiPreferences);
             run("resolvesStoredWindowSizes", TanglegramStandaloneTest::resolvesStoredWindowSizes);
             run("usesPreferenceBackedTanglegramDefaults", TanglegramStandaloneTest::usesPreferenceBackedTanglegramDefaults);
             run("configuresWelcomeImportActions", TanglegramStandaloneTest::configuresWelcomeImportActions);
+            run("defaultsTreeLeafArrangementRules", TanglegramStandaloneTest::defaultsTreeLeafArrangementRules);
+            run("leavesArrangementDisabledUntilApplied", TanglegramStandaloneTest::leavesArrangementDisabledUntilApplied);
+            run("arrangesByCladeSizeUp", TanglegramStandaloneTest::arrangesByCladeSizeUp);
+            run("arrangesByCladeSizeDown", TanglegramStandaloneTest::arrangesByCladeSizeDown);
+            run("arrangesByLeafNameStringUp", TanglegramStandaloneTest::arrangesByLeafNameStringUp);
+            run("arrangesByLeafNameStringDown", TanglegramStandaloneTest::arrangesByLeafNameStringDown);
+            run("leafNameStringListComparatorChecksAllEntries", TanglegramStandaloneTest::leafNameStringListComparatorChecksAllEntries);
+            run("arrangesByBranchLengthUp", TanglegramStandaloneTest::arrangesByBranchLengthUp);
+            run("arrangesByBranchLengthDown", TanglegramStandaloneTest::arrangesByBranchLengthDown);
+            run("ruleOrderControlsArrangementPriority", TanglegramStandaloneTest::ruleOrderControlsArrangementPriority);
+            run("preservesTopologyLeafNamesAndBranchLengths", TanglegramStandaloneTest::preservesTopologyLeafNamesAndBranchLengths);
+            run("preservesParentLinksAfterArrangement", TanglegramStandaloneTest::preservesParentLinksAfterArrangement);
+            run("keepsStableOrderWhenRulesTie", TanglegramStandaloneTest::keepsStableOrderWhenRulesTie);
+            run("arrangesRecursivelyFromRootToLeaves", TanglegramStandaloneTest::arrangesRecursivelyFromRootToLeaves);
+            run("renderingArrangementDoesNotMutatePreparedTrees", TanglegramStandaloneTest::renderingArrangementDoesNotMutatePreparedTrees);
+            run("supportsTreeLeafArrangementControls", TanglegramStandaloneTest::supportsTreeLeafArrangementControls);
+            run("configuresStandaloneResultActions", TanglegramStandaloneTest::configuresStandaloneResultActions);
             run("resolvesMovedSampleTreesFromFallbackLayout", TanglegramStandaloneTest::resolvesMovedSampleTreesFromFallbackLayout);
             run("buildsFixedPairOrderForAllMethods", TanglegramStandaloneTest::buildsFixedPairOrderForAllMethods);
             run("buildsProteinStructurePairsWhenStructureTreeExists", TanglegramStandaloneTest::buildsProteinStructurePairsWhenStructureTreeExists);
@@ -79,6 +102,11 @@ public final class TanglegramStandaloneTest {
         FlatLafBootstrap.prepareSystemProperties();
         assertEquals("false", System.getProperty(FlatLafBootstrap.USE_NATIVE_LIBRARY_PROPERTY),
                 "expected FlatLaf native library to be disabled");
+    }
+
+    private static void loadsEgpsWindowIcons() {
+        assertEquals(Integer.valueOf(3), Integer.valueOf(WindowIconSupport.loadIconImagesForTest().size()),
+                "expected 16/32/72 eGPS window icons to be available on the classpath");
     }
 
     private static void roundTripsUiPreferences() {
@@ -259,9 +287,282 @@ public final class TanglegramStandaloneTest {
                 "expected updated connector gap");
     }
 
+    private static void defaultsTreeLeafArrangementRules() {
+        TreeLeafArrangementOptions defaults = TreeLeafArrangementOptions.defaults();
+
+        assertTrue(defaults.enabled(), "expected dialog defaults to be enabled when applied");
+        assertEquals(
+                Arrays.asList(
+                        TreeLeafArrangementRule.CLADE_SIZE,
+                        TreeLeafArrangementRule.LEAF_NAME_STRING,
+                        TreeLeafArrangementRule.BRANCH_LENGTH),
+                defaults.ruleOrder(),
+                "unexpected default tree leaf arrangement rules");
+        assertEquals(TreeLeafArrangementDirection.UP, defaults.direction(), "unexpected default arrangement direction");
+        assertTrue(!TreeLeafArrangementOptions.disabled().enabled(), "initial result view arrangement should be disabled");
+    }
+
+    private static void leavesArrangementDisabledUntilApplied() throws Exception {
+        EvolNode root = decodeTree("((C:0.1,D:0.1,E:0.1):0.3,(A:0.1,B:0.1):0.2);");
+
+        TreeLeafArrangementEngine.arrange(root, TreeLeafArrangementOptions.disabled());
+
+        assertEquals(Arrays.asList("C", "D", "E", "A", "B"), leafOrder(root),
+                "disabled arrangement should not change display order");
+    }
+
+    private static void arrangesByCladeSizeUp() throws Exception {
+        EvolNode root = decodeTree("((C:0.1,D:0.1,E:0.1):0.3,(A:0.1,B:0.1):0.2);");
+
+        TreeLeafArrangementEngine.arrange(root, new TreeLeafArrangementOptions(
+                true,
+                Arrays.asList(TreeLeafArrangementRule.CLADE_SIZE),
+                TreeLeafArrangementDirection.UP));
+
+        assertEquals(Arrays.asList("A", "B", "C", "D", "E"), leafOrder(root),
+                "UP clade-size arrangement should draw smaller clades first");
+    }
+
+    private static void arrangesByCladeSizeDown() throws Exception {
+        EvolNode root = decodeTree("((A:0.1,B:0.1):0.2,(C:0.1,D:0.1,E:0.1):0.3);");
+
+        TreeLeafArrangementEngine.arrange(root, new TreeLeafArrangementOptions(
+                true,
+                Arrays.asList(TreeLeafArrangementRule.CLADE_SIZE),
+                TreeLeafArrangementDirection.DOWN));
+
+        assertEquals(Arrays.asList("E", "D", "C", "B", "A"), leafOrder(root),
+                "DOWN clade-size arrangement should draw larger clades and later leaf-name ties first");
+    }
+
+    private static void arrangesByLeafNameStringUp() throws Exception {
+        EvolNode root = decodeTree("((C:0.1,D:0.1):0.2,(A:0.1,B:0.1):0.2);");
+
+        TreeLeafArrangementEngine.arrange(root, new TreeLeafArrangementOptions(
+                true,
+                Arrays.asList(TreeLeafArrangementRule.LEAF_NAME_STRING),
+                TreeLeafArrangementDirection.UP));
+
+        assertEquals(Arrays.asList("A", "B", "C", "D"), leafOrder(root),
+                "UP leaf-name arrangement should draw earlier strings first");
+    }
+
+    private static void arrangesByLeafNameStringDown() throws Exception {
+        EvolNode root = decodeTree("((A:0.1,B:0.1):0.2,(C:0.1,D:0.1):0.2);");
+
+        TreeLeafArrangementEngine.arrange(root, new TreeLeafArrangementOptions(
+                true,
+                Arrays.asList(TreeLeafArrangementRule.LEAF_NAME_STRING),
+                TreeLeafArrangementDirection.DOWN));
+
+        assertEquals(Arrays.asList("D", "C", "B", "A"), leafOrder(root),
+                "DOWN leaf-name arrangement should draw later strings first at every node");
+    }
+
+    private static void leafNameStringListComparatorChecksAllEntries() {
+        assertTrue(TreeLeafArrangementEngine.compareLeafNameListsForTest(
+                Arrays.asList("A", "Z"),
+                Arrays.asList("A", "B")) > 0,
+                "leaf-name list comparison should continue past equal leading names");
+        assertTrue(TreeLeafArrangementEngine.compareLeafNameListsForTest(
+                Arrays.asList("A", "B"),
+                Arrays.asList("A", "B", "C")) < 0,
+                "shorter equal-prefix leaf-name list should sort first");
+    }
+
+    private static void arrangesByBranchLengthUp() throws Exception {
+        EvolNode root = decodeTree("((A:0.1,B:0.1):0.8,(C:0.1,D:0.1):0.2);");
+
+        TreeLeafArrangementEngine.arrange(root, new TreeLeafArrangementOptions(
+                true,
+                Arrays.asList(TreeLeafArrangementRule.BRANCH_LENGTH),
+                TreeLeafArrangementDirection.UP));
+
+        assertEquals(Arrays.asList("C", "D", "A", "B"), leafOrder(root),
+                "UP branch-length arrangement should draw shorter branches first");
+    }
+
+    private static void arrangesByBranchLengthDown() throws Exception {
+        EvolNode root = decodeTree("((C:0.1,D:0.1):0.2,(A:0.1,B:0.1):0.8);");
+
+        TreeLeafArrangementEngine.arrange(root, new TreeLeafArrangementOptions(
+                true,
+                Arrays.asList(TreeLeafArrangementRule.BRANCH_LENGTH),
+                TreeLeafArrangementDirection.DOWN));
+
+        assertEquals(Arrays.asList("B", "A", "D", "C"), leafOrder(root),
+                "DOWN branch-length arrangement should draw longer branches and later leaf-name ties first");
+    }
+
+    private static void ruleOrderControlsArrangementPriority() throws Exception {
+        EvolNode cladeFirstRoot = decodeTree("((Z:0.1):0.1,(A:0.1,B:0.1):0.9);");
+        EvolNode leafNameFirstRoot = decodeTree("((Z:0.1):0.1,(A:0.1,B:0.1):0.9);");
+
+        TreeLeafArrangementEngine.arrange(cladeFirstRoot, new TreeLeafArrangementOptions(
+                true,
+                Arrays.asList(TreeLeafArrangementRule.CLADE_SIZE, TreeLeafArrangementRule.LEAF_NAME_STRING),
+                TreeLeafArrangementDirection.UP));
+        TreeLeafArrangementEngine.arrange(leafNameFirstRoot, new TreeLeafArrangementOptions(
+                true,
+                Arrays.asList(TreeLeafArrangementRule.LEAF_NAME_STRING, TreeLeafArrangementRule.CLADE_SIZE),
+                TreeLeafArrangementDirection.UP));
+
+        assertEquals(Arrays.asList("Z", "A", "B"), leafOrder(cladeFirstRoot),
+                "clade-size first should keep the one-leaf clade first");
+        assertEquals(Arrays.asList("A", "B", "Z"), leafOrder(leafNameFirstRoot),
+                "leaf-name first should override clade-size when rule order changes");
+    }
+
+    private static void preservesTopologyLeafNamesAndBranchLengths() throws Exception {
+        EvolNode root = decodeTree("((D:0.4,C:0.3):0.8,(B:0.2,A:0.1):0.7);");
+        List<String> beforeTopology = cladeSignatures(root);
+        Map<String, Double> beforeLengths = branchLengthsByClade(root);
+        List<String> beforeLeafNames = sortedLeafNames(root);
+
+        TreeLeafArrangementEngine.arrange(root, TreeLeafArrangementOptions.defaults());
+
+        assertEquals(beforeTopology, cladeSignatures(root), "arrangement should preserve topology clades");
+        assertEquals(beforeLengths, branchLengthsByClade(root), "arrangement should preserve branch lengths");
+        assertEquals(beforeLeafNames, sortedLeafNames(root), "arrangement should preserve leaf names");
+    }
+
+    private static void preservesParentLinksAfterArrangement() throws Exception {
+        EvolNode root = decodeTree("(((D:0.1,C:0.1):0.2,(B:0.1,A:0.1):0.2):0.3,(F:0.1,E:0.1):0.2);");
+
+        TreeLeafArrangementEngine.arrange(root, TreeLeafArrangementOptions.defaults());
+
+        assertParentLinks(root);
+    }
+
+    private static void keepsStableOrderWhenRulesTie() throws Exception {
+        EvolNode root = decodeTree("((A:0.1,B:0.1):0.2,(A:0.1,B:0.1):0.2);");
+
+        TreeLeafArrangementEngine.arrange(root, TreeLeafArrangementOptions.defaults());
+
+        assertEquals(Arrays.asList("A", "B", "A", "B"), leafOrder(root),
+                "stable sort should keep original order when all arrangement rules tie");
+    }
+
+    private static void arrangesRecursivelyFromRootToLeaves() throws Exception {
+        EvolNode root = decodeTree("(((D:0.1,C:0.1):0.2,(B:0.1,A:0.1):0.2):0.3,(F:0.1,E:0.1):0.2);");
+
+        TreeLeafArrangementEngine.arrange(root, new TreeLeafArrangementOptions(
+                true,
+                Arrays.asList(TreeLeafArrangementRule.LEAF_NAME_STRING),
+                TreeLeafArrangementDirection.UP));
+
+        assertEquals(Arrays.asList("A", "B", "C", "D", "E", "F"), leafOrder(root),
+                "arrangement should recurse into every internal node");
+    }
+
+    private static void renderingArrangementDoesNotMutatePreparedTrees() throws Exception {
+        Path tempDir = Files.createTempDirectory("tanglegram-arrangement-render-");
+        Path leftTree = tempDir.resolve("left.nwk");
+        Path rightTree = tempDir.resolve("right.nwk");
+        Files.writeString(leftTree, "((C:0.1,D:0.1):0.2,(A:0.1,B:0.1):0.2);\n");
+        Files.writeString(rightTree, "((D:0.1,C:0.1):0.2,(B:0.1,A:0.1):0.2);\n");
+
+        TanglegramPanelFactory factory = new TanglegramPanelFactory(
+                TanglegramRenderOptions.defaults(),
+                TreeLeafArrangementOptions.defaults());
+        TanglegramPanelFactory.PreparedPair preparedPair = factory.preparePair(new TreePairSpec("left", "right", leftTree, rightTree));
+        List<String> originalLeftOrder = leafOrder(preparedPair.leftTree());
+        List<String> originalRightOrder = leafOrder(preparedPair.rightTree());
+
+        JPanel panel = factory.createPanel(preparedPair, new Dimension(900, 700));
+        panel.setSize(900, 700);
+        BufferedImage image = new BufferedImage(900, 700, BufferedImage.TYPE_INT_ARGB);
+        panel.paint(image.createGraphics());
+
+        assertEquals(originalLeftOrder, leafOrder(preparedPair.leftTree()),
+                "render-time arrangement should not mutate prepared left tree");
+        assertEquals(originalRightOrder, leafOrder(preparedPair.rightTree()),
+                "render-time arrangement should not mutate prepared right tree");
+        deleteRecursively(tempDir);
+    }
+
+    private static void supportsTreeLeafArrangementControls() {
+        TreeLeafArrangementControlPanel controlPanel = new TreeLeafArrangementControlPanel(TreeLeafArrangementOptions.defaults());
+
+        assertEquals(
+                Arrays.asList(
+                        TreeLeafArrangementRule.CLADE_SIZE,
+                        TreeLeafArrangementRule.LEAF_NAME_STRING,
+                        TreeLeafArrangementRule.BRANCH_LENGTH),
+                controlPanel.ruleOrderForTest(),
+                "unexpected dialog default rule order");
+        assertEquals(
+                Arrays.asList("Clade size", "Leaf name string", "Branch length"),
+                controlPanel.cardTitlesForTest(),
+                "unexpected board card titles");
+        assertTrue(controlPanel.detailTextForTest().contains("Clade size"),
+                "default selected card should describe clade size");
+
+        controlPanel.selectRuleForTest(TreeLeafArrangementRule.LEAF_NAME_STRING);
+        assertTrue(controlPanel.detailTextForTest().contains("cached"),
+                "leaf-name detail should mention cached leaf-name lists");
+        assertTrue(controlPanel.detailTextForTest().contains("item-by-item"),
+                "leaf-name detail should clarify full-list comparison");
+
+        controlPanel.moveRule(2, 0);
+        assertEquals(
+                Arrays.asList(
+                        TreeLeafArrangementRule.BRANCH_LENGTH,
+                        TreeLeafArrangementRule.CLADE_SIZE,
+                        TreeLeafArrangementRule.LEAF_NAME_STRING),
+                controlPanel.ruleOrderForTest(),
+                "drag model should reorder rules");
+        controlPanel.moveSelectedDownForTest();
+        assertEquals(
+                Arrays.asList(
+                        TreeLeafArrangementRule.CLADE_SIZE,
+                        TreeLeafArrangementRule.BRANCH_LENGTH,
+                        TreeLeafArrangementRule.LEAF_NAME_STRING),
+                controlPanel.ruleOrderForTest(),
+                "move-down fallback should reorder the selected card");
+        controlPanel.moveSelectedUpForTest();
+        assertEquals(
+                Arrays.asList(
+                        TreeLeafArrangementRule.BRANCH_LENGTH,
+                        TreeLeafArrangementRule.CLADE_SIZE,
+                        TreeLeafArrangementRule.LEAF_NAME_STRING),
+                controlPanel.ruleOrderForTest(),
+                "move-up fallback should reorder the selected card");
+        controlPanel.setDirectionForTest(TreeLeafArrangementDirection.DOWN);
+        assertEquals(TreeLeafArrangementDirection.DOWN, controlPanel.toOptions().direction(),
+                "dialog control should expose selected direction");
+    }
+
+    private static void configuresStandaloneResultActions() throws Exception {
+        JButton arrangementButton = new JButton("Tree leaf arrangement");
+        JButton visualButton = new JButton("Visual properties");
+        JButton threeDButton = new JButton("3D Tree Alignment");
+        List<String> tooltips = TanglegramResultTabPanel.standaloneActionTooltipsForTest();
+        arrangementButton.setToolTipText(tooltips.get(0));
+        visualButton.setToolTipText(tooltips.get(1));
+        threeDButton.setToolTipText(tooltips.get(2));
+
+        JPanel actionPanel = TanglegramResultTabPanel.createStandaloneActionPanelForTest(
+                arrangementButton,
+                visualButton,
+                threeDButton);
+        List<JButton> buttons = findButtons(actionPanel);
+
+        JButton foundArrangementButton = findButton(buttons, "Tree leaf arrangement");
+        JButton foundVisualButton = findButton(buttons, "Visual properties");
+        JButton foundThreeDButton = findButton(buttons, "3D Tree Alignment");
+
+        assertEquals(TanglegramResultTabPanel.standaloneActionLabelsForTest(),
+                Arrays.asList(foundArrangementButton.getText(), foundVisualButton.getText(), foundThreeDButton.getText()),
+                "unexpected standalone action labels");
+        assertEquals(tooltips,
+                Arrays.asList(foundArrangementButton.getToolTipText(), foundVisualButton.getToolTipText(), foundThreeDButton.getToolTipText()),
+                "unexpected standalone action tooltips");
+        assertTrue(findSeparators(actionPanel).size() >= 1, "expected separator before 3D action group");
+    }
+
     private static Path copySampleOutput() throws Exception {
-        Path repoRoot = findRepoRoot();
-        Path source = repoRoot.resolve("test1");
+        Path source = findSampleOutput();
         if (!Files.isDirectory(source)) {
             throw new IllegalStateException("Missing sample output directory: " + source);
         }
@@ -312,9 +613,26 @@ public final class TanglegramStandaloneTest {
         if (component instanceof JButton button) {
             buttons.add(button);
         }
-        if (component instanceof JPanel panel) {
-            for (Component child : panel.getComponents()) {
+        if (component instanceof Container container) {
+            for (Component child : container.getComponents()) {
                 collectButtons(child, buttons);
+            }
+        }
+    }
+
+    private static List<JSeparator> findSeparators(Component component) {
+        List<JSeparator> separators = new ArrayList<>();
+        collectSeparators(component, separators);
+        return separators;
+    }
+
+    private static void collectSeparators(Component component, List<JSeparator> separators) {
+        if (component instanceof JSeparator separator) {
+            separators.add(separator);
+        }
+        if (component instanceof Container container) {
+            for (Component child : container.getComponents()) {
+                collectSeparators(child, separators);
             }
         }
     }
@@ -368,12 +686,96 @@ public final class TanglegramStandaloneTest {
         Path current = Paths.get("").toAbsolutePath().normalize();
         Path cursor = current;
         while (cursor != null) {
-            if (Files.isDirectory(cursor.resolve("test1"))) {
+            if (Files.isDirectory(cursor.resolve("test1"))
+                    || Files.isDirectory(cursor.resolve("old_archive").resolve("test1"))) {
                 return cursor;
             }
             cursor = cursor.getParent();
         }
         throw new IllegalStateException("Could not locate repo root from " + current);
+    }
+
+    private static Path findSampleOutput() {
+        Path repoRoot = findRepoRoot();
+        Path currentLayout = repoRoot.resolve("test1");
+        if (Files.isDirectory(currentLayout)) {
+            return currentLayout;
+        }
+        return repoRoot.resolve("old_archive").resolve("test1");
+    }
+
+    private static EvolNode decodeTree(String newick) throws Exception {
+        return new TreeDecoder().decode(newick);
+    }
+
+    private static List<String> leafOrder(EvolNode root) {
+        List<String> leaves = new ArrayList<>();
+        collectLeafOrder(root, leaves);
+        return leaves;
+    }
+
+    private static void collectLeafOrder(EvolNode node, List<String> leaves) {
+        if (node.getChildCount() == 0) {
+            leaves.add(node.getName());
+            return;
+        }
+        for (int index = 0; index < node.getChildCount(); index++) {
+            collectLeafOrder(node.getChildAt(index), leaves);
+        }
+    }
+
+    private static void assertParentLinks(EvolNode node) {
+        for (int index = 0; index < node.getChildCount(); index++) {
+            EvolNode child = node.getChildAt(index);
+            assertTrue(child.getParent() == node, "arrangement should preserve child parent links");
+            assertParentLinks(child);
+        }
+    }
+
+    private static List<String> sortedLeafNames(EvolNode root) {
+        List<String> leaves = leafOrder(root);
+        leaves.sort(String::compareTo);
+        return leaves;
+    }
+
+    private static List<String> cladeSignatures(EvolNode root) {
+        List<String> signatures = new ArrayList<>();
+        collectCladeSignatures(root, signatures);
+        signatures.sort(String::compareTo);
+        return signatures;
+    }
+
+    private static List<String> collectCladeSignatures(EvolNode node, List<String> signatures) {
+        if (node.getChildCount() == 0) {
+            return new ArrayList<>(List.of(node.getName()));
+        }
+        List<String> leaves = new ArrayList<>();
+        for (int index = 0; index < node.getChildCount(); index++) {
+            leaves.addAll(collectCladeSignatures(node.getChildAt(index), signatures));
+        }
+        leaves.sort(String::compareTo);
+        signatures.add(String.join("|", leaves));
+        return leaves;
+    }
+
+    private static Map<String, Double> branchLengthsByClade(EvolNode root) {
+        java.util.LinkedHashMap<String, Double> lengths = new java.util.LinkedHashMap<>();
+        collectBranchLengthsByClade(root, lengths);
+        return lengths;
+    }
+
+    private static List<String> collectBranchLengthsByClade(EvolNode node, Map<String, Double> lengths) {
+        if (node.getChildCount() == 0) {
+            lengths.put(node.getName(), Double.valueOf(node.getLength()));
+            return new ArrayList<>(List.of(node.getName()));
+        }
+        List<String> leaves = new ArrayList<>();
+        for (int index = 0; index < node.getChildCount(); index++) {
+            leaves.addAll(collectBranchLengthsByClade(node.getChildAt(index), lengths));
+        }
+        leaves.sort(String::compareTo);
+        lengths.put(String.join("|", leaves), Double.valueOf(node.getLength()));
+        return leaves;
     }
 
     @FunctionalInterface

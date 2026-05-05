@@ -19,13 +19,23 @@ public final class TanglegramPanelFactory {
     private static final int MIN_HEIGHT = 480;
 
     private final TanglegramRenderOptions renderOptions;
+    private final TreeLeafArrangementOptions leafArrangementOptions;
 
     public TanglegramPanelFactory() {
         this(TanglegramRenderOptions.defaults());
     }
 
     public TanglegramPanelFactory(TanglegramRenderOptions renderOptions) {
+        this(renderOptions, TreeLeafArrangementOptions.disabled());
+    }
+
+    TanglegramPanelFactory(
+            TanglegramRenderOptions renderOptions,
+            TreeLeafArrangementOptions leafArrangementOptions) {
         this.renderOptions = renderOptions == null ? TanglegramRenderOptions.defaults() : renderOptions;
+        this.leafArrangementOptions = leafArrangementOptions == null
+                ? TreeLeafArrangementOptions.disabled()
+                : leafArrangementOptions;
     }
 
     public JPanel createPanel(TreePairSpec pairSpec, Dimension requestedSize) throws Exception {
@@ -42,7 +52,7 @@ public final class TanglegramPanelFactory {
     public JPanel createPanel(PreparedPair preparedPair, Dimension requestedSize) {
         Dimension effectiveSize = renderOptions.autoFit() ? sanitizeSize(requestedSize) : new Dimension(DEFAULT_DIMENSION);
         Font labelFont = resolveLabelFont();
-        JPanel innerPanel = new CustomTanglegramPanel(preparedPair, renderOptions, labelFont);
+        JPanel innerPanel = new CustomTanglegramPanel(preparedPair, renderOptions, leafArrangementOptions, labelFont);
         innerPanel.setPreferredSize(effectiveSize);
 
         JPanel panel = new JPanel(new BorderLayout());

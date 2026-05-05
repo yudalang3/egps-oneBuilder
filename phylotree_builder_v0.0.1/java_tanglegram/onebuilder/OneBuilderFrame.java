@@ -14,6 +14,7 @@ import tanglegram.PreferenceDialog;
 import tanglegram.UiPreferenceStore;
 import tanglegram.UiPreferences;
 import tanglegram.UiText;
+import tanglegram.WindowIconSupport;
 
 final class OneBuilderFrame extends JFrame implements PreferenceAware {
     private static final String WINDOW_KEY = "onebuilder";
@@ -24,6 +25,7 @@ final class OneBuilderFrame extends JFrame implements PreferenceAware {
 
     OneBuilderFrame(Path scriptDirectory) {
         super("eGPS oneBuilder");
+        WindowIconSupport.apply(this);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
         workspacePanel = new OneBuilderWorkspacePanel(scriptDirectory);

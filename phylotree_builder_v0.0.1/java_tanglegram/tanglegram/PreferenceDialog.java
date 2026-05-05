@@ -29,6 +29,7 @@ public final class PreferenceDialog extends JDialog {
 
     private PreferenceDialog(Frame owner) {
         super(owner, UiText.text("Preferences", "偏好设置"), true);
+        WindowIconSupport.apply(this);
         setLayout(new BorderLayout(12, 12));
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 

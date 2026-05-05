@@ -35,6 +35,7 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
 
     TanglegramFrame() {
         super(UiText.text("Tanglegram", "缠结图"));
+        WindowIconSupport.apply(this);
         this.workspaceTabs = new JideTabbedPane(JTabbedPane.TOP, JTabbedPane.SCROLL_TAB_LAYOUT);
         this.welcomePanel = new TanglegramWelcomePanel(this::openImportedSession);
         this.exportButton = createExportButton();

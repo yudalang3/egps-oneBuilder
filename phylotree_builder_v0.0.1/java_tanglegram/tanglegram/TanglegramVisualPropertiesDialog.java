@@ -38,6 +38,7 @@ final class TanglegramVisualPropertiesDialog extends JDialog {
         super(owner, UiText.text("Visual properties", "可视化属性"), Dialog.ModalityType.DOCUMENT_MODAL);
         this.applyCallback = applyCallback;
         this.baseOptions = currentOptions;
+        WindowIconSupport.apply(this);
         setLayout(new BorderLayout(12, 12));
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 

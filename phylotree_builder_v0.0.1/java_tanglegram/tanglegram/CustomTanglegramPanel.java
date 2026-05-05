@@ -29,15 +29,20 @@ final class CustomTanglegramPanel extends JPanel {
 
     private final TanglegramPanelFactory.PreparedPair preparedPair;
     private final TanglegramRenderOptions renderOptions;
+    private final TreeLeafArrangementOptions leafArrangementOptions;
     private final Font labelFont;
     private final Font branchLengthFont;
 
     CustomTanglegramPanel(
             TanglegramPanelFactory.PreparedPair preparedPair,
             TanglegramRenderOptions renderOptions,
+            TreeLeafArrangementOptions leafArrangementOptions,
             Font labelFont) {
         this.preparedPair = preparedPair;
         this.renderOptions = renderOptions;
+        this.leafArrangementOptions = leafArrangementOptions == null
+                ? TreeLeafArrangementOptions.disabled()
+                : leafArrangementOptions;
         this.labelFont = labelFont;
         this.branchLengthFont = labelFont.deriveFont(Math.max(9.0f, labelFont.getSize2D() - 2.0f));
         setOpaque(true);
@@ -62,6 +67,8 @@ final class CustomTanglegramPanel extends JPanel {
     private Layout buildLayout(Graphics2D graphics2d) {
         EvolNode leftCopy = TreeDataLoader.copyTree(preparedPair.leftTree());
         EvolNode rightCopy = TreeDataLoader.copyTree(preparedPair.rightTree());
+        TreeLeafArrangementEngine.arrange(leftCopy, leafArrangementOptions);
+        TreeLeafArrangementEngine.arrange(rightCopy, leafArrangementOptions);
         ReflectGraphicNode<EvolNode> leftRoot = new ReflectGraphicNode<>(leftCopy);
         ReflectGraphicNode<EvolNode> rightRoot = new ReflectGraphicNode<>(rightCopy);
 
