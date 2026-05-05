@@ -13,6 +13,7 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.Stroke;
@@ -51,6 +52,11 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     private static final int LABEL_BAND_HEIGHT = 74;
     private static final int CONTENT_PADDING_X = 20;
     private static final int CONTENT_PADDING_TOP = 20;
+    private static final int MAX_QUICK_LABELS = 10;
+    private static final int LEGEND_RESERVED_HEIGHT = 86;
+    private static final int LEGEND_MAX_ITEMS = 10;
+    private static final int LEGEND_ITEM_HEIGHT = 24;
+    private static final int LEGEND_ITEM_GAP = 8;
 
     private final AlignmentCanvas canvas;
     private final Timer renderTimer;
@@ -103,8 +109,20 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                 "Connect clades or clusters that contain exactly the same leaf set across the aligned trees using translucent Sankey ribbons.");
         consistencyAnnotationButton.addActionListener(event -> openConsistencyAnnotationDialog());
 
+        JButton quickLabelButton = new JButton("Quick label consistency");
+        quickLabelButton.setToolTipText(
+                "Automatically create up to 10 consistency labels from internal clades in the first tree, then connect exact matches across the ordered trees.");
+        quickLabelButton.addActionListener(event -> quickLabelConsistency());
+
+        JButton cleanLabelsButton = new JButton("Clean all labels");
+        cleanLabelsButton.setToolTipText(
+                "Remove all consistency labels and hide all annotation ribbons, markers, and legend entries from this 3D Alignment view.");
+        cleanLabelsButton.addActionListener(event -> cleanAllLabels());
+
         panel.add(treeOrderButton);
         panel.add(consistencyAnnotationButton);
+        panel.add(quickLabelButton);
+        panel.add(cleanLabelsButton);
         return panel;
     }
 
@@ -142,6 +160,26 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                     usingDefaultRootAnnotation = false;
                     canvas.repaint();
                 });
+    }
+
+    void quickLabelConsistencyForTest() {
+        quickLabelConsistency();
+    }
+
+    void cleanAllLabelsForTest() {
+        cleanAllLabels();
+    }
+
+    private void quickLabelConsistency() {
+        consistencyAnnotations = quickLabelsFromFirstTree(displayedTrees);
+        usingDefaultRootAnnotation = false;
+        canvas.repaint();
+    }
+
+    private void cleanAllLabels() {
+        consistencyAnnotations = List.of();
+        usingDefaultRootAnnotation = false;
+        canvas.repaint();
     }
 
     private void renderForCurrentSize() {
@@ -193,7 +231,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
         int layerCount = displayedTrees.size();
         int availableWidth = Math.max(1, viewportSize.width - (HORIZONTAL_MARGIN * 2) - (SHEET_GAP * Math.max(0, layerCount - 1)));
-        int availableHeight = Math.max(1, viewportSize.height - (VERTICAL_MARGIN * 2) - 90);
+        int availableHeight = Math.max(1, viewportSize.height - (VERTICAL_MARGIN * 2) - 90 - LEGEND_RESERVED_HEIGHT);
         int sheetWidth = Math.max(1, availableWidth / Math.max(1, layerCount));
         int shearRise = (int) Math.ceil(Math.abs(SHEAR_Y * sheetWidth));
         int maxHeight = Math.max(1, availableHeight - shearRise);
@@ -248,6 +286,11 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         if (layers.isEmpty()) {
             return;
         }
+        graphics2d.setColor(new Color(205, 211, 218, 88));
+        graphics2d.fillPolygon(floorShadowPolygon(layers));
+    }
+
+    private static Polygon floorShadowPolygon(List<PreparedLayer> layers) {
         PreparedLayer first = layers.get(0);
         PreparedLayer last = layers.get(layers.size() - 1);
         int leftBottomLeftX = first.x();
@@ -260,12 +303,10 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         int leftBottomRightX = first.x() + first.sheetWidth();
         int leftBottomRightY = first.y() + first.sheetHeight() + (int) Math.round(SHEAR_Y * first.sheetWidth());
 
-        Polygon floor = new Polygon(
+        return new Polygon(
                 new int[] { leftBottomLeftX, rightBottomLeftX, rightBottomRightX, leftBottomRightX },
                 new int[] { leftBottomLeftY, rightBottomLeftY, rightBottomRightY, leftBottomRightY },
                 4);
-        graphics2d.setColor(new Color(205, 211, 218, 88));
-        graphics2d.fillPolygon(floor);
     }
 
     private static void paintLayerShadow(Graphics2D graphics2d, PreparedLayer preparedLayer) {
@@ -417,6 +458,123 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         graphics2d.draw(marker);
     }
 
+    private static void paintConsistencyAnnotationLegend(
+            Graphics2D graphics2d,
+            List<PreparedLayer> layers,
+            List<ConsistencyAnnotation> annotations,
+            Dimension canvasSize) {
+        if (layers.isEmpty() || annotations == null || annotations.isEmpty()) {
+            return;
+        }
+        Polygon floor = floorShadowPolygon(layers);
+        Rectangle floorBounds = floor.getBounds();
+        int x = Math.max(HORIZONTAL_MARGIN, floorBounds.x);
+        int y = floorBounds.y + floorBounds.height + 14;
+        int maxRight = Math.min(canvasSize.width - HORIZONTAL_MARGIN, floorBounds.x + floorBounds.width);
+        if (maxRight <= x + 80) {
+            maxRight = canvasSize.width - HORIZONTAL_MARGIN;
+        }
+
+        Graphics2D legendGraphics = (Graphics2D) graphics2d.create();
+        legendGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        legendGraphics.setFont(resolveLegendFont());
+        FontMetrics metrics = legendGraphics.getFontMetrics();
+
+        int currentX = x;
+        int currentY = y;
+        int shownCount = Math.min(LEGEND_MAX_ITEMS, annotations.size());
+        for (int index = 0; index < shownCount; index++) {
+            ConsistencyAnnotation annotation = annotations.get(index);
+            String label = legendLabel(annotation);
+            int labelWidth = Math.min(metrics.stringWidth(label), 280);
+            int itemWidth = Math.max(84, labelWidth + 34);
+            if (currentX > x && currentX + itemWidth > maxRight) {
+                currentX = x;
+                currentY += LEGEND_ITEM_HEIGHT + LEGEND_ITEM_GAP;
+            }
+            paintLegendItem(legendGraphics, annotation, label, currentX, currentY, itemWidth, metrics);
+            currentX += itemWidth + LEGEND_ITEM_GAP;
+        }
+        if (annotations.size() > LEGEND_MAX_ITEMS) {
+            String moreLabel = "+" + (annotations.size() - LEGEND_MAX_ITEMS) + " more";
+            int itemWidth = Math.max(76, metrics.stringWidth(moreLabel) + 22);
+            if (currentX > x && currentX + itemWidth > maxRight) {
+                currentX = x;
+                currentY += LEGEND_ITEM_HEIGHT + LEGEND_ITEM_GAP;
+            }
+            paintMoreLegendItem(legendGraphics, moreLabel, currentX, currentY, itemWidth, metrics);
+        }
+        legendGraphics.dispose();
+    }
+
+    private static void paintLegendItem(
+            Graphics2D graphics2d,
+            ConsistencyAnnotation annotation,
+            String label,
+            int x,
+            int y,
+            int width,
+            FontMetrics metrics) {
+        RoundRectangle2D.Double background = new RoundRectangle2D.Double(x, y, width, LEGEND_ITEM_HEIGHT, 12, 12);
+        Color color = annotation.color();
+        graphics2d.setColor(new Color(255, 255, 255, 220));
+        graphics2d.fill(background);
+        graphics2d.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), Math.min(185, color.getAlpha() + 40)));
+        graphics2d.draw(background);
+
+        double markerSize = Math.max(7.0d, Math.min(12.0d, annotation.ribbonWidth() + 3.0d));
+        double markerX = x + 12.0d;
+        double markerY = y + ((LEGEND_ITEM_HEIGHT - markerSize) / 2.0d);
+        Ellipse2D.Double marker = new Ellipse2D.Double(markerX, markerY, markerSize, markerSize);
+        graphics2d.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), Math.min(210, color.getAlpha() + 35)));
+        graphics2d.fill(marker);
+        graphics2d.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), Math.min(255, color.getAlpha() + 85)));
+        graphics2d.draw(marker);
+
+        graphics2d.setColor(new Color(38, 46, 58));
+        String clippedLabel = clipLegendLabel(label, metrics, width - 34);
+        int baseline = y + ((LEGEND_ITEM_HEIGHT - metrics.getHeight()) / 2) + metrics.getAscent();
+        graphics2d.drawString(clippedLabel, x + 28, baseline);
+    }
+
+    private static void paintMoreLegendItem(
+            Graphics2D graphics2d,
+            String label,
+            int x,
+            int y,
+            int width,
+            FontMetrics metrics) {
+        RoundRectangle2D.Double background = new RoundRectangle2D.Double(x, y, width, LEGEND_ITEM_HEIGHT, 12, 12);
+        graphics2d.setColor(new Color(246, 248, 252, 230));
+        graphics2d.fill(background);
+        graphics2d.setColor(new Color(180, 190, 205));
+        graphics2d.draw(background);
+        graphics2d.setColor(new Color(80, 91, 107));
+        int baseline = y + ((LEGEND_ITEM_HEIGHT - metrics.getHeight()) / 2) + metrics.getAscent();
+        graphics2d.drawString(label, x + 11, baseline);
+    }
+
+    private static String legendLabel(ConsistencyAnnotation annotation) {
+        return annotation.leafNamesText();
+    }
+
+    private static String clipLegendLabel(String label, FontMetrics metrics, int maxWidth) {
+        if (metrics.stringWidth(label) <= maxWidth) {
+            return label;
+        }
+        String suffix = "...";
+        int suffixWidth = metrics.stringWidth(suffix);
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < label.length(); index++) {
+            char next = label.charAt(index);
+            if (metrics.stringWidth(builder.toString() + next) + suffixWidth > maxWidth) {
+                break;
+            }
+            builder.append(next);
+        }
+        return builder + suffix;
+    }
+
     private static Point2D.Double globalAnchorPoint(PreparedLayer layer, ReflectGraphicNode<EvolNode> node) {
         double localX = layer.contentX() + node.getYSelf();
         double localY = layer.contentY() + node.getXSelf();
@@ -469,6 +627,61 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             return List.of();
         }
         return List.of(new ConsistencyAnnotation(leafNames, new Color(79, 140, 255, 160), ConsistencyAnnotation.DEFAULT_RIBBON_WIDTH));
+    }
+
+    private static List<ConsistencyAnnotation> quickLabelsFromFirstTree(List<ImportedTreeSpec> importedTrees) {
+        if (importedTrees == null || importedTrees.isEmpty() || importedTrees.get(0).root() == null) {
+            return List.of();
+        }
+        List<List<String>> clades = new ArrayList<>();
+        collectInternalClades(importedTrees.get(0).root(), true, clades);
+        List<ConsistencyAnnotation> annotations = new ArrayList<>();
+        int count = Math.min(MAX_QUICK_LABELS, clades.size());
+        for (int index = 0; index < count; index++) {
+            annotations.add(new ConsistencyAnnotation(
+                    clades.get(index),
+                    quickLabelColor(index),
+                    ConsistencyAnnotation.DEFAULT_RIBBON_WIDTH));
+        }
+        return List.copyOf(annotations);
+    }
+
+    private static List<String> collectInternalClades(EvolNode node, boolean root, List<List<String>> clades) {
+        if (node == null) {
+            return List.of();
+        }
+        if (node.getChildCount() == 0) {
+            String name = node.getName();
+            if (name == null || name.trim().isEmpty()) {
+                return List.of();
+            }
+            return List.of(name.trim());
+        }
+        List<String> leafNames = new ArrayList<>();
+        for (int index = 0; index < node.getChildCount(); index++) {
+            leafNames.addAll(collectInternalClades(EvolNodeUtil.getChildrenAt(node, index), false, clades));
+        }
+        leafNames.sort(String::compareTo);
+        if (!root && leafNames.size() > 1 && clades.size() < MAX_QUICK_LABELS) {
+            clades.add(List.copyOf(leafNames));
+        }
+        return leafNames;
+    }
+
+    private static Color quickLabelColor(int index) {
+        Color[] colors = new Color[] {
+                new Color(79, 140, 255, 145),
+                new Color(255, 162, 52, 150),
+                new Color(68, 190, 132, 145),
+                new Color(214, 102, 255, 145),
+                new Color(255, 99, 132, 145),
+                new Color(55, 185, 210, 145),
+                new Color(245, 205, 66, 150),
+                new Color(145, 120, 255, 145),
+                new Color(255, 128, 82, 145),
+                new Color(120, 170, 80, 145)
+        };
+        return colors[Math.floorMod(index, colors.length)];
     }
 
     private static List<String> collectLeafNames(EvolNode node) {
@@ -529,6 +742,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                 paintLayerTree(graphics2d, preparedLayer);
             }
             paintConsistencyAnnotationMarkers(graphics2d, preparedLayers, consistencyAnnotations);
+            paintConsistencyAnnotationLegend(graphics2d, preparedLayers, consistencyAnnotations, getSize());
             graphics2d.dispose();
         }
     }
@@ -607,6 +821,15 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             return uiFont.deriveFont(Font.BOLD, (float) fontSize);
         }
         return new Font(Font.SANS_SERIF, Font.BOLD, fontSize);
+    }
+
+    private static Font resolveLegendFont() {
+        Font uiFont = UIManager.getFont("Label.font");
+        int fontSize = Math.max(9, UiPreferenceStore.load().defaultTanglegramLabelFontSize() - 3);
+        if (uiFont != null) {
+            return uiFont.deriveFont((float) fontSize);
+        }
+        return new Font(Font.SANS_SERIF, Font.PLAIN, fontSize);
     }
 
     private static Color treeLineColor() {

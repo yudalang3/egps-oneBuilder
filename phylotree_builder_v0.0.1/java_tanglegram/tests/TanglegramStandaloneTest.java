@@ -70,6 +70,7 @@ public final class TanglegramStandaloneTest {
             run("supportsStandaloneVisualPropertiesControls", TanglegramStandaloneTest::supportsStandaloneVisualPropertiesControls);
             run("supportsThreeDAlignmentControls", TanglegramStandaloneTest::supportsThreeDAlignmentControls);
             run("defaultsThreeDAlignmentRootAnnotation", TanglegramStandaloneTest::defaultsThreeDAlignmentRootAnnotation);
+            run("quickLabelsAndCleansThreeDConsistencyAnnotations", TanglegramStandaloneTest::quickLabelsAndCleansThreeDConsistencyAnnotations);
             run("roundTripsConsistencyAnnotationTsv", TanglegramStandaloneTest::roundTripsConsistencyAnnotationTsv);
             run("reordersThreeDTreeCards", TanglegramStandaloneTest::reordersThreeDTreeCards);
         } finally {
@@ -299,6 +300,8 @@ public final class TanglegramStandaloneTest {
 
         JButton treeOrderButton = findButton(buttons, "Tree order");
         JButton annotationButton = findButton(buttons, "Consistency annotation");
+        JButton quickButton = findButton(buttons, "Quick label consistency");
+        JButton cleanButton = findButton(buttons, "Clean all labels");
 
         assertEquals(
                 "Reorder the trees in this 3D alignment view without changing the imported data or tree files.",
@@ -308,6 +311,14 @@ public final class TanglegramStandaloneTest {
                 "Connect clades or clusters that contain exactly the same leaf set across the aligned trees using translucent Sankey ribbons.",
                 annotationButton.getToolTipText(),
                 "unexpected consistency annotation tooltip");
+        assertEquals(
+                "Automatically create up to 10 consistency labels from internal clades in the first tree, then connect exact matches across the ordered trees.",
+                quickButton.getToolTipText(),
+                "unexpected quick label tooltip");
+        assertEquals(
+                "Remove all consistency labels and hide all annotation ribbons, markers, and legend entries from this 3D Alignment view.",
+                cleanButton.getToolTipText(),
+                "unexpected clean labels tooltip");
         assertTrue(view.getExportComponent() != view, "3D alignment export should exclude bottom control buttons");
     }
 
@@ -324,6 +335,24 @@ public final class TanglegramStandaloneTest {
         assertEquals("#4F8CFFA0", annotation.colorText(), "unexpected default root annotation color");
         assertEquals(Double.valueOf(5.0d), Double.valueOf(annotation.ribbonWidth()),
                 "default root annotation should use a thinner ribbon width");
+    }
+
+    private static void quickLabelsAndCleansThreeDConsistencyAnnotations() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
+
+        view.quickLabelConsistencyForTest();
+        List<ConsistencyAnnotation> quickLabels = view.consistencyAnnotationsForTest();
+
+        assertEquals(Integer.valueOf(1), Integer.valueOf(quickLabels.size()),
+                "sample tree should expose one non-root internal clade for quick labels");
+        assertEquals(Arrays.asList("Cow", "Dog"), quickLabels.get(0).leafNames(),
+                "quick labels should exclude root and use sorted internal clade leaf names");
+        assertEquals(Double.valueOf(5.0d), Double.valueOf(quickLabels.get(0).ribbonWidth()),
+                "quick labels should use default ribbon width");
+
+        view.cleanAllLabelsForTest();
+        assertEquals(Integer.valueOf(0), Integer.valueOf(view.consistencyAnnotationsForTest().size()),
+                "clean all labels should remove every consistency annotation");
     }
 
     private static void roundTripsConsistencyAnnotationTsv() throws Exception {
