@@ -53,10 +53,10 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     private static final int CONTENT_PADDING_X = 20;
     private static final int CONTENT_PADDING_TOP = 20;
     private static final int MAX_QUICK_LABELS = 10;
-    private static final int LEGEND_RESERVED_HEIGHT = 86;
     private static final int LEGEND_MAX_ITEMS = 10;
     private static final int LEGEND_ITEM_HEIGHT = 24;
     private static final int LEGEND_ITEM_GAP = 8;
+    private static final String LEGEND_WIDTH_REFERENCE_LABEL = "Chimp,Coelacanth,Human,Mouse,Rat";
 
     private final AlignmentCanvas canvas;
     private final Timer renderTimer;
@@ -231,7 +231,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
         int layerCount = displayedTrees.size();
         int availableWidth = Math.max(1, viewportSize.width - (HORIZONTAL_MARGIN * 2) - (SHEET_GAP * Math.max(0, layerCount - 1)));
-        int availableHeight = Math.max(1, viewportSize.height - (VERTICAL_MARGIN * 2) - 90 - LEGEND_RESERVED_HEIGHT);
+        int availableHeight = Math.max(1, viewportSize.height - (VERTICAL_MARGIN * 2) - 90);
         int sheetWidth = Math.max(1, availableWidth / Math.max(1, layerCount));
         int shearRise = (int) Math.ceil(Math.abs(SHEAR_Y * sheetWidth));
         int maxHeight = Math.max(1, availableHeight - shearRise);
@@ -477,8 +477,10 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
         Graphics2D legendGraphics = (Graphics2D) graphics2d.create();
         legendGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        legendGraphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         legendGraphics.setFont(resolveLegendFont());
         FontMetrics metrics = legendGraphics.getFontMetrics();
+        int fixedItemWidth = Math.max(210, metrics.stringWidth(LEGEND_WIDTH_REFERENCE_LABEL) + 34);
 
         int currentX = x;
         int currentY = y;
@@ -486,8 +488,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         for (int index = 0; index < shownCount; index++) {
             ConsistencyAnnotation annotation = annotations.get(index);
             String label = legendLabel(annotation);
-            int labelWidth = Math.min(metrics.stringWidth(label), 280);
-            int itemWidth = Math.max(84, labelWidth + 34);
+            int itemWidth = fixedItemWidth;
             if (currentX > x && currentX + itemWidth > maxRight) {
                 currentX = x;
                 currentY += LEGEND_ITEM_HEIGHT + LEGEND_ITEM_GAP;
