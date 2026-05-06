@@ -25,6 +25,7 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.geom.Line2D;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -65,6 +66,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     private List<ConsistencyAnnotation> consistencyAnnotations;
     private boolean usingDefaultRootAnnotation;
     private volatile List<PreparedLayer> preparedLayers;
+    private volatile List<PreparedAnnotation> preparedAnnotations;
     private volatile String errorMessage;
     private volatile boolean loading;
 
@@ -77,6 +79,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         this.renderTimer = new Timer(RENDER_DELAY_MS, event -> renderForCurrentSize());
         this.renderSequence = new AtomicLong();
         this.preparedLayers = List.of();
+        this.preparedAnnotations = List.of();
         this.loading = true;
         this.renderTimer.setRepeats(false);
         setOpaque(false);
@@ -92,6 +95,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     }
 
     private void scheduleRender() {
+        renderSequence.incrementAndGet();
         renderTimer.restart();
     }
 
@@ -158,7 +162,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                 updatedAnnotations -> {
                     consistencyAnnotations = List.copyOf(updatedAnnotations);
                     usingDefaultRootAnnotation = false;
-                    canvas.repaint();
+                    scheduleRender();
                 });
     }
 
@@ -173,29 +177,33 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     private void quickLabelConsistency() {
         consistencyAnnotations = quickLabelsFromFirstTree(displayedTrees);
         usingDefaultRootAnnotation = false;
-        canvas.repaint();
+        scheduleRender();
     }
 
     private void cleanAllLabels() {
         consistencyAnnotations = List.of();
+        preparedAnnotations = List.of();
         usingDefaultRootAnnotation = false;
-        canvas.repaint();
+        scheduleRender();
     }
 
     private void renderForCurrentSize() {
         final long renderId = renderSequence.incrementAndGet();
         final Dimension viewportSize = currentViewportSize();
+        final List<ImportedTreeSpec> treeSnapshot = List.copyOf(displayedTrees);
+        final List<ConsistencyAnnotation> annotationSnapshot = List.copyOf(consistencyAnnotations);
         loading = true;
         errorMessage = null;
         canvas.repaint();
         Thread renderThread = new Thread(() -> {
             try {
-                List<PreparedLayer> layers = prepareLayers(viewportSize);
+                PreparedRender preparedRender = prepareRender(viewportSize, treeSnapshot, annotationSnapshot);
                 SwingUtilities.invokeLater(() -> {
                     if (renderId != renderSequence.get()) {
                         return;
                     }
-                    preparedLayers = layers;
+                    preparedLayers = preparedRender.layers();
+                    preparedAnnotations = preparedRender.annotations();
                     errorMessage = null;
                     loading = false;
                     canvas.repaint();
@@ -206,7 +214,10 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                         return;
                     }
                     preparedLayers = List.of();
-                    errorMessage = exception.getMessage() == null ? "3D tree alignment could not be rendered." : exception.getMessage();
+                    preparedAnnotations = List.of();
+                    errorMessage = exception.getMessage() == null
+                            ? exception.getClass().getSimpleName() + ": 3D tree alignment could not be rendered."
+                            : exception.getMessage();
                     loading = false;
                     canvas.repaint();
                 });
@@ -214,6 +225,26 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         }, "tanglegram-3d-renderer");
         renderThread.setDaemon(true);
         renderThread.start();
+    }
+
+    void renderForCurrentSizeForTest() {
+        renderForCurrentSize();
+    }
+
+    int preparedAnnotationCountForTest() {
+        return preparedAnnotations.size();
+    }
+
+    int preparedAnnotationAnchorCountForTest() {
+        int count = 0;
+        for (PreparedAnnotation annotation : preparedAnnotations) {
+            for (Point2D.Double anchor : annotation.anchors()) {
+                if (anchor != null) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     private Dimension currentViewportSize() {
@@ -224,12 +255,20 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         return new Dimension(size);
     }
 
-    private List<PreparedLayer> prepareLayers(Dimension viewportSize) {
-        if (displayedTrees.isEmpty()) {
+    private PreparedRender prepareRender(
+            Dimension viewportSize,
+            List<ImportedTreeSpec> treeSnapshot,
+            List<ConsistencyAnnotation> annotationSnapshot) {
+        List<PreparedLayer> layers = prepareLayers(viewportSize, treeSnapshot);
+        return new PreparedRender(layers, prepareConsistencyAnnotations(layers, annotationSnapshot));
+    }
+
+    private List<PreparedLayer> prepareLayers(Dimension viewportSize, List<ImportedTreeSpec> treeSnapshot) {
+        if (treeSnapshot.isEmpty()) {
             throw new IllegalStateException("No trees are available for 3D alignment.");
         }
 
-        int layerCount = displayedTrees.size();
+        int layerCount = treeSnapshot.size();
         int availableWidth = Math.max(1, viewportSize.width - (HORIZONTAL_MARGIN * 2) - (SHEET_GAP * Math.max(0, layerCount - 1)));
         int availableHeight = Math.max(1, viewportSize.height - (VERTICAL_MARGIN * 2) - 90);
         int sheetWidth = Math.max(1, availableWidth / Math.max(1, layerCount));
@@ -253,7 +292,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
         List<PreparedLayer> layers = new ArrayList<>(layerCount);
         for (int index = 0; index < layerCount; index++) {
-            ImportedTreeSpec importedTree = displayedTrees.get(index);
+            ImportedTreeSpec importedTree = treeSnapshot.get(index);
             if (importedTree.root() == null) {
                 throw new IllegalStateException("The tree '" + importedTree.label() + "' is not loaded in memory yet.");
             }
@@ -358,15 +397,13 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         layerGraphics.dispose();
     }
 
-    private static void paintConsistencyAnnotations(
-            Graphics2D graphics2d,
+    private static List<PreparedAnnotation> prepareConsistencyAnnotations(
             List<PreparedLayer> layers,
             List<ConsistencyAnnotation> annotations) {
-        if (layers.size() < 2 || annotations == null || annotations.isEmpty()) {
-            return;
+        if (layers.isEmpty() || annotations == null || annotations.isEmpty()) {
+            return List.of();
         }
-        Graphics2D ribbonGraphics = (Graphics2D) graphics2d.create();
-        ribbonGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        List<PreparedAnnotation> preparedAnnotations = new ArrayList<>(annotations.size());
         for (ConsistencyAnnotation annotation : annotations) {
             List<Point2D.Double> anchors = new ArrayList<>(layers.size());
             Set<String> targetLeafNames = new HashSet<>(annotation.leafNames());
@@ -374,26 +411,41 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                 ReflectGraphicNode<EvolNode> matchingNode = findExactCladeNode(layer.root(), targetLeafNames);
                 anchors.add(matchingNode == null ? null : globalAnchorPoint(layer, matchingNode));
             }
-            paintAnnotationRibbonSegments(ribbonGraphics, anchors, annotation.color(), annotation.ribbonWidth());
+            preparedAnnotations.add(new PreparedAnnotation(
+                    Collections.unmodifiableList(new ArrayList<>(anchors)),
+                    annotation.color(),
+                    annotation.ribbonWidth(),
+                    annotation.leafNamesText()));
+        }
+        return List.copyOf(preparedAnnotations);
+    }
+
+    private static void paintConsistencyAnnotations(
+            Graphics2D graphics2d,
+            List<PreparedAnnotation> annotations) {
+        if (annotations == null || annotations.isEmpty()) {
+            return;
+        }
+        Graphics2D ribbonGraphics = (Graphics2D) graphics2d.create();
+        ribbonGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        for (PreparedAnnotation annotation : annotations) {
+            paintAnnotationRibbonSegments(ribbonGraphics, annotation.anchors(), annotation.color(), annotation.ribbonWidth());
         }
         ribbonGraphics.dispose();
     }
 
     private static void paintConsistencyAnnotationMarkers(
             Graphics2D graphics2d,
-            List<PreparedLayer> layers,
-            List<ConsistencyAnnotation> annotations) {
-        if (layers.isEmpty() || annotations == null || annotations.isEmpty()) {
+            List<PreparedAnnotation> annotations) {
+        if (annotations == null || annotations.isEmpty()) {
             return;
         }
         Graphics2D markerGraphics = (Graphics2D) graphics2d.create();
         markerGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        for (ConsistencyAnnotation annotation : annotations) {
-            Set<String> targetLeafNames = new HashSet<>(annotation.leafNames());
-            for (PreparedLayer layer : layers) {
-                ReflectGraphicNode<EvolNode> matchingNode = findExactCladeNode(layer.root(), targetLeafNames);
-                if (matchingNode != null) {
-                    paintAnnotationMarker(markerGraphics, globalAnchorPoint(layer, matchingNode), annotation.color(), annotation.ribbonWidth());
+        for (PreparedAnnotation annotation : annotations) {
+            for (Point2D.Double anchor : annotation.anchors()) {
+                if (anchor != null) {
+                    paintAnnotationMarker(markerGraphics, anchor, annotation.color(), annotation.ribbonWidth());
                 }
             }
         }
@@ -461,7 +513,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     private static void paintConsistencyAnnotationLegend(
             Graphics2D graphics2d,
             List<PreparedLayer> layers,
-            List<ConsistencyAnnotation> annotations,
+            List<PreparedAnnotation> annotations,
             Dimension canvasSize) {
         if (layers.isEmpty() || annotations == null || annotations.isEmpty()) {
             return;
@@ -486,14 +538,13 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         int currentY = y;
         int shownCount = Math.min(LEGEND_MAX_ITEMS, annotations.size());
         for (int index = 0; index < shownCount; index++) {
-            ConsistencyAnnotation annotation = annotations.get(index);
-            String label = legendLabel(annotation);
+            PreparedAnnotation annotation = annotations.get(index);
             int itemWidth = fixedItemWidth;
             if (currentX > x && currentX + itemWidth > maxRight) {
                 currentX = x;
                 currentY += LEGEND_ITEM_HEIGHT + LEGEND_ITEM_GAP;
             }
-            paintLegendItem(legendGraphics, annotation, label, currentX, currentY, itemWidth, metrics);
+            paintLegendItem(legendGraphics, annotation, currentX, currentY, itemWidth, metrics);
             currentX += itemWidth + LEGEND_ITEM_GAP;
         }
         if (annotations.size() > LEGEND_MAX_ITEMS) {
@@ -510,8 +561,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
     private static void paintLegendItem(
             Graphics2D graphics2d,
-            ConsistencyAnnotation annotation,
-            String label,
+            PreparedAnnotation annotation,
             int x,
             int y,
             int width,
@@ -533,7 +583,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         graphics2d.draw(marker);
 
         graphics2d.setColor(new Color(38, 46, 58));
-        String clippedLabel = clipLegendLabel(label, metrics, width - 34);
+        String clippedLabel = clipLegendLabel(annotation.label(), metrics, width - 34);
         int baseline = y + ((LEGEND_ITEM_HEIGHT - metrics.getHeight()) / 2) + metrics.getAscent();
         graphics2d.drawString(clippedLabel, x + 28, baseline);
     }
@@ -553,10 +603,6 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         graphics2d.setColor(new Color(80, 91, 107));
         int baseline = y + ((LEGEND_ITEM_HEIGHT - metrics.getHeight()) / 2) + metrics.getAscent();
         graphics2d.drawString(label, x + 11, baseline);
-    }
-
-    private static String legendLabel(ConsistencyAnnotation annotation) {
-        return annotation.leafNamesText();
     }
 
     private static String clipLegendLabel(String label, FontMetrics metrics, int maxWidth) {
@@ -738,12 +784,12 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             for (PreparedLayer preparedLayer : preparedLayers) {
                 paintLayerSheet(graphics2d, preparedLayer);
             }
-            paintConsistencyAnnotations(graphics2d, preparedLayers, consistencyAnnotations);
+            paintConsistencyAnnotations(graphics2d, preparedAnnotations);
             for (PreparedLayer preparedLayer : preparedLayers) {
                 paintLayerTree(graphics2d, preparedLayer);
             }
-            paintConsistencyAnnotationMarkers(graphics2d, preparedLayers, consistencyAnnotations);
-            paintConsistencyAnnotationLegend(graphics2d, preparedLayers, consistencyAnnotations, getSize());
+            paintConsistencyAnnotationMarkers(graphics2d, preparedAnnotations);
+            paintConsistencyAnnotationLegend(graphics2d, preparedLayers, preparedAnnotations, getSize());
             graphics2d.dispose();
         }
     }
@@ -861,6 +907,18 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     @Override
     public boolean canExport() {
         return !loading && errorMessage == null;
+    }
+
+    private record PreparedRender(
+            List<PreparedLayer> layers,
+            List<PreparedAnnotation> annotations) {
+    }
+
+    private record PreparedAnnotation(
+            List<Point2D.Double> anchors,
+            Color color,
+            double ribbonWidth,
+            String label) {
     }
 
     private record PreparedLayer(

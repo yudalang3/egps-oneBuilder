@@ -284,6 +284,7 @@ class ProteinPhylogeneticPipeline:
         set_all_branch_lengths=None,
         ladderize_direction=None,
         sort_by_clade_size=False,
+        sort_by_leaf_name_string=False,
         sort_by_branch_length=False,
         sanitize_for_mad=False,
     ) -> Optional[Path]:
@@ -311,6 +312,8 @@ class ProteinPhylogeneticPipeline:
             cmd.extend(["--ladderize-direction", str(ladderize_direction)])
         if sort_by_clade_size:
             cmd.append("--sort-by-clade-size")
+        if sort_by_leaf_name_string:
+            cmd.append("--sort-by-leaf-name-string")
         if sort_by_branch_length:
             cmd.append("--sort-by-branch-length")
         self.logger.info(cmd)

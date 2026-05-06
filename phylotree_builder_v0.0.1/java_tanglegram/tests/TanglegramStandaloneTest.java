@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.swing.JButton;
@@ -70,6 +71,8 @@ public final class TanglegramStandaloneTest {
             run("supportsStandaloneVisualPropertiesControls", TanglegramStandaloneTest::supportsStandaloneVisualPropertiesControls);
             run("supportsThreeDAlignmentControls", TanglegramStandaloneTest::supportsThreeDAlignmentControls);
             run("defaultsThreeDAlignmentRootAnnotation", TanglegramStandaloneTest::defaultsThreeDAlignmentRootAnnotation);
+            run("preparesThreeDAnnotationAnchorsBeforePainting", TanglegramStandaloneTest::preparesThreeDAnnotationAnchorsBeforePainting);
+            run("preparesThreeDAnnotationsWhenSomeTreesLackClade", TanglegramStandaloneTest::preparesThreeDAnnotationsWhenSomeTreesLackClade);
             run("quickLabelsAndCleansThreeDConsistencyAnnotations", TanglegramStandaloneTest::quickLabelsAndCleansThreeDConsistencyAnnotations);
             run("roundTripsConsistencyAnnotationTsv", TanglegramStandaloneTest::roundTripsConsistencyAnnotationTsv);
             run("reordersThreeDTreeCards", TanglegramStandaloneTest::reordersThreeDTreeCards);
@@ -335,6 +338,33 @@ public final class TanglegramStandaloneTest {
         assertEquals("#4F8CFFA0", annotation.colorText(), "unexpected default root annotation color");
         assertEquals(Double.valueOf(5.0d), Double.valueOf(annotation.ribbonWidth()),
                 "default root annotation should use a thinner ribbon width");
+    }
+
+    private static void preparesThreeDAnnotationAnchorsBeforePainting() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
+        view.setSize(1100, 780);
+        view.doLayout();
+        view.renderForCurrentSizeForTest();
+        waitUntil(view::canExport, 3000, "3D alignment view did not finish rendering");
+
+        assertEquals(Integer.valueOf(1), Integer.valueOf(view.preparedAnnotationCountForTest()),
+                "expected annotation geometry to be prepared during rendering");
+        assertEquals(Integer.valueOf(2), Integer.valueOf(view.preparedAnnotationAnchorCountForTest()),
+                "expected one root annotation anchor for each rendered tree");
+    }
+
+    private static void preparesThreeDAnnotationsWhenSomeTreesLackClade() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTreesWithMissingQuickClade());
+        view.setSize(1100, 780);
+        view.doLayout();
+        view.quickLabelConsistencyForTest();
+        view.renderForCurrentSizeForTest();
+        waitUntil(view::canExport, 3000, "3D alignment view did not finish rendering with missing clade annotations");
+
+        assertEquals(Integer.valueOf(1), Integer.valueOf(view.preparedAnnotationCountForTest()),
+                "expected quick annotation to be prepared even when a later tree lacks the clade");
+        assertEquals(Integer.valueOf(1), Integer.valueOf(view.preparedAnnotationAnchorCountForTest()),
+                "missing clade trees should keep null anchors without failing rendering");
     }
 
     private static void quickLabelsAndCleansThreeDConsistencyAnnotations() throws Exception {
@@ -755,6 +785,17 @@ public final class TanglegramStandaloneTest {
         return null;
     }
 
+    private static void waitUntil(BooleanSupplier condition, long timeoutMillis, String message) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (System.currentTimeMillis() < deadline) {
+            if (condition.getAsBoolean()) {
+                return;
+            }
+            Thread.sleep(20L);
+        }
+        throw new AssertionError(message);
+    }
+
     private static void run(String name, ThrowingRunnable test) throws Exception {
         try {
             test.run();
@@ -813,6 +854,12 @@ public final class TanglegramStandaloneTest {
         return Arrays.asList(
                 new ImportedTreeSpec(Path.of("tree-a.nwk"), "Tree A", decodeTree("((Dog:1,Cow:1):1,Frog:1);")),
                 new ImportedTreeSpec(Path.of("tree-b.nwk"), "Tree B", decodeTree("((Dog:1,Cow:1):1,Frog:1);")));
+    }
+
+    private static List<ImportedTreeSpec> sampleImportedTreesWithMissingQuickClade() throws Exception {
+        return Arrays.asList(
+                new ImportedTreeSpec(Path.of("tree-a.nwk"), "Tree A", decodeTree("((Dog:1,Cow:1):1,Frog:1);")),
+                new ImportedTreeSpec(Path.of("tree-b.nwk"), "Tree B", decodeTree("((Dog:1,Frog:1):1,Cow:1);")));
     }
 
     private static List<String> leafOrder(EvolNode root) {
