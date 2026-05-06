@@ -1,0 +1,122 @@
+Bootstrap: docker
+From: ubuntu:24.04
+
+%files
+    stage/onebuilder /opt/onebuilder
+    stage/jre25 /opt/java/jre25
+
+%post -c /bin/bash
+    set -euo pipefail
+
+    rm -f /etc/apt/sources.list.d/ubuntu.sources
+    cat >/etc/apt/sources.list <<'EOF'
+deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ noble main restricted universe multiverse
+deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ noble-updates main restricted universe multiverse
+deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ noble-backports main restricted universe multiverse
+deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ noble-security main restricted universe multiverse
+EOF
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ca-certificates \
+        zsh \
+        fontconfig \
+        fonts-dejavu-core \
+        libasound2t64 \
+        libfontconfig1 \
+        libfreetype6 \
+        libxi6 \
+        libxrender1 \
+        libxtst6 \
+        libxext6 \
+        libxrandr2 \
+        libxinerama1 \
+        libnss3
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+
+    mkdir -p /opt/onebuilder/bin /opt/java
+
+    cat >/opt/onebuilder/bin/onebuilder-run-config <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
+export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
+export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
+export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec zsh "$ONEBUILDER_HOME/run_onebuilder_config.zsh" "$@"
+EOF
+
+    cat >/opt/onebuilder/bin/onebuilder-align <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
+export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
+export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
+export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec zsh "$ONEBUILDER_HOME/s1_quick_align.zsh" "$@"
+EOF
+
+    cat >/opt/onebuilder/bin/onebuilder-protein <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
+export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
+export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
+export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec zsh "$ONEBUILDER_HOME/s2_phylo_4prot.zsh" "$@"
+EOF
+
+    cat >/opt/onebuilder/bin/onebuilder-dna <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
+export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
+export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
+export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec zsh "$ONEBUILDER_HOME/s2_phylo_4dna.zsh" "$@"
+EOF
+
+    cat >/opt/onebuilder/bin/onebuilder-gui <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
+export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
+export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
+export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec java -cp "$ONEBUILDER_HOME/lib/*:$ONEBUILDER_HOME/java_tanglegram" onebuilder.launcher "$@"
+EOF
+
+    cat >/opt/onebuilder/bin/tanglegram-gui <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
+export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
+export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
+export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec java -cp "$ONEBUILDER_HOME/lib/*:$ONEBUILDER_HOME/java_tanglegram" tanglegram.launcher "$@"
+EOF
+
+    chmod +x /opt/onebuilder/bin/*
+    chmod +x /opt/onebuilder/*.zsh || true
+    chmod +x /opt/onebuilder/third_party/mad/mad || true
+
+%environment
+    export ONEBUILDER_HOME=/opt/onebuilder
+    export ONEBUILDER_RUNTIME_ENV=/opt/onebuilder/runtime
+    export JAVA_HOME=/opt/java/jre25
+    export PATH=/opt/onebuilder/bin:/opt/onebuilder/runtime/bin:/opt/java/jre25/bin:$PATH
+    export LD_LIBRARY_PATH=/opt/onebuilder/runtime/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+
+%runscript
+    exec onebuilder-run-config "$@"
+
+%labels
+    org.opencontainers.image.title oneBuilder
+    org.opencontainers.image.description oneBuilder phylogenetic pipeline runtime snapshot
+    org.opencontainers.image.version 0.0.1

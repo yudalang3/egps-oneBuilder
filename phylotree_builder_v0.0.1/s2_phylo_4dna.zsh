@@ -3,14 +3,26 @@
 set -euo pipefail
 
 script_dir="${0:a:h}"
-pixi_exe="${PIXI_EXE:-/home/dell/.pixi/bin/pixi}"
-pixi_lib_dir="$script_dir/.pixi/envs/default/lib"
+runtime_env="${ONEBUILDER_RUNTIME_ENV:-$script_dir/runtime}"
+if [[ ! -d "$runtime_env" ]]; then
+    runtime_env="$script_dir/.pixi/envs/default"
+fi
+if [[ -d "$runtime_env/bin" ]]; then
+    export PATH="$runtime_env/bin:$PATH"
+fi
+pixi_exe="${PIXI_EXE:-pixi}"
+runtime_lib_dir="$runtime_env/lib"
+python_cmd=(python3.13)
 config_path=""
 force_overwrite=0
 
-if [[ ! -x "$pixi_exe" ]]; then
-    echo "Error: pixi executable not found. Set PIXI_EXE or install pixi at /home/dell/.pixi/bin/pixi."
-    exit 1
+if ! command -v python3.13 >/dev/null 2>&1; then
+    if command -v "$pixi_exe" >/dev/null 2>&1; then
+        python_cmd=("$pixi_exe" run --manifest-path "$script_dir" python3.13)
+    else
+        echo "Error: python3.13 is not available. Activate the runtime environment or set ONEBUILDER_RUNTIME_ENV."
+        exit 1
+    fi
 fi
 
 usage() {
@@ -103,12 +115,12 @@ fi
 
 confirm_overwrite_if_needed "$output"
 
-pipeline_cmd=("$pixi_exe" run --manifest-path "$script_dir" python3.13 "$script_dir/phylo_pipeline_4dna.py")
+pipeline_cmd=("${python_cmd[@]}" "$script_dir/phylo_pipeline_4dna.py")
 if [[ -n "$config_path" ]]; then
     pipeline_cmd+=(--config "$config_path")
 fi
 pipeline_cmd+=("$input" -o "$output")
 
-LD_LIBRARY_PATH="$pixi_lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "${pipeline_cmd[@]}"
+LD_LIBRARY_PATH="$runtime_lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "${pipeline_cmd[@]}"
 
 echo "Pipeline completed! Output prefix: $output"

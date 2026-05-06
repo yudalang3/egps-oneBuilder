@@ -3,14 +3,21 @@
 set -euo pipefail
 
 script_dir="${0:a:h}"
-pixi_exe="${PIXI_EXE:-/home/dell/.pixi/bin/pixi}"
+runtime_env="${ONEBUILDER_RUNTIME_ENV:-$script_dir/runtime}"
+if [[ ! -d "$runtime_env" ]]; then
+    runtime_env="$script_dir/.pixi/envs/default"
+fi
+if [[ -d "$runtime_env/bin" ]]; then
+    export PATH="$runtime_env/bin:$PATH"
+fi
+pixi_exe="${PIXI_EXE:-pixi}"
 json_python_cmd=(python3.13)
 
 if ! command -v python3.13 >/dev/null 2>&1; then
-    if [[ -x "$pixi_exe" ]]; then
+    if command -v "$pixi_exe" >/dev/null 2>&1; then
         json_python_cmd=("$pixi_exe" run --manifest-path "$script_dir" python3.13)
     else
-        echo "错误: 找不到 python3.13，且 pixi 不存在于 '$pixi_exe'。"
+        echo "错误: 找不到 python3.13。请激活运行环境，或设置 ONEBUILDER_RUNTIME_ENV。"
         exit 1
     fi
 fi
@@ -151,19 +158,23 @@ else
 fi
 
 # 执行 mafft 命令
-if [[ ! -x "$pixi_exe" ]]; then
-    echo "错误: 找不到 pixi。请设置 PIXI_EXE，或安装到 /home/dell/.pixi/bin/pixi。"
+if ! command -v mafft >/dev/null 2>&1 && ! command -v "$pixi_exe" >/dev/null 2>&1; then
+    echo "错误: 找不到 mafft。请激活运行环境，或设置 ONEBUILDER_RUNTIME_ENV。"
     exit 1
 fi
 
-mafft_binaries_dir="$script_dir/.pixi/envs/default/libexec/mafft"
+mafft_binaries_dir="$runtime_env/libexec/mafft"
 if [[ -d "$mafft_binaries_dir" ]]; then
     export MAFFT_BINARIES="$mafft_binaries_dir"
 else
     unset MAFFT_BINARIES
 fi
 
-mafft_cmd=("$pixi_exe" run --manifest-path "$script_dir" mafft)
+if command -v mafft >/dev/null 2>&1; then
+    mafft_cmd=(mafft)
+else
+    mafft_cmd=("$pixi_exe" run --manifest-path "$script_dir" mafft)
+fi
 if [[ "$reorder_enabled" -eq 1 ]]; then
     mafft_cmd+=(--reorder)
 fi

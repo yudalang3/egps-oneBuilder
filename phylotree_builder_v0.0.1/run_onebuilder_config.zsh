@@ -3,15 +3,22 @@
 set -euo pipefail
 
 script_dir="${0:a:h}"
-pixi_exe="${PIXI_EXE:-/home/dell/.pixi/bin/pixi}"
+runtime_env="${ONEBUILDER_RUNTIME_ENV:-$script_dir/runtime}"
+if [[ ! -d "$runtime_env" ]]; then
+    runtime_env="$script_dir/.pixi/envs/default"
+fi
+if [[ -d "$runtime_env/bin" ]]; then
+    export PATH="$runtime_env/bin:$PATH"
+fi
+pixi_exe="${PIXI_EXE:-pixi}"
 json_python_cmd=(python3.13)
 force_overwrite=0
 
 if ! command -v python3.13 >/dev/null 2>&1; then
-    if [[ -x "$pixi_exe" ]]; then
+    if command -v "$pixi_exe" >/dev/null 2>&1; then
         json_python_cmd=("$pixi_exe" run --manifest-path "$script_dir" python3.13)
     else
-        echo "Error: python3.13 is not available and pixi was not found at '$pixi_exe'."
+        echo "Error: python3.13 is not available. Activate the runtime environment or set ONEBUILDER_RUNTIME_ENV."
         exit 1
     fi
 fi
