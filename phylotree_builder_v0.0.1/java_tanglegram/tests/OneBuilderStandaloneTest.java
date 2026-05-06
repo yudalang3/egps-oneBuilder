@@ -33,6 +33,7 @@ public final class OneBuilderStandaloneTest {
             run("serializesRerootRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesRerootRuntimeConfigAsJson);
             run("defaultsRerootPanelToVisibleLadderizationRules", OneBuilderStandaloneTest::defaultsRerootPanelToVisibleLadderizationRules);
             run("rerootTreeCommandUsesEgpsMidpointRooting", OneBuilderStandaloneTest::rerootTreeCommandUsesEgpsMidpointRooting);
+            run("rerootTreeCommandNormalizesPhylipMultiTreeOutput", OneBuilderStandaloneTest::rerootTreeCommandNormalizesPhylipMultiTreeOutput);
             run("treePostprocessCommandUsesEgpsTreeUtilities", OneBuilderStandaloneTest::treePostprocessCommandUsesEgpsTreeUtilities);
             run("treePostprocessCommandUsesLeafNameStringRule", OneBuilderStandaloneTest::treePostprocessCommandUsesLeafNameStringRule);
             run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
@@ -473,6 +474,29 @@ public final class OneBuilderStandaloneTest {
         assertTrue(output.endsWith(";"), "expected Newick output");
         assertTrue(output.contains("A") && output.contains("B") && output.contains("C"),
                 "expected all leaves to be preserved");
+    }
+
+    private static void rerootTreeCommandNormalizesPhylipMultiTreeOutput() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("onebuilder-midpoint-phylip-");
+        Path inputTree = tempDirectory.resolve("input.nwk");
+        Path outputTree = tempDirectory.resolve("output.nwk");
+        Files.writeString(inputTree,
+                "((seq4:0.01042,seq3:0.01042):0.02083,seq2:0.01042,seq1:0.01042)[0.5000];\n"
+                        + "(seq4:0.01042,(seq3:0.01042,seq2:0.01042):0.02083,seq1:0.01042)[0.5000];\n",
+                StandardCharsets.UTF_8);
+
+        int exitCode = RerootTreeCommand.run(new String[] {
+                "--method", "root-at-middle-point",
+                "--input", inputTree.toString(),
+                "--output", outputTree.toString()
+        });
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(exitCode), "PHYLIP multi-tree reroot command should succeed");
+        String output = Files.readString(outputTree, StandardCharsets.UTF_8).trim();
+        assertTrue(output.endsWith(";"), "expected Newick output");
+        assertTrue(!output.contains("[") && !output.contains("]"), "expected PHYLIP comments to be removed");
+        assertEquals(Integer.valueOf(output.indexOf(';')), Integer.valueOf(output.lastIndexOf(';')),
+                "expected only one tree in normalized output");
     }
 
     private static void treePostprocessCommandUsesEgpsTreeUtilities() throws Exception {

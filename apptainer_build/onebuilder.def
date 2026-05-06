@@ -20,17 +20,7 @@ EOF
         ca-certificates \
         zsh \
         fontconfig \
-        fonts-dejavu-core \
-        libasound2t64 \
-        libfontconfig1 \
-        libfreetype6 \
-        libxi6 \
-        libxrender1 \
-        libxtst6 \
-        libxext6 \
-        libxrandr2 \
-        libxinerama1 \
-        libnss3
+        fonts-dejavu-core
     apt-get clean
     rm -rf /var/lib/apt/lists/*
 
@@ -86,6 +76,8 @@ set -euo pipefail
 export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
 export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
 export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
+export FONTCONFIG_FILE="${FONTCONFIG_FILE:-/etc/fonts/fonts.conf}"
+export FONTCONFIG_PATH="${FONTCONFIG_PATH:-/etc/fonts}"
 export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
 export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec java -cp "$ONEBUILDER_HOME/lib/*:$ONEBUILDER_HOME/java_tanglegram" onebuilder.launcher "$@"
@@ -97,6 +89,8 @@ set -euo pipefail
 export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
 export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
 export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
+export FONTCONFIG_FILE="${FONTCONFIG_FILE:-/etc/fonts/fonts.conf}"
+export FONTCONFIG_PATH="${FONTCONFIG_PATH:-/etc/fonts}"
 export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
 export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec java -cp "$ONEBUILDER_HOME/lib/*:$ONEBUILDER_HOME/java_tanglegram" tanglegram.launcher "$@"
@@ -110,6 +104,8 @@ EOF
     export ONEBUILDER_HOME=/opt/onebuilder
     export ONEBUILDER_RUNTIME_ENV=/opt/onebuilder/runtime
     export JAVA_HOME=/opt/java/jre25
+    export FONTCONFIG_FILE=/etc/fonts/fonts.conf
+    export FONTCONFIG_PATH=/etc/fonts
     export PATH=/opt/onebuilder/bin:/opt/onebuilder/runtime/bin:/opt/java/jre25/bin:$PATH
     export LD_LIBRARY_PATH=/opt/onebuilder/runtime/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 

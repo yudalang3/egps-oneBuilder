@@ -69,7 +69,13 @@ public final class TreePostprocessCommand {
         if (newick.isEmpty()) {
             throw new IllegalArgumentException("Input tree is empty: " + inputFile);
         }
-        return newick;
+        return normalizeInputNewick(newick);
+    }
+
+    private static String normalizeInputNewick(String newick) {
+        int firstTerminator = newick.indexOf(';');
+        String firstTree = firstTerminator >= 0 ? newick.substring(0, firstTerminator + 1) : newick;
+        return firstTree.replaceAll("\\[[^\\[\\]]*\\]", "").trim();
     }
 
     private static DefaultPhyNode decodeTree(String newick) throws Exception {

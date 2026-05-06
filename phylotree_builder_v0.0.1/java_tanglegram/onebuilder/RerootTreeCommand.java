@@ -35,7 +35,7 @@ public final class RerootTreeCommand {
         if (!Files.isRegularFile(inputFile)) {
             throw new IllegalArgumentException("Input tree does not exist: " + inputFile);
         }
-        String newick = Files.readString(inputFile, StandardCharsets.UTF_8).trim();
+        String newick = normalizeInputNewick(Files.readString(inputFile, StandardCharsets.UTF_8).trim());
         if (newick.isEmpty()) {
             throw new IllegalArgumentException("Input tree is empty: " + inputFile);
         }
@@ -44,16 +44,30 @@ public final class RerootTreeCommand {
         DefaultPhyNode root = codec.decode(newick);
         EvolNode rerooted = EvolTreeOperator.rootAtMidPoint(root);
         if (!(rerooted instanceof DefaultPhyNode)) {
-            throw new IllegalStateException("eGPS midpoint rooting did not return a DefaultPhyNode tree.");
+            String returnedType = rerooted == null ? "null" : rerooted.getClass().getSimpleName();
+            System.err.println("WARNING: midpoint rooting left tree unchanged because eGPS returned "
+                    + returnedType);
+            writeOutput(outputFile, newick);
+            return;
         }
         String output = codec.encode((DefaultPhyNode) rerooted).trim();
         if (!output.endsWith(";")) {
             output += ";";
         }
+        writeOutput(outputFile, output);
+    }
+
+    private static void writeOutput(Path outputFile, String output) throws Exception {
         if (outputFile.getParent() != null) {
             Files.createDirectories(outputFile.getParent());
         }
         Files.writeString(outputFile, output + System.lineSeparator(), StandardCharsets.UTF_8);
+    }
+
+    private static String normalizeInputNewick(String newick) {
+        int firstTerminator = newick.indexOf(';');
+        String firstTree = firstTerminator >= 0 ? newick.substring(0, firstTerminator + 1) : newick;
+        return firstTree.replaceAll("\\[[^\\[\\]]*\\]", "").trim();
     }
 
     private static final class CommandOptions {

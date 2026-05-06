@@ -11,6 +11,7 @@ English documentation: [`README.md`](README.md)
 ## 0. 项目特点
 
 - 按输入类型分别提供蛋白质流程和 DNA/CDS 流程。
+- 推荐的发布和运行方式是 Apptainer/Singularity 镜像。镜像会把 Linux 运行环境、Java runtime、Java 依赖库和 MAD binary 一起打包，用户不需要手工重建开发机环境。
 - 支持 MAFFT 比对、PHYLIP 距离法/简约法、IQ-TREE 极大似然、MrBayes 贝叶斯分析，以及蛋白输入可选的 Foldseek 蛋白质结构相似性分析。
 - GUI 可以通过 `--config` 运行时 JSON，把 MAFFT、方法启停、极大似然参数和贝叶斯参数传入现有 shell wrapper 与 Python 管线。
 - 保留 CLI wrapper，方便脚本化和批量式运行，因此同一套流程既能走 GUI，也能走命令行自动化。GUI 与 CLI 现在通过共享的 `--config` 运行时 JSON 串联起来，而不是各自维护独立执行逻辑。（现有 CLI wrapper 继续保留为一等入口，因此同一套流程仍然可以用于脚本化、重复性和批量式运行。）
@@ -43,7 +44,85 @@ English documentation: [`README.md`](README.md)
 
 ## 2. Quick Start
 
-### 2.1 纯 GUI
+### 2.1 推荐方式：Apptainer
+
+如果你希望在 Linux 上直接运行，而不想手工安装 MAFFT、PHYLIP、IQ-TREE、MrBayes、Foldseek、Python/R 包、Java runtime、Java jars 和 MAD，优先使用 Apptainer 镜像。
+
+如果已经拿到镜像，建议放在：
+
+```text
+apptainer/onebuilder-0.0.1-linux64.sif
+```
+
+先检查镜像里的入口命令：
+
+```bash
+apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-run-config --help
+apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-align --help
+apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-protein --help
+apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-dna --help
+```
+
+运行一份 oneBuilder 导出的 JSON。需要把仓库目录，或者包含输入和输出目录的数据目录，bind 到容器内可见路径：
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  onebuilder-run-config --force-overwrite /work/input_demo/inputConfig/gold_standard_cds_aligned_full_config.onebuilder.json
+```
+
+直接运行已经比对好的蛋白 FASTA：
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  onebuilder-protein --force-overwrite /work/input_demo/inputSeq/gold_standard_protein_aligned.fasta /work/demo_protein
+```
+
+直接运行已经比对好的 DNA/CDS FASTA：
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  onebuilder-dna --force-overwrite /work/input_demo/inputSeq/gold_standard_cds_aligned.fasta /work/demo_dna
+```
+
+只运行 MAFFT 比对：
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  onebuilder-align /work/input.fasta
+```
+
+启动完整 GUI：
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  java -cp "/opt/onebuilder/java_tanglegram:/opt/onebuilder/lib/*" onebuilder.launcher
+```
+
+启动独立 tanglegram GUI：
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  java -cp "/opt/onebuilder/java_tanglegram:/opt/onebuilder/lib/*" tanglegram.launcher
+```
+
+直接打开已有的 `tree_summary/`：
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  java -cp "/opt/onebuilder/java_tanglegram:/opt/onebuilder/lib/*" tanglegram.launcher -dir /work/test1/tree_summary
+```
+
+如果需要在本机重新构建镜像，使用 Git 追踪的构建配方：
+
+```bash
+bash apptainer_build/build.sh
+```
+
+构建配方要求当前开发 checkout 已经具备本地 runtime snapshot 和运行资产：`phylotree_builder_v0.0.1/.pixi/envs/default/`、`phylotree_builder_v0.0.1/lib/`、`phylotree_builder_v0.0.1/third_party/`。普通 Git clone 足够查看和修改源码，但真正自包含、可直接运行的发布物是 `.sif` 镜像。
+
+大型构建产物会写入本地 `apptainer/` 工作目录，并被 Git 忽略。在当前工作区里，`apptainer/` 是指向 Linux home 目录的软链接，这样 `stage/` 和 `.sif` 不需要生成在较慢的 `/mnt/c` 文件系统上。
+
+### 2.2 原生 GUI
 
 启动工作流 GUI，在界面里交互式配置参数并直接运行：
 
@@ -61,25 +140,25 @@ java -cp "java_tanglegram:lib/*" onebuilder.launcher
 java -cp "java_tanglegram:lib/*" tanglegram.launcher
 ```
 
-### 2.2 纯 CLI
+### 2.3 原生 CLI
 
 直接在命令行运行流程，适合脚本化和批量任务。
 
-#### 2.2.1 蛋白质序列
+#### 2.3.1 蛋白质序列
 
 ```bash
 zsh phylotree_builder_v0.0.1/s2_phylo_4prot.zsh \
   input_demo/simu/gold_standard_protein_aligned.fasta demo_protein
 ```
 
-#### 2.2.2 DNA 序列
+#### 2.3.2 DNA 序列
 
 ```bash
 zsh phylotree_builder_v0.0.1/s2_phylo_4dna.zsh \
   input_demo/simu/gold_standard_cds_aligned.fasta demo_dna
 ```
 
-#### 2.2.3 未比对序列
+#### 2.3.3 未比对序列
 
 如果输入还没有完成多序列比对，可以先运行 MAFFT，然后把比对结果交给建树流程：
 
@@ -87,7 +166,7 @@ zsh phylotree_builder_v0.0.1/s2_phylo_4dna.zsh \
 zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 ```
 
-### 2.3 GUI + CLI
+### 2.4 原生 GUI + CLI
 
 这是推荐的混合式流程：先在 GUI 里设置参数并导出运行时 JSON，然后在 Linux 命令行里用这一份 JSON 直接重放整条流程。
 
@@ -105,7 +184,7 @@ zsh phylotree_builder_v0.0.1/run_onebuilder_config.zsh /path/to/demo.onebuilder.
 
 底层的 `s1_quick_align.zsh`、`s2_phylo_4prot.zsh`、`s2_phylo_4dna.zsh` 仍然保留，但现在推荐的“GUI 导出后命令行复现”方式，就是直接使用 `run_onebuilder_config.zsh`。
 
-### 2.4 整份 Config 直接运行
+### 2.5 原生整份 Config 直接运行
 
 现在也可以直接从一整份运行时 JSON 启动，而不必每次都先重新打开 GUI。这个用法适合把一份完整配置文件当作重复运行、共享或审计时的唯一真源。
 
@@ -119,7 +198,7 @@ zsh phylotree_builder_v0.0.1/run_onebuilder_config.zsh tree_build_full_config_te
 
 例如当 `run.input_type` 为 `DNA_CDS` 时，即使同一份 JSON 里仍然保留了蛋白质专用块，实际运行也会只使用 `dnadist`、`dnapars`、DNA 的 MrBayes 参数，以及 DNA 安全的 IQ-TREE 设置。
 
-### 2.5 包装脚本参数
+### 2.6 包装脚本参数
 
 现在这几个包装脚本已经把 GUI 会用到的参数接口公开出来了：
 

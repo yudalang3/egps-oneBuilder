@@ -42,6 +42,10 @@ read_all_trees <- function(metadata, language = "english") {
     if (file.exists(tree_file)) {
       # 读取树文件
       tree <- read.tree(tree_file)
+      if (inherits(tree, "multiPhylo")) {
+        cat(runtime_text(language, "Warning: multiple trees found; using first tree for:", "警告: 检测到多棵树，仅使用第一棵树:"), method, "\n")
+        tree <- tree[[1]]
+      }
       trees[[length(trees) + 1]] <- tree
       tree_names <- c(tree_names, method)
       cat(runtime_text(language, "Successfully read tree:", "成功读取树:"), method, "\n")
@@ -51,6 +55,15 @@ read_all_trees <- function(metadata, language = "english") {
   }
   
   return(list(trees = trees, names = tree_names))
+}
+
+as_scalar_distance <- function(value) {
+  numeric_value <- suppressWarnings(as.numeric(value))
+  numeric_value <- numeric_value[is.finite(numeric_value)]
+  if (length(numeric_value) == 0) {
+    return(NA_real_)
+  }
+  return(numeric_value[1])
 }
 
 # 计算距离矩阵
@@ -75,11 +88,11 @@ calculate_distance_matrices <- function(trees, tree_names, language = "english")
         tree2 <- trees[[j]]
         
         # 计算TreeDistance
-        tree_dist <- TreeDistance(tree1, tree2)
+        tree_dist <- as_scalar_distance(TreeDistance(tree1, tree2))
         tree_distance_matrix[i, j] <- tree_dist
         
         # 计算Robinson-Foulds距离
-        rf_dist <- RobinsonFoulds(tree1, tree2)
+        rf_dist <- as_scalar_distance(RobinsonFoulds(tree1, tree2))
         rf_distance_matrix[i, j] <- rf_dist
         
         cat(runtime_text(language, "Calculated:", "计算完成:"), tree_names[i], "vs", tree_names[j], 

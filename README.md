@@ -11,6 +11,7 @@ A Linux-based phylogenetic workflow that combines scriptable CLI wrappers with J
 ## 0. Highlights
 
 - The repository provides one workflow for protein input and one for DNA/CDS input.
+- The recommended distribution format is an Apptainer/Singularity image. It bundles the Linux runtime software, Java runtime, Java libraries, and MAD binary so users do not need to recreate the development environment manually.
 - Supports MAFFT alignment, PHYLIP distance/parsimony methods, IQ-TREE maximum likelihood, MrBayes Bayesian inference, and optional Foldseek protein-structure similarity for protein inputs.
 - Adds `onebuilder.launcher`, a Java Swing workflow GUI with `Input / Align`, `Tree Parameters`, `Tree Build`, and `Tanglegram`. On Linux it can run the existing pipeline; on Windows it is limited to workflow setup, config export, and standalone result viewing.
 - Keeps the CLI wrappers for scripted and batch-style runs, so the same workflow can be driven either from the GUI or from shell automation.
@@ -52,7 +53,85 @@ A Linux-based phylogenetic workflow that combines scriptable CLI wrappers with J
 
 ## 2. Quick Start
 
-### 2.1 Pure GUI
+### 2.1 Recommended: Apptainer
+
+Use the Apptainer image when you want a portable Linux runtime without manually installing MAFFT, PHYLIP, IQ-TREE, MrBayes, Foldseek, Python/R packages, Java runtime, Java jars, or MAD.
+
+If you already have the image, put it at:
+
+```text
+apptainer/onebuilder-0.0.1-linux64.sif
+```
+
+Check the image:
+
+```bash
+apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-run-config --help
+apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-align --help
+apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-protein --help
+apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-dna --help
+```
+
+Run one exported oneBuilder JSON. Bind the repository, or any directory containing your input data and output folder, to a path visible inside the container:
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  onebuilder-run-config --force-overwrite /work/input_demo/inputConfig/gold_standard_cds_aligned_full_config.onebuilder.json
+```
+
+Run an aligned protein FASTA directly:
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  onebuilder-protein --force-overwrite /work/input_demo/inputSeq/gold_standard_protein_aligned.fasta /work/demo_protein
+```
+
+Run an aligned DNA/CDS FASTA directly:
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  onebuilder-dna --force-overwrite /work/input_demo/inputSeq/gold_standard_cds_aligned.fasta /work/demo_dna
+```
+
+Run MAFFT alignment only:
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  onebuilder-align /work/input.fasta
+```
+
+Launch the full GUI from the image:
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  java -cp "/opt/onebuilder/java_tanglegram:/opt/onebuilder/lib/*" onebuilder.launcher
+```
+
+Launch the standalone tanglegram GUI:
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  java -cp "/opt/onebuilder/java_tanglegram:/opt/onebuilder/lib/*" tanglegram.launcher
+```
+
+Open an existing `tree_summary/` directly:
+
+```bash
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  java -cp "/opt/onebuilder/java_tanglegram:/opt/onebuilder/lib/*" tanglegram.launcher -dir /work/test1/tree_summary
+```
+
+To build or rebuild the image locally, use the tracked recipe:
+
+```bash
+bash apptainer_build/build.sh
+```
+
+The build recipe expects this development checkout to already have the local runtime snapshot and bundled runtime assets available under `phylotree_builder_v0.0.1/.pixi/envs/default/`, `phylotree_builder_v0.0.1/lib/`, and `phylotree_builder_v0.0.1/third_party/`. A plain Git clone is enough to inspect and edit source code, but the final self-contained runtime artifact is the `.sif` image.
+
+Large build products are written to the local `apptainer/` workspace, which is ignored by Git. In this workspace it is a symlink to a Linux home-directory path so `stage/` and `.sif` files do not have to be created on slow `/mnt/c` storage.
+
+### 2.2 Native GUI
 
 Launch the workflow GUI and configure everything interactively:
 
@@ -68,25 +147,25 @@ View already-run results:
 java -cp "java_tanglegram:lib/*" tanglegram.launcher
 ```
 
-### 2.2 Pure CLI
+### 2.3 Native CLI
 
 Run the pipeline directly from the shell, which is convenient for scripting and batch jobs.
 
-#### 2.2.1 Protein Sequence
+#### 2.3.1 Protein Sequence
 
 ```bash
 zsh phylotree_builder_v0.0.1/s2_phylo_4prot.zsh \
   input_demo/simu/gold_standard_protein_aligned.fasta demo_protein
 ```
 
-#### 2.2.2 DNA Sequence
+#### 2.3.2 DNA Sequence
 
 ```bash
 zsh phylotree_builder_v0.0.1/s2_phylo_4dna.zsh \
   input_demo/simu/gold_standard_cds_aligned.fasta demo_dna
 ```
 
-#### 2.2.3 Unaligned Sequence
+#### 2.3.3 Unaligned Sequence
 
 If your input FASTA is not aligned yet, run MAFFT first, then pass the aligned result into the tree pipeline:
 
@@ -94,7 +173,7 @@ If your input FASTA is not aligned yet, run MAFFT first, then pass the aligned r
 zsh phylotree_builder_v0.0.1/s1_quick_align.zsh input.fasta
 ```
 
-### 2.3 GUI plus CLI
+### 2.4 Native GUI plus CLI
 
 This is the main hybrid workflow: use the GUI to set parameters, export one runtime JSON, then replay the whole flow from the shell with a single command.
 
@@ -112,7 +191,7 @@ This script reads `run.input_type`, `run.input_file`, `run.output_base_dir`, `ru
 
 The lower-level wrappers remain available, but `run_onebuilder_config.zsh` is now the intended CLI entrypoint for replaying a GUI-exported configuration.
 
-### 2.4 Full Config Import Run
+### 2.5 Native Full Config Import Run
 
 You can also start from one complete runtime JSON directly, without reopening the GUI first. This is useful when you want to keep one checked or shared config file as the single source of truth for repeated Linux runs.
 
@@ -126,7 +205,7 @@ The full template may include both protein-oriented and DNA/CDS-oriented method 
 
 For example, with `run.input_type` set to `DNA_CDS`, the run will use `dnadist`, `dnapars`, DNA MrBayes settings, and DNA-safe IQ-TREE settings even if the same JSON still contains protein-only blocks for another job.
 
-### 2.5 Wrapper Options
+### 2.6 Wrapper Options
 
 The wrappers now expose the options that the GUI uses internally:
 

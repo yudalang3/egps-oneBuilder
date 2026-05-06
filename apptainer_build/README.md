@@ -51,8 +51,14 @@ apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-protein --help
 apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-dna --help
 ```
 
-GUI example with X11:
+GUI examples:
 
 ```bash
-apptainer exec --bind /tmp/.X11-unix:/tmp/.X11-unix --env DISPLAY=$DISPLAY apptainer/onebuilder-0.0.1-linux64.sif onebuilder-gui
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  java -cp "/opt/onebuilder/java_tanglegram:/opt/onebuilder/lib/*" onebuilder.launcher
+
+apptainer exec --bind "$PWD:/work" apptainer/onebuilder-0.0.1-linux64.sif \
+  java -cp "/opt/onebuilder/java_tanglegram:/opt/onebuilder/lib/*" tanglegram.launcher -dir /work/test1/tree_summary
 ```
+
+The image sets `FONTCONFIG_FILE` and `FONTCONFIG_PATH` so Java and fontconfig can find the system font configuration.
