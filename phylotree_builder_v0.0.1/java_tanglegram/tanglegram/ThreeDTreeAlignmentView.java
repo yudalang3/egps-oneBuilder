@@ -26,8 +26,11 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.geom.Line2D;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.swing.BorderFactory;
@@ -67,6 +70,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     private boolean usingDefaultRootAnnotation;
     private volatile List<PreparedLayer> preparedLayers;
     private volatile List<PreparedAnnotation> preparedAnnotations;
+    private volatile TreeDifferenceMetrics treeDifferenceMetrics;
     private volatile String errorMessage;
     private volatile boolean loading;
 
@@ -80,6 +84,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         this.renderSequence = new AtomicLong();
         this.preparedLayers = List.of();
         this.preparedAnnotations = List.of();
+        this.treeDifferenceMetrics = TreeDifferenceMetrics.unavailable();
         this.loading = true;
         this.renderTimer.setRepeats(false);
         setOpaque(false);
@@ -204,6 +209,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                     }
                     preparedLayers = preparedRender.layers();
                     preparedAnnotations = preparedRender.annotations();
+                    treeDifferenceMetrics = preparedRender.metrics();
                     errorMessage = null;
                     loading = false;
                     canvas.repaint();
@@ -215,6 +221,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                     }
                     preparedLayers = List.of();
                     preparedAnnotations = List.of();
+                    treeDifferenceMetrics = TreeDifferenceMetrics.unavailable();
                     errorMessage = exception.getMessage() == null
                             ? exception.getClass().getSimpleName() + ": 3D tree alignment could not be rendered."
                             : exception.getMessage();
@@ -247,6 +254,14 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         return count;
     }
 
+    TreeDifferenceMetrics treeDifferenceMetricsForTest() {
+        return treeDifferenceMetrics;
+    }
+
+    static TreeDifferenceMetrics calculateTreeDifferenceMetricsForTest(List<ImportedTreeSpec> trees) {
+        return calculateTreeDifferenceMetrics(trees);
+    }
+
     private Dimension currentViewportSize() {
         Dimension size = canvas.getSize();
         if (size.width <= 0 || size.height <= 0) {
@@ -260,7 +275,10 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             List<ImportedTreeSpec> treeSnapshot,
             List<ConsistencyAnnotation> annotationSnapshot) {
         List<PreparedLayer> layers = prepareLayers(viewportSize, treeSnapshot);
-        return new PreparedRender(layers, prepareConsistencyAnnotations(layers, annotationSnapshot));
+        return new PreparedRender(
+                layers,
+                prepareConsistencyAnnotations(layers, annotationSnapshot),
+                calculateTreeDifferenceMetrics(treeSnapshot));
     }
 
     private List<PreparedLayer> prepareLayers(Dimension viewportSize, List<ImportedTreeSpec> treeSnapshot) {
@@ -529,7 +547,9 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
         Graphics2D legendGraphics = (Graphics2D) graphics2d.create();
         legendGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        legendGraphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        legendGraphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+        legendGraphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+        legendGraphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         legendGraphics.setFont(resolveLegendFont());
         FontMetrics metrics = legendGraphics.getFontMetrics();
         int fixedItemWidth = Math.max(210, metrics.stringWidth(LEGEND_WIDTH_REFERENCE_LABEL) + 34);
@@ -559,6 +579,27 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         legendGraphics.dispose();
     }
 
+    private static void paintTreeDifferenceMetrics(Graphics2D graphics2d, TreeDifferenceMetrics metrics) {
+        TreeDifferenceMetrics safeMetrics = metrics == null ? TreeDifferenceMetrics.unavailable() : metrics;
+        Graphics2D metricGraphics = (Graphics2D) graphics2d.create();
+        metricGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        metricGraphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+        metricGraphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+        metricGraphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        metricGraphics.setFont(resolveMetricsFont());
+        metricGraphics.setColor(Color.BLACK);
+        metricGraphics.drawString("Topology difference index : " + formatMetricValue(safeMetrics.topologyDifferenceIndex()), 16, 24);
+        metricGraphics.drawString("Branch-length difference index : " + formatMetricValue(safeMetrics.branchLengthDifferenceIndex()), 16, 43);
+        metricGraphics.dispose();
+    }
+
+    private static String formatMetricValue(double value) {
+        if (!Double.isFinite(value)) {
+            return "n/a";
+        }
+        return String.format(Locale.ROOT, "%.3f", Math.max(0.0d, Math.min(1.0d, value)));
+    }
+
     private static void paintLegendItem(
             Graphics2D graphics2d,
             PreparedAnnotation annotation,
@@ -582,7 +623,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         graphics2d.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), Math.min(255, color.getAlpha() + 85)));
         graphics2d.draw(marker);
 
-        graphics2d.setColor(new Color(38, 46, 58));
+        graphics2d.setColor(Color.BLACK);
         String clippedLabel = clipLegendLabel(annotation.label(), metrics, width - 34);
         int baseline = y + ((LEGEND_ITEM_HEIGHT - metrics.getHeight()) / 2) + metrics.getAscent();
         graphics2d.drawString(clippedLabel, x + 28, baseline);
@@ -600,7 +641,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         graphics2d.fill(background);
         graphics2d.setColor(new Color(180, 190, 205));
         graphics2d.draw(background);
-        graphics2d.setColor(new Color(80, 91, 107));
+        graphics2d.setColor(Color.BLACK);
         int baseline = y + ((LEGEND_ITEM_HEIGHT - metrics.getHeight()) / 2) + metrics.getAscent();
         graphics2d.drawString(label, x + 11, baseline);
     }
@@ -663,6 +704,122 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             leafNames.addAll(collectLeafNames((ReflectGraphicNode<EvolNode>) node.getChildAt(index)));
         }
         return leafNames;
+    }
+
+    private static TreeDifferenceMetrics calculateTreeDifferenceMetrics(List<ImportedTreeSpec> trees) {
+        if (trees == null || trees.size() < 2 || trees.get(0).root() == null) {
+            return TreeDifferenceMetrics.unavailable();
+        }
+
+        List<Map<CladeSignature, Double>> cladeMaps = new ArrayList<>(trees.size());
+        for (ImportedTreeSpec tree : trees) {
+            if (tree.root() == null) {
+                return TreeDifferenceMetrics.unavailable();
+            }
+            Map<CladeSignature, Double> cladeMap = new HashMap<>();
+            collectCladeSignatures(tree.root(), true, cladeMap);
+            cladeMaps.add(cladeMap);
+        }
+
+        Map<CladeSignature, Double> referenceClades = cladeMaps.get(0);
+        if (referenceClades.isEmpty()) {
+            return TreeDifferenceMetrics.unavailable();
+        }
+
+        int otherTreeCount = trees.size() - 1;
+        double topologyDifferenceSum = 0.0d;
+        double branchDifferenceSum = 0.0d;
+        int branchDifferenceCount = 0;
+        int recoveredReferenceCladeCount = 0;
+
+        for (Map.Entry<CladeSignature, Double> referenceEntry : referenceClades.entrySet()) {
+            CladeSignature signature = referenceEntry.getKey();
+            int matchedOtherTreeCount = 0;
+            List<Double> branchLengths = new ArrayList<>();
+            branchLengths.add(referenceEntry.getValue());
+
+            for (int treeIndex = 1; treeIndex < cladeMaps.size(); treeIndex++) {
+                Double branchLength = cladeMaps.get(treeIndex).get(signature);
+                if (branchLength != null) {
+                    matchedOtherTreeCount++;
+                    branchLengths.add(branchLength);
+                }
+            }
+
+            if (matchedOtherTreeCount > 0) {
+                recoveredReferenceCladeCount++;
+            }
+            topologyDifferenceSum += 1.0d - ((double) matchedOtherTreeCount / (double) otherTreeCount);
+            if (branchLengths.size() >= 2) {
+                branchDifferenceSum += branchLengthDifference(branchLengths);
+                branchDifferenceCount++;
+            }
+        }
+
+        double branchLengthDifferenceIndex = branchDifferenceCount == 0
+                ? Double.NaN
+                : branchDifferenceSum / branchDifferenceCount;
+        return new TreeDifferenceMetrics(
+                topologyDifferenceSum / referenceClades.size(),
+                branchLengthDifferenceIndex,
+                referenceClades.size(),
+                recoveredReferenceCladeCount);
+    }
+
+    private static List<String> collectCladeSignatures(
+            EvolNode node,
+            boolean root,
+            Map<CladeSignature, Double> cladeMap) {
+        if (node == null) {
+            return List.of();
+        }
+        if (node.getChildCount() == 0) {
+            String name = node.getName();
+            if (name == null || name.trim().isEmpty()) {
+                return List.of();
+            }
+            return List.of(name.trim());
+        }
+
+        List<String> leafNames = new ArrayList<>();
+        for (int index = 0; index < node.getChildCount(); index++) {
+            leafNames.addAll(collectCladeSignatures(EvolNodeUtil.getChildrenAt(node, index), false, cladeMap));
+        }
+        leafNames.sort(String::compareTo);
+        if (!root && leafNames.size() > 1) {
+            cladeMap.putIfAbsent(new CladeSignature(leafNames.size(), List.copyOf(leafNames)), normalizeBranchLength(node.getLength()));
+        }
+        return leafNames;
+    }
+
+    private static double branchLengthDifference(List<Double> branchLengths) {
+        double absoluteMean = 0.0d;
+        for (Double branchLength : branchLengths) {
+            absoluteMean += Math.abs(branchLength == null ? 0.0d : branchLength.doubleValue());
+        }
+        absoluteMean /= branchLengths.size();
+
+        double mean = 0.0d;
+        for (Double branchLength : branchLengths) {
+            mean += branchLength == null ? 0.0d : branchLength.doubleValue();
+        }
+        mean /= branchLengths.size();
+
+        double variance = 0.0d;
+        for (Double branchLength : branchLengths) {
+            double delta = (branchLength == null ? 0.0d : branchLength.doubleValue()) - mean;
+            variance += delta * delta;
+        }
+        double standardDeviation = Math.sqrt(variance / branchLengths.size());
+        if (absoluteMean <= 1.0e-12d) {
+            return standardDeviation <= 1.0e-12d ? 0.0d : 1.0d;
+        }
+        double coefficientOfVariation = standardDeviation / absoluteMean;
+        return coefficientOfVariation / (1.0d + coefficientOfVariation);
+    }
+
+    private static double normalizeBranchLength(double branchLength) {
+        return Double.isFinite(branchLength) ? branchLength : 0.0d;
     }
 
     private static List<ConsistencyAnnotation> defaultRootAnnotations(List<ImportedTreeSpec> importedTrees) {
@@ -790,6 +947,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             }
             paintConsistencyAnnotationMarkers(graphics2d, preparedAnnotations);
             paintConsistencyAnnotationLegend(graphics2d, preparedLayers, preparedAnnotations, getSize());
+            paintTreeDifferenceMetrics(graphics2d, treeDifferenceMetrics);
             graphics2d.dispose();
         }
     }
@@ -879,6 +1037,15 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         return new Font(Font.SANS_SERIF, Font.PLAIN, fontSize);
     }
 
+    private static Font resolveMetricsFont() {
+        Font uiFont = UIManager.getFont("Label.font");
+        int fontSize = Math.max(12, UiPreferenceStore.load().defaultTanglegramLabelFontSize());
+        if (uiFont != null) {
+            return uiFont.deriveFont(Font.PLAIN, (float) fontSize);
+        }
+        return new Font(Font.SANS_SERIF, Font.PLAIN, fontSize);
+    }
+
     private static Color treeLineColor() {
         return Color.BLACK;
     }
@@ -911,7 +1078,24 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
     private record PreparedRender(
             List<PreparedLayer> layers,
-            List<PreparedAnnotation> annotations) {
+            List<PreparedAnnotation> annotations,
+            TreeDifferenceMetrics metrics) {
+    }
+
+    record TreeDifferenceMetrics(
+            double topologyDifferenceIndex,
+            double branchLengthDifferenceIndex,
+            int referenceCladeCount,
+            int recoveredReferenceCladeCount) {
+        private static TreeDifferenceMetrics unavailable() {
+            return new TreeDifferenceMetrics(Double.NaN, Double.NaN, 0, 0);
+        }
+    }
+
+    private record CladeSignature(int leafCount, List<String> sortedLeafNames) {
+        private CladeSignature {
+            sortedLeafNames = List.copyOf(sortedLeafNames);
+        }
     }
 
     private record PreparedAnnotation(

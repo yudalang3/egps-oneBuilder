@@ -74,6 +74,21 @@ public final class TanglegramStandaloneTest {
             run("preparesThreeDAnnotationAnchorsBeforePainting", TanglegramStandaloneTest::preparesThreeDAnnotationAnchorsBeforePainting);
             run("preparesThreeDAnnotationsWhenSomeTreesLackClade", TanglegramStandaloneTest::preparesThreeDAnnotationsWhenSomeTreesLackClade);
             run("quickLabelsAndCleansThreeDConsistencyAnnotations", TanglegramStandaloneTest::quickLabelsAndCleansThreeDConsistencyAnnotations);
+            run("calculatesZeroTreeDifferenceForIdenticalTrees", TanglegramStandaloneTest::calculatesZeroTreeDifferenceForIdenticalTrees);
+            run("calculatesZeroTopologyDifferenceForSameCladesWithDifferentChildOrder", TanglegramStandaloneTest::calculatesZeroTopologyDifferenceForSameCladesWithDifferentChildOrder);
+            run("calculatesTopologyDifferenceForMissingReferenceClades", TanglegramStandaloneTest::calculatesTopologyDifferenceForMissingReferenceClades);
+            run("calculatesMaximumTopologyDifferenceWhenReferenceCladesAreAbsent", TanglegramStandaloneTest::calculatesMaximumTopologyDifferenceWhenReferenceCladesAreAbsent);
+            run("averagesTopologyDifferenceAcrossMultipleOtherTrees", TanglegramStandaloneTest::averagesTopologyDifferenceAcrossMultipleOtherTrees);
+            run("averagesTopologyDifferenceAcrossMultipleReferenceClades", TanglegramStandaloneTest::averagesTopologyDifferenceAcrossMultipleReferenceClades);
+            run("keepsTopologyDifferenceReferenceBased", TanglegramStandaloneTest::keepsTopologyDifferenceReferenceBased);
+            run("returnsUnavailableMetricsForSingleTree", TanglegramStandaloneTest::returnsUnavailableMetricsForSingleTree);
+            run("returnsUnavailableMetricsForReferenceTreeWithoutInternalClades", TanglegramStandaloneTest::returnsUnavailableMetricsForReferenceTreeWithoutInternalClades);
+            run("calculatesBranchLengthDifferenceForMatchedClades", TanglegramStandaloneTest::calculatesBranchLengthDifferenceForMatchedClades);
+            run("calculatesExpectedBranchLengthDifferenceForKnownLengths", TanglegramStandaloneTest::calculatesExpectedBranchLengthDifferenceForKnownLengths);
+            run("averagesBranchLengthDifferenceAcrossMatchedClades", TanglegramStandaloneTest::averagesBranchLengthDifferenceAcrossMatchedClades);
+            run("returnsUnavailableBranchLengthDifferenceWithoutMatchedClades", TanglegramStandaloneTest::returnsUnavailableBranchLengthDifferenceWithoutMatchedClades);
+            run("boundsBranchLengthDifferenceForExtremeLengths", TanglegramStandaloneTest::boundsBranchLengthDifferenceForExtremeLengths);
+            run("ignoresMissingCladesForBranchLengthDifference", TanglegramStandaloneTest::ignoresMissingCladesForBranchLengthDifference);
             run("roundTripsConsistencyAnnotationTsv", TanglegramStandaloneTest::roundTripsConsistencyAnnotationTsv);
             run("reordersThreeDTreeCards", TanglegramStandaloneTest::reordersThreeDTreeCards);
         } finally {
@@ -383,6 +398,194 @@ public final class TanglegramStandaloneTest {
         view.cleanAllLabelsForTest();
         assertEquals(Integer.valueOf(0), Integer.valueOf(view.consistencyAnnotationsForTest().size()),
                 "clean all labels should remove every consistency annotation");
+    }
+
+    private static void calculatesZeroTreeDifferenceForIdenticalTrees() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = ThreeDTreeAlignmentView.calculateTreeDifferenceMetricsForTest(
+                Arrays.asList(
+                        new ImportedTreeSpec(Path.of("tree-a.nwk"), "Tree A", decodeTree("((Dog:1,Cow:1):2,Frog:1);")),
+                        new ImportedTreeSpec(Path.of("tree-b.nwk"), "Tree B", decodeTree("((Dog:1,Cow:1):2,Frog:1);"))));
+
+        assertNear(0.0d, metrics.topologyDifferenceIndex(), 1.0e-9d,
+                "identical trees should have zero topology difference");
+        assertNear(0.0d, metrics.branchLengthDifferenceIndex(), 1.0e-9d,
+                "identical trees should have zero branch-length difference");
+        assertEquals(Integer.valueOf(1), Integer.valueOf(metrics.referenceCladeCount()),
+                "expected one non-root reference clade");
+        assertEquals(Integer.valueOf(1), Integer.valueOf(metrics.recoveredReferenceCladeCount()),
+                "expected reference clade to be recovered");
+    }
+
+    private static void calculatesZeroTopologyDifferenceForSameCladesWithDifferentChildOrder() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = treeDifferenceMetrics(
+                "((Dog:1,Cow:1):2,Frog:1);",
+                "(Frog:1,(Cow:1,Dog:1):4);"
+        );
+
+        assertNear(0.0d, metrics.topologyDifferenceIndex(), 1.0e-9d,
+                "child order should not affect clade-signature topology difference");
+        assertTrue(metrics.branchLengthDifferenceIndex() > 0.0d,
+                "same clade with different branch lengths should still report branch-length difference");
+    }
+
+    private static void calculatesTopologyDifferenceForMissingReferenceClades() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = ThreeDTreeAlignmentView.calculateTreeDifferenceMetricsForTest(
+                Arrays.asList(
+                        new ImportedTreeSpec(Path.of("tree-a.nwk"), "Tree A", decodeTree("((Dog:1,Cow:1):2,Frog:1);")),
+                        new ImportedTreeSpec(Path.of("tree-b.nwk"), "Tree B", decodeTree("((Dog:1,Frog:1):2,Cow:1);"))));
+
+        assertNear(1.0d, metrics.topologyDifferenceIndex(), 1.0e-9d,
+                "missing reference clade should maximize topology difference for that clade");
+        assertTrue(Double.isNaN(metrics.branchLengthDifferenceIndex()),
+                "branch-length difference should be unavailable when no reference clades match");
+        assertEquals(Integer.valueOf(0), Integer.valueOf(metrics.recoveredReferenceCladeCount()),
+                "expected no recovered reference clades");
+    }
+
+    private static void calculatesMaximumTopologyDifferenceWhenReferenceCladesAreAbsent() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = treeDifferenceMetrics(
+                "(((A:1,B:1):1,C:1):1,D:1);",
+                "((A:1,C:1):1,(B:1,D:1):1);"
+        );
+
+        assertNear(1.0d, metrics.topologyDifferenceIndex(), 1.0e-9d,
+                "all absent reference clades should produce maximum topology difference");
+        assertEquals(Integer.valueOf(2), Integer.valueOf(metrics.referenceCladeCount()),
+                "expected two non-root internal reference clades");
+        assertEquals(Integer.valueOf(0), Integer.valueOf(metrics.recoveredReferenceCladeCount()),
+                "expected no recovered reference clades");
+    }
+
+    private static void averagesTopologyDifferenceAcrossMultipleOtherTrees() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = treeDifferenceMetrics(
+                "((Dog:1,Cow:1):2,Frog:1);",
+                "((Dog:1,Cow:1):2,Frog:1);",
+                "((Dog:1,Frog:1):2,Cow:1);"
+        );
+
+        assertNear(0.5d, metrics.topologyDifferenceIndex(), 1.0e-9d,
+                "one recovered and one missing other tree should produce TDI 0.5 for one reference clade");
+        assertEquals(Integer.valueOf(1), Integer.valueOf(metrics.recoveredReferenceCladeCount()),
+                "reference clade should count as recovered if at least one other tree has it");
+    }
+
+    private static void averagesTopologyDifferenceAcrossMultipleReferenceClades() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = treeDifferenceMetrics(
+                "(((A:1,B:1):1,C:1):1,D:1);",
+                "(((A:1,B:1):1,D:1):1,C:1);"
+        );
+
+        assertNear(0.5d, metrics.topologyDifferenceIndex(), 1.0e-9d,
+                "one recovered and one missing reference clade should average to TDI 0.5");
+        assertEquals(Integer.valueOf(2), Integer.valueOf(metrics.referenceCladeCount()),
+                "expected two non-root internal reference clades");
+        assertEquals(Integer.valueOf(1), Integer.valueOf(metrics.recoveredReferenceCladeCount()),
+                "expected one recovered reference clade");
+    }
+
+    private static void keepsTopologyDifferenceReferenceBased() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics firstAsReference = treeDifferenceMetrics(
+                "(((A:1,B:1):1,C:1):1,D:1);",
+                "((A:1,B:1):1,C:1,D:1);"
+        );
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics secondAsReference = treeDifferenceMetrics(
+                "((A:1,B:1):1,C:1,D:1);",
+                "(((A:1,B:1):1,C:1):1,D:1);"
+        );
+
+        assertNear(0.5d, firstAsReference.topologyDifferenceIndex(), 1.0e-9d,
+                "reference tree with two clades should average one recovered and one missing clade");
+        assertNear(0.0d, secondAsReference.topologyDifferenceIndex(), 1.0e-9d,
+                "less resolved reference tree with only shared non-root clades should have zero topology difference");
+    }
+
+    private static void returnsUnavailableMetricsForSingleTree() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = treeDifferenceMetrics("((A:1,B:1):1,C:1);");
+
+        assertTrue(Double.isNaN(metrics.topologyDifferenceIndex()),
+                "single tree should not produce a topology difference index");
+        assertTrue(Double.isNaN(metrics.branchLengthDifferenceIndex()),
+                "single tree should not produce a branch-length difference index");
+        assertEquals(Integer.valueOf(0), Integer.valueOf(metrics.referenceCladeCount()),
+                "single tree should have no comparable reference clades");
+    }
+
+    private static void returnsUnavailableMetricsForReferenceTreeWithoutInternalClades() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = treeDifferenceMetrics(
+                "(A:1,B:1);",
+                "(A:1,B:2);"
+        );
+
+        assertTrue(Double.isNaN(metrics.topologyDifferenceIndex()),
+                "tree with no non-root internal reference clades should not produce TDI");
+        assertTrue(Double.isNaN(metrics.branchLengthDifferenceIndex()),
+                "tree with no non-root internal reference clades should not produce BDI");
+    }
+
+    private static void calculatesBranchLengthDifferenceForMatchedClades() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = ThreeDTreeAlignmentView.calculateTreeDifferenceMetricsForTest(
+                Arrays.asList(
+                        new ImportedTreeSpec(Path.of("tree-a.nwk"), "Tree A", decodeTree("((Dog:1,Cow:1):2,Frog:1);")),
+                        new ImportedTreeSpec(Path.of("tree-b.nwk"), "Tree B", decodeTree("((Dog:1,Cow:1):6,Frog:1);"))));
+
+        assertNear(0.0d, metrics.topologyDifferenceIndex(), 1.0e-9d,
+                "same topology should have zero topology difference");
+        assertTrue(metrics.branchLengthDifferenceIndex() > 0.0d && metrics.branchLengthDifferenceIndex() < 1.0d,
+                "branch-length difference should be bounded between zero and one for different matched lengths");
+    }
+
+    private static void calculatesExpectedBranchLengthDifferenceForKnownLengths() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = treeDifferenceMetrics(
+                "((Dog:1,Cow:1):2,Frog:1);",
+                "((Dog:1,Cow:1):6,Frog:1);"
+        );
+
+        assertNear(1.0d / 3.0d, metrics.branchLengthDifferenceIndex(), 1.0e-9d,
+                "lengths 2 and 6 should produce CV 0.5 and BDI one third");
+    }
+
+    private static void averagesBranchLengthDifferenceAcrossMatchedClades() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = treeDifferenceMetrics(
+                "(((A:1,B:1):2,C:1):4,D:1);",
+                "(((A:1,B:1):6,C:1):4,D:1);"
+        );
+
+        assertNear(1.0d / 6.0d, metrics.branchLengthDifferenceIndex(), 1.0e-9d,
+                "one clade with BDI one third and one clade with BDI zero should average to one sixth");
+    }
+
+    private static void returnsUnavailableBranchLengthDifferenceWithoutMatchedClades() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = treeDifferenceMetrics(
+                "((Dog:1,Cow:1):2,Frog:1);",
+                "((Dog:1,Frog:1):2,Cow:1);"
+        );
+
+        assertNear(1.0d, metrics.topologyDifferenceIndex(), 1.0e-9d,
+                "missing reference clade should maximize topology difference");
+        assertTrue(Double.isNaN(metrics.branchLengthDifferenceIndex()),
+                "BDI should be unavailable without matched reference clades");
+    }
+
+    private static void boundsBranchLengthDifferenceForExtremeLengths() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = treeDifferenceMetrics(
+                "((Dog:1,Cow:1):1,Frog:1);",
+                "((Dog:1,Cow:1):1000000,Frog:1);"
+        );
+
+        assertTrue(metrics.branchLengthDifferenceIndex() > 0.49d && metrics.branchLengthDifferenceIndex() < 1.0d,
+                "finite extreme branch-length differences should stay bounded below one");
+    }
+
+    private static void ignoresMissingCladesForBranchLengthDifference() throws Exception {
+        ThreeDTreeAlignmentView.TreeDifferenceMetrics metrics = treeDifferenceMetrics(
+                "(((A:1,B:1):2,C:1):4,D:1);",
+                "(((A:1,B:1):6,D:1):10,C:1);"
+        );
+
+        assertNear(0.5d, metrics.topologyDifferenceIndex(), 1.0e-9d,
+                "one of two reference clades is missing, so TDI should be 0.5");
+        assertNear(1.0d / 3.0d, metrics.branchLengthDifferenceIndex(), 1.0e-9d,
+                "BDI should only use matched reference clade lengths");
     }
 
     private static void roundTripsConsistencyAnnotationTsv() throws Exception {
@@ -824,6 +1027,12 @@ public final class TanglegramStandaloneTest {
         }
     }
 
+    private static void assertNear(double expected, double actual, double tolerance, String message) {
+        if (Double.isNaN(actual) || Math.abs(expected - actual) > tolerance) {
+            throw new AssertionError(message + " expected=[" + expected + "] actual=[" + actual + "]");
+        }
+    }
+
     private static Path findRepoRoot() {
         Path current = Paths.get("").toAbsolutePath().normalize();
         Path cursor = current;
@@ -848,6 +1057,17 @@ public final class TanglegramStandaloneTest {
 
     private static EvolNode decodeTree(String newick) throws Exception {
         return new TreeDecoder().decode(newick);
+    }
+
+    private static ThreeDTreeAlignmentView.TreeDifferenceMetrics treeDifferenceMetrics(String... newickTrees) throws Exception {
+        List<ImportedTreeSpec> trees = new ArrayList<>();
+        for (int index = 0; index < newickTrees.length; index++) {
+            trees.add(new ImportedTreeSpec(
+                    Path.of("tree-" + index + ".nwk"),
+                    "Tree " + index,
+                    decodeTree(newickTrees[index])));
+        }
+        return ThreeDTreeAlignmentView.calculateTreeDifferenceMetricsForTest(trees);
     }
 
     private static List<ImportedTreeSpec> sampleImportedTrees() throws Exception {
