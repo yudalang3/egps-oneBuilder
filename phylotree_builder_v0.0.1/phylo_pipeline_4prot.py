@@ -402,10 +402,9 @@ class ProteinPhylogeneticPipeline:
         for index, record in enumerate(records, start=1):
             new_name = f"seq{index}"
             new_name2ori_name_dict[new_name] = record.id
-            # DO NOT need to care about record.name, this is not for fasta
-            # if record.name:
-            #     self.logger.warning(f"Record {record.id} has a name: {record.name}, it will be replaced with ID.")
             record.id = f"seq{index}"
+            record.name = new_name
+            record.description = new_name
         self.new_name2ori_name_dict = new_name2ori_name_dict
         self.original_file = self.input_file
         self.input_file = self.output_dir / (
@@ -609,6 +608,7 @@ class ProteinPhylogeneticPipeline:
         finally:
             if os.path.exists("infile"):
                 os.remove("infile")
+            os.chdir(self.output_dir.parent)
 
     def parsimony_method(self, phylip_file):
         """Maximum parsimony inference using PHYLIP's protpars (protein version)"""
@@ -896,7 +896,7 @@ class ProteinPhylogeneticPipeline:
         try:
             plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "SimHei"]
             plt.rcParams["axes.unicode_minus"] = False
-        except:
+        except Exception:
             self.logger.error("plt.rcParams setting error.")
             pass
 

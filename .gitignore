@@ -21,3 +21,8 @@
 /input_demo/prot_seqs_wnt_human
 *.log
 *.class
+/launch.md
+
+
+*~
+.*.un~

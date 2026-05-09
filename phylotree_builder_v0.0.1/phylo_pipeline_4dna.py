@@ -575,6 +575,21 @@ class PhylogeneticPipeline:
             if os.path.exists("outfile"):
                 shutil.move("outfile", "distance_tree.nwk.txt")
 
+            distance_tree_path = Path("distance_tree.nwk").resolve()
+            normalized_output = distance_tree_path.with_name(distance_tree_path.name + ".normalized")
+            normalized_tree = self._postprocess_tree_with_egps(
+                distance_tree_path,
+                output_file=normalized_output,
+                clamp_negative_branch_lengths=True,
+                sanitize_for_mad=True,
+            )
+            if normalized_tree is None or not self._tree_file_has_content(normalized_output):
+                self.logger.warning(
+                    "Could not normalize distance tree branch lengths with eGPS; keeping the original tree file"
+                )
+            else:
+                shutil.move(str(normalized_output), str(distance_tree_path))
+
             self.logger.info("距离法建树完成")
             return work_dir / "distance_tree.nwk"
 
@@ -582,7 +597,8 @@ class PhylogeneticPipeline:
             self.logger.error(f"距离法建树失败: {e}")
             return None
         finally:
-            os.remove("infile")
+            if os.path.exists("infile"):
+                os.remove("infile")
             os.chdir(self.output_dir.parent)
 
     def parsimony_method(self, phylip_file):
@@ -739,15 +755,21 @@ class PhylogeneticPipeline:
             consensus_tree = None
             for file in Path.cwd().glob("*.con.tre"):
                 consensus_tree = file
-                from help_utils import parse_nexus_tree
+                try:
+                    sys.path.append(str(Path(__file__).resolve().parents[0]))
+                    from help_utils import parse_nexus_tree
 
-                out_file = Path(str(consensus_tree) + ".nwk")
-                parse_nexus_tree(
-                    consensus_tree,
-                    out_file,
-                    language=self.translator.language,
-                )
-                consensus_tree = out_file
+                    out_file = Path(str(consensus_tree) + ".nwk")
+                    parse_nexus_tree(
+                        consensus_tree,
+                        out_file,
+                        language=self.translator.language,
+                    )
+                    consensus_tree = out_file
+                except ImportError:
+                    self.logger.warning(
+                        "parse_nexus_tree module not found; keeping original .con.tre file"
+                    )
                 break
 
             if consensus_tree:
@@ -801,7 +823,7 @@ class PhylogeneticPipeline:
         try:
             plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "SimHei"]
             plt.rcParams["axes.unicode_minus"] = False
-        except:
+        except Exception:
             self.logger.error("plt.rcParams setting error.")
             pass
 
@@ -905,27 +927,28 @@ class PhylogeneticPipeline:
                 self.logger.warning(f"树距离脚本执行失败，命令 {cmd[0]}: {e}")
 
         if not tree_distance_completed:
-            sys.exit(1)
-        try:
-            heatmap_paths = create_tree_distance_heatmaps(
-                path_trees_summary / "tree_distance_matrix.tsv",
-                path_trees_summary / "rf_distance_matrix.tsv",
-                path_trees_summary / "tree_distance_heatmaps.png",
-                path_trees_summary / "tree_distance_heatmaps.pdf",
-                figure_title=self.translator.text(
-                    "Tree Distance Comparison Across Inference Methods",
-                    "不同建树方法的树距离比较",
-                ),
-                tree_title=self.translator.text("TreeDist Matrix", "TreeDist 矩阵"),
-                rf_title=self.translator.text("Robinson-Foulds Matrix", "Robinson-Foulds 矩阵"),
-                tree_colorbar_label=self.translator.text("TreeDist", "TreeDist"),
-                rf_colorbar_label=self.translator.text("RF Distance", "RF 距离"),
-            )
-            self.logger.info(
-                f"树距离热图已保存: {heatmap_paths[0]} 和 {heatmap_paths[1]}"
-            )
-        except Exception as e:
-            self.logger.warning(f"生成树距离热图失败: {e}")
+            self.logger.warning("Tree distance calculation failed")
+        else:
+            try:
+                heatmap_paths = create_tree_distance_heatmaps(
+                    path_trees_summary / "tree_distance_matrix.tsv",
+                    path_trees_summary / "rf_distance_matrix.tsv",
+                    path_trees_summary / "tree_distance_heatmaps.png",
+                    path_trees_summary / "tree_distance_heatmaps.pdf",
+                    figure_title=self.translator.text(
+                        "Tree Distance Comparison Across Inference Methods",
+                        "不同建树方法的树距离比较",
+                    ),
+                    tree_title=self.translator.text("TreeDist Matrix", "TreeDist 矩阵"),
+                    rf_title=self.translator.text("Robinson-Foulds Matrix", "Robinson-Foulds 矩阵"),
+                    tree_colorbar_label=self.translator.text("TreeDist", "TreeDist"),
+                    rf_colorbar_label=self.translator.text("RF Distance", "RF 距离"),
+                )
+                self.logger.info(
+                    f"树距离热图已保存: {heatmap_paths[0]} 和 {heatmap_paths[1]}"
+                )
+            except Exception as e:
+                self.logger.warning(f"生成树距离热图失败: {e}")
 
         summary_file = path_trees_summary / "analysis_summary.txt"
 
