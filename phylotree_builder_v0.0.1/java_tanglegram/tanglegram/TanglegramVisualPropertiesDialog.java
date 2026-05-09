@@ -119,7 +119,7 @@ final class TanglegramVisualPropertiesDialog extends JDialog {
         loader.start();
     }
 
-    private static String[] availableFontFamilyNames() {
+    static String[] availableFontFamilyNames() {
         String[] cachedNames = cachedFontFamilyNames;
         if (cachedNames != null) {
             return cachedNames.clone();

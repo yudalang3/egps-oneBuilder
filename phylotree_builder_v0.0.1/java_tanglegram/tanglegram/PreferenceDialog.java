@@ -4,7 +4,6 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Frame;
-import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -37,7 +36,7 @@ public final class PreferenceDialog extends JDialog {
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
         contentPanel.setBorder(BorderFactory.createEmptyBorder(12, 12, 0, 12));
 
-        fontFamilyCombo = new JComboBox<>(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
+        fontFamilyCombo = new JComboBox<>(TanglegramVisualPropertiesDialog.availableFontFamilyNames());
         fontSizeSpinner = new JSpinner(new SpinnerNumberModel(12, 8, 48, 1));
         restoreWindowSizeCheckBox = new JCheckBox(UiText.text("Restore last window size", "恢复上次窗口大小"), true);
         defaultTanglegramLabelSpinner = new JSpinner(new SpinnerNumberModel(12, 8, 48, 1));

@@ -62,7 +62,13 @@ final class ConsistencyAnnotationDialog extends JDialog {
     }
 
     private static DefaultTableModel createTableModel() {
-        return new DefaultTableModel(new Object[] { "Clade/Cluster", "Color with alpha", "Ribbon width" }, 0) {
+        return new DefaultTableModel(
+                new Object[] {
+                    UiText.text("Clade/Cluster", "支系/聚类"),
+                    UiText.text("Color with alpha", "颜色（含透明度）"),
+                    UiText.text("Ribbon width", "连线宽度")
+                },
+                0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return true;
@@ -73,9 +79,11 @@ final class ConsistencyAnnotationDialog extends JDialog {
     private JPanel createIntroPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(12, 12, 0, 12));
-        JTextArea note = new JTextArea(
+        JTextArea note = new JTextArea(UiText.text(
                 "Each row connects exactly matching clades or clusters across the ordered trees. "
-                        + "Use comma-separated leaf names or a named internal node, #RRGGBBAA colors, and a ribbon width, for example: Dog,Cow,Frog    #FFA234A2    5");
+                        + "Use comma-separated leaf names or a named internal node, #RRGGBBAA colors, and a ribbon width, for example: Dog,Cow,Frog    #FFA234A2    5",
+                "每行将连接各树中完全匹配的支系或聚类。" 
+                        + "使用逗号分隔的叶节点名称或内部节点名、#RRGGBBAA 颜色和连线宽度，例如：Dog,Cow,Frog    #FFA234A2    5"));
         note.setEditable(false);
         note.setLineWrap(true);
         note.setWrapStyleWord(true);
@@ -110,10 +118,10 @@ final class ConsistencyAnnotationDialog extends JDialog {
         outerPanel.setBorder(BorderFactory.createEmptyBorder(0, 12, 12, 12));
 
         JPanel editPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        JButton importButton = new JButton("Import TSV");
-        JButton exportButton = new JButton("Export TSV");
-        JButton addButton = new JButton("Add row");
-        JButton removeButton = new JButton("Remove selected");
+        JButton importButton = new JButton(UiText.text("Import TSV", "导入 TSV"));
+        JButton exportButton = new JButton(UiText.text("Export TSV", "导出 TSV"));
+        JButton addButton = new JButton(UiText.text("Add row", "添加行"));
+        JButton removeButton = new JButton(UiText.text("Remove selected", "移除所选"));
         importButton.addActionListener(event -> importTsv());
         exportButton.addActionListener(event -> exportTsv());
         addButton.addActionListener(event -> tableModel.addRow(new Object[] { "", "#4F8CFFA0", "5" }));
@@ -145,7 +153,7 @@ final class ConsistencyAnnotationDialog extends JDialog {
 
     private void importTsv() {
         JFileChooser fileChooser = new JFileChooser(lastTsvPath == null ? null : lastTsvPath.toFile());
-        fileChooser.setDialogTitle("Import consistency annotation TSV");
+        fileChooser.setDialogTitle(UiText.text("Import consistency annotation TSV", "导入一致性注释 TSV"));
         fileChooser.setFileFilter(new FileNameExtensionFilter("TSV files", "tsv", "txt"));
         if (fileChooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
             return;
@@ -156,7 +164,7 @@ final class ConsistencyAnnotationDialog extends JDialog {
             replaceRows(annotations);
             lastTsvPath = selectedPath;
         } catch (IOException exception) {
-            showError("Could not import the annotation TSV.", exception.getMessage());
+            showError(UiText.text("Could not import the annotation TSV.", "无法导入注释 TSV。"), exception.getMessage());
         }
     }
 
@@ -165,11 +173,11 @@ final class ConsistencyAnnotationDialog extends JDialog {
         try {
             annotations = annotationsFromTable();
         } catch (IOException exception) {
-            showError("Could not export the annotation TSV.", exception.getMessage());
+            showError(UiText.text("Could not export the annotation TSV.", "无法导出注释 TSV。"), exception.getMessage());
             return;
         }
         JFileChooser fileChooser = new JFileChooser(lastTsvPath == null ? null : lastTsvPath.toFile());
-        fileChooser.setDialogTitle("Export consistency annotation TSV");
+        fileChooser.setDialogTitle(UiText.text("Export consistency annotation TSV", "导出一致性注释 TSV"));
         fileChooser.setFileFilter(new FileNameExtensionFilter("TSV files", "tsv", "txt"));
         if (fileChooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
             return;
@@ -179,7 +187,7 @@ final class ConsistencyAnnotationDialog extends JDialog {
             ConsistencyAnnotationIO.writeTsv(selectedPath, annotations);
             lastTsvPath = selectedPath;
         } catch (IOException exception) {
-            showError("Could not export the annotation TSV.", exception.getMessage());
+            showError(UiText.text("Could not export the annotation TSV.", "无法导出注释 TSV。"), exception.getMessage());
         }
     }
 
@@ -188,7 +196,7 @@ final class ConsistencyAnnotationDialog extends JDialog {
             applyCallback.accept(annotationsFromTable());
             return true;
         } catch (IOException exception) {
-            showError("Could not apply consistency annotations.", exception.getMessage());
+            showError(UiText.text("Could not apply consistency annotations.", "无法应用一致性注释。"), exception.getMessage());
             return false;
         }
     }

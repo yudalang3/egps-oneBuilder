@@ -234,15 +234,21 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
     }
 
     private static String leafArrangementTooltip() {
-        return "Arrange branches (ladderize, swap...) to give better visual effects without change topology.";
+        return UiText.text(
+                "Arrange branches (ladderize, swap...) to give better visual effects without change topology.",
+                "排列分支（阶梯化、交换等）以获得更好的视觉效果，不改变拓扑结构。");
     }
 
     private static String visualPropertiesTooltip() {
-        return "Adjust spacing, dashed connector style, and leaf-label appearance for the current tanglegram view.";
+        return UiText.text(
+                "Adjust spacing, dashed connector style, and leaf-label appearance for the current tanglegram view.",
+                "调整当前缠结图视图的间距、虚线连接线样式及叶节点标签外观。");
     }
 
     private static String threeDAlignmentTooltip() {
-        return "Open a separate 3D view to compare all loaded trees side by side.";
+        return UiText.text(
+                "Open a separate 3D view to compare all loaded trees side by side.",
+                "打开独立的 3D 视图，并排比较所有已加载的树。");
     }
 
     private static String buildSummary(

@@ -1,6 +1,7 @@
 package tanglegram;
 
 import java.awt.Font;
+import java.util.Objects;
 import javax.swing.UIManager;
 
 public final class TanglegramRenderOptions {
@@ -101,5 +102,35 @@ public final class TanglegramRenderOptions {
 
     public boolean autoFit() {
         return autoFit;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof TanglegramRenderOptions other)) {
+            return false;
+        }
+        return labelFontSize == other.labelFontSize
+                && labelFontStyle == other.labelFontStyle
+                && showLeafLabels == other.showLeafLabels
+                && horizontalPadding == other.horizontalPadding
+                && verticalPadding == other.verticalPadding
+                && connectorGap == other.connectorGap
+                && Float.compare(connectorStrokeWidth, other.connectorStrokeWidth) == 0
+                && Float.compare(connectorDashLength, other.connectorDashLength) == 0
+                && Float.compare(connectorDashGap, other.connectorDashGap) == 0
+                && autoFit == other.autoFit
+                && Objects.equals(labelFontFamily, other.labelFontFamily);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+                labelFontSize, labelFontFamily, labelFontStyle,
+                showLeafLabels, horizontalPadding, verticalPadding,
+                connectorGap, connectorStrokeWidth, connectorDashLength,
+                connectorDashGap, autoFit);
     }
 }

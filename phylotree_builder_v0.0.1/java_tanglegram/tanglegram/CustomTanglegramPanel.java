@@ -311,7 +311,7 @@ final class CustomTanglegramPanel extends JPanel {
             } else {
                 connectorX = leftSide ? xSelf + 6.0d : xSelf - 6.0d;
             }
-            endpoints.put(name, new LeafEndpoint(labelText, connectorX, ySelf, labelX, baselineY));
+            endpoints.put(labelText, new LeafEndpoint(labelText, connectorX, ySelf, labelX, baselineY));
             return;
         }
         for (int index = 0; index < node.getChildCount(); index++) {

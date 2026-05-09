@@ -435,8 +435,10 @@ final class TanglegramWelcomePanel extends JPanel {
         }
         if (importedTrees.size() < 2) {
             showUserError(
-                    "Tree data could not be loaded.",
-                    "At least two readable tree files are required.\n\nWhat to do:\n- Add another tree file, or\n- Remove incomplete rows, then click Load Tree Data again.");
+                    UiText.text("Tree data could not be loaded.", "\u65e0\u6cd5\u52a0\u8f7d\u6811\u6570\u636e\u3002"),
+                    UiText.text(
+                            "At least two readable tree files are required.\n\nWhat to do:\n- Add another tree file, or\n- Remove incomplete rows, then click Load Tree Data again.",
+                            "\u81f3\u5c11\u9700\u8981\u4e24\u4e2a\u53ef\u8bfb\u7684\u6811\u6587\u4ef6\u3002\n\n\u5982\u4f55\u64cd\u4f5c\uff1a\n- \u6dfb\u52a0\u4e00\u4e2a\u6811\u6587\u4ef6\uff0c\u6216\n- \u79fb\u9664\u4e0d\u5b8c\u6574\u7684\u884c\uff0c\u7136\u540e\u518d\u6b21\u70b9\u51fb\u201c\u52a0\u8f7d\u6811\u6570\u636e\u201d\u3002"));
             return;
         }
         List<TreePairSpec> pairSpecs = buildPairSpecs(importedTrees);
@@ -449,7 +451,9 @@ final class TanglegramWelcomePanel extends JPanel {
                 pairSpecs,
                 List.of()), session -> {
             loadConsumer.accept(session);
-            showSuccess("Opened a result tab for " + sourceName + " with " + pairSpecs.size() + " pairwise comparisons.");
+            showSuccess(UiText.text(
+                    "Opened a result tab for " + sourceName + " with " + pairSpecs.size() + " pairwise comparisons.",
+                    "\u5df2\u4e3a " + sourceName + " \u6253\u5f00\u7ed3\u679c\u6807\u7b7e\u9875\uff0c\u5305\u542b " + pairSpecs.size() + " \u7ec4\u6bd4\u8f83\u3002"));
         });
     }
 
@@ -627,32 +631,50 @@ final class TanglegramWelcomePanel extends JPanel {
     }
 
     private String buildUserHelpMessage(String rawMessage) {
-        String message = rawMessage == null || rawMessage.isBlank() ? "The selected data could not be used." : rawMessage;
+        String message = rawMessage == null || rawMessage.isBlank()
+                ? UiText.text("The selected data could not be used.", "所选数据无法使用。")
+                : rawMessage;
         String lowerCaseMessage = message.toLowerCase();
 
         if (lowerCaseMessage.contains("missing required directories")) {
-            return "The selected folder is not a complete oneBuilder result folder.\n\nWhat to do:\n- Choose the main output folder of oneBuilder.\n- Make sure it contains bayesian_method, distance_method, maximum_likelihood, parsimony_method, and tree_summary.";
+            return UiText.text(
+                    "The selected folder is not a complete oneBuilder result folder.\n\nWhat to do:\n- Choose the main output folder of oneBuilder.\n- Make sure it contains bayesian_method, distance_method, maximum_likelihood, parsimony_method, and tree_summary.",
+                    "所选文件夹不是完整的 oneBuilder 结果目录。\n\n如何操作：\n- 选择 oneBuilder 的主输出目录。\n- 确保包含 bayesian_method、distance_method、maximum_likelihood、parsimony_method 和 tree_summary。");
         }
         if (lowerCaseMessage.contains("missing required tree files")) {
-            return "Some expected tree files are missing from the selected result folder.\n\nWhat to do:\n- Confirm the run finished successfully.\n- Check that NJ, ML, BI, and MP tree files were generated.\n- If only some methods are available, import the existing tree files manually instead.";
+            return UiText.text(
+                    "Some expected tree files are missing from the selected result folder.\n\nWhat to do:\n- Confirm the run finished successfully.\n- Check that NJ, ML, BI, and MP tree files were generated.\n- If only some methods are available, import the existing tree files manually instead.",
+                    "在所选结果目录中缺少部分预期的树文件。\n\n如何操作：\n- 确认运行已成功完成。\n- 检查 NJ、ML、BI 和 MP 树文件是否已生成。\n- 如果只有部分方法可用，请手动导入已有的树文件。");
         }
         if (lowerCaseMessage.contains("invalid tsv row")) {
-            return "The TSV file format is not correct.\n\nWhat to do:\n- Lines starting with # are comments.\n- Column 1 must be the label name.\n- Column 2 must be the tree file path.\n- Save the file as tab-separated text, then import it again.";
+            return UiText.text(
+                    "The TSV file format is not correct.\n\nWhat to do:\n- Lines starting with # are comments.\n- Column 1 must be the label name.\n- Column 2 must be the tree file path.\n- Save the file as tab-separated text, then import it again.",
+                    "TSV 文件格式不正确。\n\n如何操作：\n- 以 # 开头的行是注释。\n- 第 1 列必须是标签名。\n- 第 2 列必须是树文件路径。\n- 保存为制表符分隔的文本文件后重新导入。");
         }
         if (lowerCaseMessage.contains("missing a label name")) {
-            return "One row is missing a label name.\n\nWhat to do:\n- Fill in the Label Name column for that row.\n- Example labels: NJ, ML, BI, MP, or any custom display name you want to show in the result tabs.";
+            return UiText.text(
+                    "One row is missing a label name.\n\nWhat to do:\n- Fill in the Label Name column for that row.\n- Example labels: NJ, ML, BI, MP, or any custom display name you want to show in the result tabs.",
+                    "有一行缺少标签名。\n\n如何操作：\n- 为该行填写 Label Name 列。\n- 标签示例：NJ、ML、BI、MP，或任意自定义显示名称。");
         }
         if (lowerCaseMessage.contains("missing a tree path")) {
-            return "One row is missing a tree path.\n\nWhat to do:\n- Fill in the Tree Path column for that row.\n- Use Add Trees... or double-click the Tree Path cell to avoid typing mistakes.";
+            return UiText.text(
+                    "One row is missing a tree path.\n\nWhat to do:\n- Fill in the Tree Path column for that row.\n- Use Add Trees... or double-click the Tree Path cell to avoid typing mistakes.",
+                    "有一行缺少树文件路径。\n\n如何操作：\n- 为该行填写 Tree Path 列。\n- 使用“添加树文件”按钮或双击 Tree Path 单元格以避免输入错误。");
         }
         if (lowerCaseMessage.contains("does not exist at row")) {
-            return "One of the tree file paths does not point to a real file.\n\nWhat to do:\n- Check the path in that row.\n- Double-click the Tree Path cell to choose the file again.\n- If you pasted the path manually, remove extra spaces or quotes and try again.";
+            return UiText.text(
+                    "One of the tree file paths does not point to a real file.\n\nWhat to do:\n- Check the path in that row.\n- Double-click the Tree Path cell to choose the file again.\n- If you pasted the path manually, remove extra spaces or quotes and try again.",
+                    "某一行的树文件路径指向的文件不存在。\n\n如何操作：\n- 检查该行的路径。\n- 双击 Tree Path 单元格重新选择文件。\n- 如果是手动粘贴的路径，请去除多余的空格或引号后重试。");
         }
         if (lowerCaseMessage.contains("directory does not exist")) {
-            return "The selected folder cannot be found.\n\nWhat to do:\n- Check whether the folder was moved or renamed.\n- Choose the folder again from the file dialog.";
+            return UiText.text(
+                    "The selected folder cannot be found.\n\nWhat to do:\n- Check whether the folder was moved or renamed.\n- Choose the folder again from the file dialog.",
+                    "找不到所选文件夹。\n\n如何操作：\n- 检查文件夹是否被移动或重命名。\n- 从文件对话框重新选择。");
         }
 
-        return message + "\n\nWhat to do:\n- Check the selected file or folder again.\n- Prefer using the file dialog instead of manual path typing.\n- Make sure the file is a readable tree file or a valid TSV config.";
+        return message + UiText.text(
+                "\n\nWhat to do:\n- Check the selected file or folder again.\n- Prefer using the file dialog instead of manual path typing.\n- Make sure the file is a readable tree file or a valid TSV config.",
+                "\n\n如何操作：\n- 再次检查所选文件或文件夹。\n- 建议使用文件对话框而非手动输入路径。\n- 确保文件是可读的树文件或有效的 TSV 配置。");
     }
 
     private String valueAt(int row, int column) {
