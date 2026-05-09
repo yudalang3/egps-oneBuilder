@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import javax.swing.SwingUtilities;
 import org.json.JSONObject;
 import tanglegram.UiLanguage;
@@ -60,6 +61,7 @@ public final class OneBuilderStandaloneTest {
             run("detectsCurrentRunTanglegramArtifacts", OneBuilderStandaloneTest::detectsCurrentRunTanglegramArtifacts);
             run("interpretsMethodProgressFromLogs", OneBuilderStandaloneTest::interpretsMethodProgressFromLogs);
             run("tracksTreeBuildOverallProgressFromEnabledMethodsAndLogs", OneBuilderStandaloneTest::tracksTreeBuildOverallProgressFromEnabledMethodsAndLogs);
+            run("destroysPipelineDescendantProcessTree", OneBuilderStandaloneTest::destroysPipelineDescendantProcessTree);
             run("keepsTreeBuildCaretAtEndAfterAppendingLogs", OneBuilderStandaloneTest::keepsTreeBuildCaretAtEndAfterAppendingLogs);
             run("storesLanguageInExportedConfig", OneBuilderStandaloneTest::storesLanguageInExportedConfig);
             run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
@@ -1365,6 +1367,26 @@ public final class OneBuilderStandaloneTest {
         });
     }
 
+    private static void destroysPipelineDescendantProcessTree() throws Exception {
+        Process process = new ProcessBuilder(
+                javaBinary(),
+                "-cp",
+                System.getProperty("java.class.path"),
+                ChildProcessSpawner.class.getName())
+                .start();
+        try {
+            Optional<ProcessHandle> childHandle = waitForDescendant(process, 5000L);
+            assertTrue(childHandle.isPresent(), "expected child process to spawn a descendant");
+
+            PipelineRunner.destroyProcessTreeForTest(process);
+            process.waitFor();
+            waitUntil(() -> !childHandle.orElseThrow().isAlive(), 5000L,
+                    "descendant process should be destroyed");
+        } finally {
+            PipelineRunner.destroyProcessTreeForTest(process);
+        }
+    }
+
     private static void storesLanguageInExportedConfig() throws Exception {
         Path tempFile = Files.createTempFile("onebuilder-language-", ".json");
         try {
@@ -1491,6 +1513,60 @@ public final class OneBuilderStandaloneTest {
             return currentLayout;
         }
         return repoRoot.resolve("old_archive").resolve("test1");
+    }
+
+    private static Optional<ProcessHandle> waitForDescendant(Process process, long timeoutMillis) throws Exception {
+        ProcessHandle handle = process.toHandle();
+        ProcessHandle[] descendant = new ProcessHandle[1];
+        waitUntil(() -> {
+            descendant[0] = handle.descendants().findFirst().orElse(null);
+            return descendant[0] != null && descendant[0].isAlive();
+        }, timeoutMillis, "process did not spawn a descendant");
+        return Optional.ofNullable(descendant[0]);
+    }
+
+    private static void waitUntil(BooleanCondition condition, long timeoutMillis, String message) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (System.currentTimeMillis() < deadline) {
+            if (condition.test()) {
+                return;
+            }
+            Thread.sleep(25L);
+        }
+        throw new AssertionError(message);
+    }
+
+    private static String javaBinary() {
+        return Paths.get(System.getProperty("java.home"), "bin", "java").toString();
+    }
+
+    @FunctionalInterface
+    private interface BooleanCondition {
+        boolean test() throws Exception;
+    }
+
+    public static final class ChildProcessSpawner {
+        private ChildProcessSpawner() {
+        }
+
+        public static void main(String[] args) throws Exception {
+            Process child = new ProcessBuilder(
+                    javaBinary(),
+                    "-cp",
+                    System.getProperty("java.class.path"),
+                    SleepingProcess.class.getName())
+                    .start();
+            child.waitFor();
+        }
+    }
+
+    public static final class SleepingProcess {
+        private SleepingProcess() {
+        }
+
+        public static void main(String[] args) throws Exception {
+            Thread.sleep(60000L);
+        }
     }
 
     @FunctionalInterface

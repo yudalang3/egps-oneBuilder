@@ -295,7 +295,8 @@ final class CustomTanglegramPanel extends JPanel {
             Map<String, LeafEndpoint> endpoints) {
         if (node.getChildCount() == 0) {
             String name = node.getReflectNode().getName();
-            int textWidth = renderOptions.showLeafLabels() ? labelMetrics.stringWidth(name) : 0;
+            String labelText = name == null ? "" : name;
+            int textWidth = renderOptions.showLeafLabels() ? labelMetrics.stringWidth(labelText) : 0;
             double xSelf = node.getXSelf();
             double ySelf = node.getYSelf();
             int labelX = leftSide
@@ -310,7 +311,7 @@ final class CustomTanglegramPanel extends JPanel {
             } else {
                 connectorX = leftSide ? xSelf + 6.0d : xSelf - 6.0d;
             }
-            endpoints.put(name, new LeafEndpoint(name, connectorX, ySelf, labelX, baselineY));
+            endpoints.put(name, new LeafEndpoint(labelText, connectorX, ySelf, labelX, baselineY));
             return;
         }
         for (int index = 0; index < node.getChildCount(); index++) {

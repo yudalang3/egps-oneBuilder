@@ -62,14 +62,7 @@ final class PipelineRunner {
     synchronized void stop() {
         stopRequested = true;
         Process process = currentProcess;
-        if (process != null) {
-            ProcessHandle handle = process.toHandle();
-            handle.descendants().forEach(ProcessHandle::destroy);
-            handle.destroy();
-            if (handle.isAlive()) {
-                handle.destroyForcibly();
-            }
-        }
+        destroyProcessTree(process);
         Thread thread = workerThread;
         if (thread != null) {
             thread.interrupt();
@@ -136,7 +129,7 @@ final class PipelineRunner {
         Process process = processBuilder.start();
         currentProcess = process;
         if (stopRequested) {
-            process.destroyForcibly();
+            destroyProcessTree(process);
             throw new InterruptedException("Run stopped during " + stageName);
         }
         StringBuilder pendingOutput = new StringBuilder();
@@ -183,6 +176,26 @@ final class PipelineRunner {
         String capturedOutput = pendingOutput.toString();
         pendingOutput.setLength(0);
         dispatch(() -> listener.onProcessOutput(capturedOutput));
+    }
+
+    static void destroyProcessTreeForTest(Process process) {
+        destroyProcessTree(process);
+    }
+
+    private static void destroyProcessTree(Process process) {
+        if (process == null) {
+            return;
+        }
+        ProcessHandle handle = process.toHandle();
+        List<ProcessHandle> descendants = handle.descendants().toList();
+        descendants.forEach(ProcessHandle::destroy);
+        handle.destroy();
+        descendants.stream()
+                .filter(ProcessHandle::isAlive)
+                .forEach(ProcessHandle::destroyForcibly);
+        if (handle.isAlive()) {
+            handle.destroyForcibly();
+        }
     }
 
     private static void dispatch(Runnable runnable) {

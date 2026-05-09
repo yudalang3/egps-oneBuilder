@@ -78,6 +78,7 @@ public final class TanglegramStandaloneTest {
             run("keepsFourMethodPairsWhenProteinStructureTreeIsMissing", TanglegramStandaloneTest::keepsFourMethodPairsWhenProteinStructureTreeIsMissing);
             run("loadsOnlyAvailablePairsWhenOneMethodIsMissing", TanglegramStandaloneTest::loadsOnlyAvailablePairsWhenOneMethodIsMissing);
             run("rendersPairPanelForResolvedTrees", TanglegramStandaloneTest::rendersPairPanelForResolvedTrees);
+            run("rendersTanglegramWithUnnamedLeaves", TanglegramStandaloneTest::rendersTanglegramWithUnnamedLeaves);
             run("wrapsTanglegramCanvasInScrollableExportableView", TanglegramStandaloneTest::wrapsTanglegramCanvasInScrollableExportableView);
             run("supportsTanglegramViewportNavigationMenus", TanglegramStandaloneTest::supportsTanglegramViewportNavigationMenus);
             run("usesScreenCoordinatesForSmoothViewportDragging", TanglegramStandaloneTest::usesScreenCoordinatesForSmoothViewportDragging);
@@ -299,6 +300,24 @@ public final class TanglegramStandaloneTest {
         view.renderNowForTest(new Dimension(900, 700));
 
         assertTrue(view.getComponentCount() > 0 && view.getComponent(0) != null, "expected rendered viewport content");
+    }
+
+    private static void rendersTanglegramWithUnnamedLeaves() throws Exception {
+        EvolNode leftTree = decodeTree("((A:0.1,B:0.1):0.2,C:0.3);");
+        EvolNode rightTree = decodeTree("((A:0.1,B:0.1):0.2,C:0.3);");
+        firstLeaf(leftTree).setName(null);
+        firstLeaf(rightTree).setName(null);
+
+        TanglegramPanelFactory factory = new TanglegramPanelFactory();
+        JPanel panel = factory.createPanel(
+                new TanglegramPanelFactory.PreparedPair(leftTree, rightTree),
+                new Dimension(900, 700));
+        panel.setSize(900, 700);
+        BufferedImage image = new BufferedImage(900, 700, BufferedImage.TYPE_INT_ARGB);
+
+        panel.paint(image.createGraphics());
+
+        assertTrue(countNearBlackPixels(image) > 0, "unnamed leaves should not prevent tanglegram rendering");
     }
 
     private static void wrapsTanglegramCanvasInScrollableExportableView() throws Exception {
@@ -1405,6 +1424,13 @@ public final class TanglegramStandaloneTest {
 
     private static EvolNode decodeTree(String newick) throws Exception {
         return new TreeDecoder().decode(newick);
+    }
+
+    private static EvolNode firstLeaf(EvolNode node) {
+        if (node.getChildCount() == 0) {
+            return node;
+        }
+        return firstLeaf(evoltree.struct.util.EvolNodeUtil.getChildrenAt(node, 0));
     }
 
     private static ThreeDTreeAlignmentView.TreeDifferenceMetrics treeDifferenceMetrics(String... newickTrees) throws Exception {
