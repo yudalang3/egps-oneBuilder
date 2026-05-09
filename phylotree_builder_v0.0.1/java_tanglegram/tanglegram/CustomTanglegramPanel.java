@@ -272,7 +272,8 @@ final class CustomTanglegramPanel extends JPanel {
     private static int maxLeafLabelWidth(EvolNode root, FontMetrics labelMetrics) {
         int maxWidth = 0;
         for (EvolNode leaf : EvolNodeUtil.getLeaves(root)) {
-            maxWidth = Math.max(maxWidth, labelMetrics.stringWidth(leaf.getName()));
+            String name = leaf.getName();
+            maxWidth = Math.max(maxWidth, labelMetrics.stringWidth(name == null ? "" : name));
         }
         return maxWidth;
     }

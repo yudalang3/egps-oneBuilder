@@ -135,6 +135,10 @@ final class PipelineRunner {
 
         Process process = processBuilder.start();
         currentProcess = process;
+        if (stopRequested) {
+            process.destroyForcibly();
+            throw new InterruptedException("Run stopped during " + stageName);
+        }
         StringBuilder pendingOutput = new StringBuilder();
         int pendingLineCount = 0;
         long lastOutputDispatch = System.nanoTime();

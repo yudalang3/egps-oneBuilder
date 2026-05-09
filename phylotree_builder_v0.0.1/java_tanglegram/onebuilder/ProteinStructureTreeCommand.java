@@ -92,7 +92,13 @@ public final class ProteinStructureTreeCommand {
                 throw new IllegalArgumentException("Distance matrix row ID does not match header: " + rowName);
             }
             for (int columnIndex = 0; columnIndex < size; columnIndex++) {
-                squareDistances[rowIndex][columnIndex] = Double.parseDouble(row[columnIndex + 1].trim());
+                double value = Double.parseDouble(row[columnIndex + 1].trim());
+                if (!Double.isFinite(value)) {
+                    throw new IllegalArgumentException(
+                            "Distance matrix contains non-finite value at row " + (rowIndex + 2)
+                            + ", column " + (columnIndex + 2) + ": " + row[columnIndex + 1].trim());
+                }
+                squareDistances[rowIndex][columnIndex] = value;
             }
         }
 

@@ -18,7 +18,7 @@ public class RobinsonFouldsMetricCalculator {
 
 	public int countDiff(EvolNode tree1, EvolNode tree2) {
 
-		List<String> internalNodeElements1 = Lists.newArrayList();
+		Set<String> internalNodeElements1 = Sets.newHashSet();
 		Set<String> internalNodeElements2 = Sets.newHashSet();
 
 		EvolNodeUtil.recursiveIterateTreeIF(tree1, node -> {
@@ -51,16 +51,21 @@ public class RobinsonFouldsMetricCalculator {
 			internalNodeElements2.add(setToSortedString(stringsOfNode1));
 		});
 
-		int ret = 0;
-
+		// RF = |A\B| + |B\A| (symmetric difference of bipartition sets)
+		int forwardDiff = 0;
 		for (String string : internalNodeElements1) {
 			if (!internalNodeElements2.contains(string)) {
-				ret++;
+				forwardDiff++;
+			}
+		}
+		int reverseDiff = 0;
+		for (String string : internalNodeElements2) {
+			if (!internalNodeElements1.contains(string)) {
+				reverseDiff++;
 			}
 		}
 
-		// 不要忘记乘以2
-		return ret + ret;
+		return forwardDiff + reverseDiff;
 	}
 
 	private String setToSortedString(List<String> sortedList) {
