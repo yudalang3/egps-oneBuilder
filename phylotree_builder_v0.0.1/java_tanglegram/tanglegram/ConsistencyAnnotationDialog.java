@@ -75,7 +75,7 @@ final class ConsistencyAnnotationDialog extends JDialog {
         panel.setBorder(BorderFactory.createEmptyBorder(12, 12, 0, 12));
         JTextArea note = new JTextArea(
                 "Each row connects exactly matching clades or clusters across the ordered trees. "
-                        + "Use comma-separated leaf names, #RRGGBBAA colors, and a ribbon width, for example: Dog,Cow,Frog    #FFA234A2    5");
+                        + "Use comma-separated leaf names or a named internal node, #RRGGBBAA colors, and a ribbon width, for example: Dog,Cow,Frog    #FFA234A2    5");
         note.setEditable(false);
         note.setLineWrap(true);
         note.setWrapStyleWord(true);

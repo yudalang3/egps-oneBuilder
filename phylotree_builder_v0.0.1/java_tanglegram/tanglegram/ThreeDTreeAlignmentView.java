@@ -12,6 +12,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Point;
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
@@ -36,7 +37,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JPopupMenu;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.UIManager;
@@ -61,8 +64,12 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     private static final int LEGEND_ITEM_HEIGHT = 24;
     private static final int LEGEND_ITEM_GAP = 8;
     private static final String LEGEND_WIDTH_REFERENCE_LABEL = "Chimp,Coelacanth,Human,Mouse,Rat";
+    private static final double NODE_HIT_RADIUS = 10.0d;
+    private static final double BRANCH_HIT_TOLERANCE = 3.0d;
 
     private final AlignmentCanvas canvas;
+    private final JScrollPane scrollPane;
+    private final TreeViewportNavigationSupport.Controller navigationController;
     private final Timer renderTimer;
     private final AtomicLong renderSequence;
     private List<ImportedTreeSpec> displayedTrees;
@@ -73,6 +80,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     private volatile TreeDifferenceMetrics treeDifferenceMetrics;
     private volatile String errorMessage;
     private volatile boolean loading;
+    private volatile Dimension preparedCanvasSize;
 
     ThreeDTreeAlignmentView(List<ImportedTreeSpec> importedTrees) {
         super(new BorderLayout(0, 8));
@@ -80,6 +88,13 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         this.consistencyAnnotations = defaultRootAnnotations(displayedTrees);
         this.usingDefaultRootAnnotation = true;
         this.canvas = new AlignmentCanvas();
+        this.canvas.setPreferredSize(new Dimension(1320, 920));
+        this.scrollPane = new JScrollPane(canvas);
+        this.navigationController = TreeViewportNavigationSupport.install(
+                canvas,
+                scrollPane,
+                this::hitAt,
+                this::scheduleRender);
         this.renderTimer = new Timer(RENDER_DELAY_MS, event -> renderForCurrentSize());
         this.renderSequence = new AtomicLong();
         this.preparedLayers = List.of();
@@ -88,19 +103,25 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         this.loading = true;
         this.renderTimer.setRepeats(false);
         setOpaque(false);
+        scrollPane.setBorder(null);
+        scrollPane.getViewport().setBackground(Color.WHITE);
+        scrollPane.getViewport().setScrollMode(javax.swing.JViewport.SIMPLE_SCROLL_MODE);
         canvas.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent event) {
                 scheduleRender();
             }
         });
-        add(canvas, BorderLayout.CENTER);
+        add(scrollPane, BorderLayout.CENTER);
         add(createControlPanel(), BorderLayout.SOUTH);
         SwingUtilities.invokeLater(this::scheduleRender);
     }
 
     private void scheduleRender() {
         renderSequence.incrementAndGet();
+        loading = true;
+        errorMessage = null;
+        canvas.repaint();
         renderTimer.restart();
     }
 
@@ -165,10 +186,16 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                 SwingUtilities.getWindowAncestor(this),
                 consistencyAnnotations,
                 updatedAnnotations -> {
-                    consistencyAnnotations = List.copyOf(updatedAnnotations);
+                    consistencyAnnotations = resolveConsistencyAnnotations(updatedAnnotations);
                     usingDefaultRootAnnotation = false;
                     scheduleRender();
                 });
+    }
+
+    void applyConsistencyAnnotationsForTest(List<ConsistencyAnnotation> updatedAnnotations) {
+        consistencyAnnotations = resolveConsistencyAnnotations(updatedAnnotations);
+        usingDefaultRootAnnotation = false;
+        scheduleRender();
     }
 
     void quickLabelConsistencyForTest() {
@@ -183,6 +210,31 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         consistencyAnnotations = quickLabelsFromFirstTree(displayedTrees);
         usingDefaultRootAnnotation = false;
         scheduleRender();
+    }
+
+    private List<ConsistencyAnnotation> resolveConsistencyAnnotations(List<ConsistencyAnnotation> annotations) {
+        if (annotations == null || annotations.isEmpty()) {
+            return List.of();
+        }
+        List<ConsistencyAnnotation> resolvedAnnotations = new ArrayList<>(annotations.size());
+        for (ConsistencyAnnotation annotation : annotations) {
+            if (annotation != null) {
+                resolvedAnnotations.add(resolveConsistencyAnnotation(annotation));
+            }
+        }
+        return List.copyOf(resolvedAnnotations);
+    }
+
+    private ConsistencyAnnotation resolveConsistencyAnnotation(ConsistencyAnnotation annotation) {
+        if (annotation.leafNames().size() != 1) {
+            return annotation;
+        }
+        String nodeName = annotation.leafNames().get(0);
+        List<String> resolvedLeafNames = findNamedInternalNodeLeafNames(displayedTrees, nodeName);
+        if (resolvedLeafNames.isEmpty()) {
+            return annotation;
+        }
+        return new ConsistencyAnnotation(resolvedLeafNames, annotation.color(), annotation.ribbonWidth());
     }
 
     private void cleanAllLabels() {
@@ -210,6 +262,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                     preparedLayers = preparedRender.layers();
                     preparedAnnotations = preparedRender.annotations();
                     treeDifferenceMetrics = preparedRender.metrics();
+                    preparedCanvasSize = new Dimension(viewportSize);
                     errorMessage = null;
                     loading = false;
                     canvas.repaint();
@@ -222,6 +275,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                     preparedLayers = List.of();
                     preparedAnnotations = List.of();
                     treeDifferenceMetrics = TreeDifferenceMetrics.unavailable();
+                    preparedCanvasSize = null;
                     errorMessage = exception.getMessage() == null
                             ? exception.getClass().getSimpleName() + ": 3D tree alignment could not be rendered."
                             : exception.getMessage();
@@ -236,6 +290,36 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
     void renderForCurrentSizeForTest() {
         renderForCurrentSize();
+    }
+
+    JScrollPane scrollPaneForTest() {
+        return scrollPane;
+    }
+
+    Long renderSequenceForTest() {
+        return Long.valueOf(renderSequence.get());
+    }
+
+    Point firstNodePointForTest() {
+        List<PreparedLayer> layers = preparedLayers;
+        if (layers.isEmpty()) {
+            return new Point(0, 0);
+        }
+        return roundedPoint(globalAnchorPoint(layers.get(0), layers.get(0).root()));
+    }
+
+    String hitSummaryForTest(Point point) {
+        TreeViewportNavigationSupport.TreeHit hit = hitAt(point);
+        return hit == null ? "" : hit.summaryText();
+    }
+
+    String informationTextForTest(Point point) {
+        TreeViewportNavigationSupport.TreeHit hit = hitAt(point);
+        return hit == null ? "" : hit.detailsText();
+    }
+
+    JPopupMenu popupMenuForTest(Point point) {
+        return navigationController.createPopupMenu(point);
     }
 
     int preparedAnnotationCountForTest() {
@@ -268,6 +352,19 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             return new Dimension(1320, 920);
         }
         return new Dimension(size);
+    }
+
+    private boolean preparedRenderMatchesCanvasSize() {
+        Dimension preparedSize = preparedCanvasSize;
+        if (preparedSize == null) {
+            return false;
+        }
+        Dimension currentSize = currentViewportSize();
+        return currentSize.width == preparedSize.width && currentSize.height == preparedSize.height;
+    }
+
+    private boolean shouldPaintLoadingMessage() {
+        return loading && (preparedLayers.isEmpty() || !preparedRenderMatchesCanvasSize());
     }
 
     private PreparedRender prepareRender(
@@ -664,11 +761,123 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     }
 
     private static Point2D.Double globalAnchorPoint(PreparedLayer layer, ReflectGraphicNode<EvolNode> node) {
-        double localX = layer.contentX() + node.getYSelf();
-        double localY = layer.contentY() + node.getXSelf();
+        return globalTreePoint(layer, node.getYSelf(), node.getXSelf());
+    }
+
+    private static Point2D.Double globalTreePoint(PreparedLayer layer, double treeX, double treeY) {
+        double localX = layer.contentX() + treeX;
+        double localY = layer.contentY() + treeY;
         return new Point2D.Double(
                 layer.x() + localX,
                 layer.y() + localY + (SHEAR_Y * localX));
+    }
+
+    private TreeViewportNavigationSupport.TreeHit hitAt(Point point) {
+        if (point == null || errorMessage != null) {
+            return null;
+        }
+        List<PreparedLayer> layers = preparedLayers;
+        for (PreparedLayer layer : layers) {
+            TreeViewportNavigationSupport.TreeHit nodeHit = hitLayerNodes(layer, layer.root(), point);
+            if (nodeHit != null) {
+                return nodeHit;
+            }
+        }
+        for (PreparedLayer layer : layers) {
+            TreeViewportNavigationSupport.TreeHit branchHit = hitLayerBranches(layer, layer.root(), point);
+            if (branchHit != null) {
+                return branchHit;
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static TreeViewportNavigationSupport.TreeHit hitLayerNodes(
+            PreparedLayer layer,
+            ReflectGraphicNode<EvolNode> node,
+            Point point) {
+        if (globalAnchorPoint(layer, node).distance(point) <= NODE_HIT_RADIUS) {
+            return toHit(layer, node);
+        }
+        for (int index = 0; index < node.getChildCount(); index++) {
+            TreeViewportNavigationSupport.TreeHit childHit = hitLayerNodes(
+                    layer,
+                    (ReflectGraphicNode<EvolNode>) node.getChildAt(index),
+                    point);
+            if (childHit != null) {
+                return childHit;
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static TreeViewportNavigationSupport.TreeHit hitLayerBranches(
+            PreparedLayer layer,
+            ReflectGraphicNode<EvolNode> node,
+            Point point) {
+        if (node.getParent() != null) {
+            Point2D.Double self = globalTreePoint(layer, node.getYSelf(), node.getXSelf());
+            Point2D.Double parent = globalTreePoint(layer, node.getYParent(), node.getXParent());
+            if (Line2D.ptSegDist(self.x, self.y, parent.x, parent.y, point.x, point.y) <= BRANCH_HIT_TOLERANCE) {
+                return toHit(layer, node);
+            }
+        }
+
+        if (node.getChildCount() > 0) {
+            ReflectGraphicNode<EvolNode> firstChild = (ReflectGraphicNode<EvolNode>) node.getFirstChild();
+            ReflectGraphicNode<EvolNode> lastChild = (ReflectGraphicNode<EvolNode>) node.getLastChild();
+            Point2D.Double first = globalTreePoint(layer, firstChild.getYParent(), firstChild.getXParent());
+            Point2D.Double last = globalTreePoint(layer, lastChild.getYParent(), lastChild.getXParent());
+            if (Line2D.ptSegDist(first.x, first.y, last.x, last.y, point.x, point.y) <= BRANCH_HIT_TOLERANCE) {
+                return toHit(layer, node);
+            }
+            for (int index = 0; index < node.getChildCount(); index++) {
+                TreeViewportNavigationSupport.TreeHit childHit = hitLayerBranches(
+                        layer,
+                        (ReflectGraphicNode<EvolNode>) node.getChildAt(index),
+                        point);
+                if (childHit != null) {
+                    return childHit;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static TreeViewportNavigationSupport.TreeHit toHit(
+            PreparedLayer layer,
+            ReflectGraphicNode<EvolNode> node) {
+        EvolNode evolNode = node.getReflectNode();
+        return new TreeViewportNavigationSupport.TreeHit(
+                "3D Tree Alignment",
+                layer.label(),
+                evolNode.getName(),
+                node.getChildCount() == 0,
+                evolNode.getLength(),
+                node.getChildCount(),
+                leafNameListForNode(node),
+                roundedPoint(globalAnchorPoint(layer, node)));
+    }
+
+    private static Point roundedPoint(Point2D.Double point) {
+        return new Point(
+                (int) Math.round(point.x),
+                (int) Math.round(point.y));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> leafNameListForNode(ReflectGraphicNode<EvolNode> node) {
+        if (node.getChildCount() == 0) {
+            String name = node.getReflectNode().getName();
+            return name == null || name.trim().isEmpty() ? List.of() : List.of(name.trim());
+        }
+        List<String> leafNames = new ArrayList<>();
+        for (int index = 0; index < node.getChildCount(); index++) {
+            leafNames.addAll(leafNameListForNode((ReflectGraphicNode<EvolNode>) node.getChildAt(index)));
+        }
+        return List.copyOf(leafNames);
     }
 
     @SuppressWarnings("unchecked")
@@ -872,6 +1081,38 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         return leafNames;
     }
 
+    private static List<String> findNamedInternalNodeLeafNames(List<ImportedTreeSpec> importedTrees, String nodeName) {
+        if (importedTrees == null || nodeName == null || nodeName.trim().isEmpty()) {
+            return List.of();
+        }
+        String targetName = nodeName.trim();
+        for (ImportedTreeSpec importedTree : importedTrees) {
+            List<String> leafNames = new ArrayList<>(findNamedInternalNodeLeafNames(importedTree.root(), targetName));
+            if (!leafNames.isEmpty()) {
+                leafNames.sort(String::compareTo);
+                return List.copyOf(leafNames);
+            }
+        }
+        return List.of();
+    }
+
+    private static List<String> findNamedInternalNodeLeafNames(EvolNode node, String targetName) {
+        if (node == null || node.getChildCount() == 0) {
+            return List.of();
+        }
+        String nodeName = node.getName();
+        if (nodeName != null && nodeName.trim().equals(targetName)) {
+            return collectLeafNames(node);
+        }
+        for (int index = 0; index < node.getChildCount(); index++) {
+            List<String> leafNames = findNamedInternalNodeLeafNames(EvolNodeUtil.getChildrenAt(node, index), targetName);
+            if (!leafNames.isEmpty()) {
+                return leafNames;
+            }
+        }
+        return List.of();
+    }
+
     private static Color quickLabelColor(int index) {
         Color[] colors = new Color[] {
                 new Color(79, 140, 255, 145),
@@ -923,7 +1164,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             graphics2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-            if (loading) {
+            if (shouldPaintLoadingMessage()) {
                 paintCenteredMessage(graphics2d, "Preparing 3D tree alignment...", new Color(94, 112, 137));
                 graphics2d.dispose();
                 return;
@@ -1073,7 +1314,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
     @Override
     public boolean canExport() {
-        return !loading && errorMessage == null;
+        return !loading && errorMessage == null && preparedRenderMatchesCanvasSize();
     }
 
     private record PreparedRender(

@@ -10,10 +10,12 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.Stroke;
 import java.awt.geom.CubicCurve2D;
 import java.awt.geom.Line2D;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,6 +27,8 @@ final class CustomTanglegramPanel extends JPanel {
     private static final int LEAF_LABEL_GAP = 8;
     private static final int CONNECTOR_LABEL_GAP = 14;
     private static final int MIN_BRANCH_WIDTH = 110;
+    private static final double NODE_HIT_RADIUS = 10.0d;
+    private static final double BRANCH_HIT_TOLERANCE = 2.5d;
     private static final Stroke TREE_STROKE = new BasicStroke(1.0f);
 
     private final TanglegramPanelFactory.PreparedPair preparedPair;
@@ -32,6 +36,7 @@ final class CustomTanglegramPanel extends JPanel {
     private final TreeLeafArrangementOptions leafArrangementOptions;
     private final Font labelFont;
     private final Font branchLengthFont;
+    private volatile Layout cachedLayout;
 
     CustomTanglegramPanel(
             TanglegramPanelFactory.PreparedPair preparedPair,
@@ -56,12 +61,166 @@ final class CustomTanglegramPanel extends JPanel {
         graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         graphics2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         Layout layout = buildLayout(graphics2d);
+        cachedLayout = layout;
         drawTreeStructure(graphics2d, layout.leftRoot());
         drawTreeStructure(graphics2d, layout.rightRoot());
         drawConnectors(graphics2d, layout.leftLeafEndpoints(), layout.rightLeafEndpoints());
         drawLeafLabels(graphics2d, layout.leftLeafEndpoints(), true);
         drawLeafLabels(graphics2d, layout.rightLeafEndpoints(), false);
         graphics2d.dispose();
+    }
+
+    TreeViewportNavigationSupport.TreeHit hitAt(Point point) {
+        if (point == null) {
+            return null;
+        }
+        Layout layout = layoutForHitTesting();
+        TreeViewportNavigationSupport.TreeHit leftHit = hitTree(layout.leftRoot(), "Left tree", point);
+        if (leftHit != null) {
+            return leftHit;
+        }
+        return hitTree(layout.rightRoot(), "Right tree", point);
+    }
+
+    Point firstNodePointForTest() {
+        return roundedPoint(layoutForHitTesting().leftRoot());
+    }
+
+    private Layout layoutForHitTesting() {
+        Layout layout = cachedLayout;
+        if (layout != null) {
+            return layout;
+        }
+        Dimension paintableSize = ensurePaintableSize();
+        BufferedImage image = new BufferedImage(
+                Math.max(1, paintableSize.width),
+                Math.max(1, paintableSize.height),
+                BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics2d = image.createGraphics();
+        try {
+            graphics2d.setFont(labelFont);
+            layout = buildLayout(graphics2d);
+            cachedLayout = layout;
+            return layout;
+        } finally {
+            graphics2d.dispose();
+        }
+    }
+
+    private Dimension ensurePaintableSize() {
+        Dimension size = getSize();
+        if (size.width > 0 && size.height > 0) {
+            return size;
+        }
+        Dimension preferredSize = getPreferredSize();
+        Dimension effectiveSize = new Dimension(
+                Math.max(1, preferredSize.width),
+                Math.max(1, preferredSize.height));
+        setSize(effectiveSize);
+        return effectiveSize;
+    }
+
+    private TreeViewportNavigationSupport.TreeHit hitTree(
+            ReflectGraphicNode<EvolNode> root,
+            String sideName,
+            Point point) {
+        TreeViewportNavigationSupport.TreeHit nodeHit = hitTreeNodes(root, sideName, point);
+        if (nodeHit != null) {
+            return nodeHit;
+        }
+        return hitTreeBranches(root, sideName, point);
+    }
+
+    @SuppressWarnings("unchecked")
+    private TreeViewportNavigationSupport.TreeHit hitTreeNodes(
+            ReflectGraphicNode<EvolNode> node,
+            String sideName,
+            Point point) {
+        if (point.distance(node.getXSelf(), node.getYSelf()) <= NODE_HIT_RADIUS) {
+            return toHit(sideName, node);
+        }
+        for (int index = 0; index < node.getChildCount(); index++) {
+            TreeViewportNavigationSupport.TreeHit childHit = hitTreeNodes(
+                    (ReflectGraphicNode<EvolNode>) node.getChildAt(index),
+                    sideName,
+                    point);
+            if (childHit != null) {
+                return childHit;
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private TreeViewportNavigationSupport.TreeHit hitTreeBranches(
+            ReflectGraphicNode<EvolNode> node,
+            String sideName,
+            Point point) {
+        if (node.getParent() != null
+                && Line2D.ptSegDist(
+                        node.getXParent(),
+                        node.getYSelf(),
+                        node.getXSelf(),
+                        node.getYSelf(),
+                        point.x,
+                        point.y) <= BRANCH_HIT_TOLERANCE) {
+            return toHit(sideName, node);
+        }
+        if (node.getChildCount() > 0) {
+            ReflectGraphicNode<EvolNode> firstChild = (ReflectGraphicNode<EvolNode>) node.getFirstChild();
+            ReflectGraphicNode<EvolNode> lastChild = (ReflectGraphicNode<EvolNode>) node.getLastChild();
+            if (Line2D.ptSegDist(
+                    node.getXSelf(),
+                    firstChild.getYSelf(),
+                    node.getXSelf(),
+                    lastChild.getYSelf(),
+                    point.x,
+                    point.y) <= BRANCH_HIT_TOLERANCE) {
+                return toHit(sideName, node);
+            }
+            for (int index = 0; index < node.getChildCount(); index++) {
+                TreeViewportNavigationSupport.TreeHit childHit = hitTreeBranches(
+                        (ReflectGraphicNode<EvolNode>) node.getChildAt(index),
+                        sideName,
+                        point);
+                if (childHit != null) {
+                    return childHit;
+                }
+            }
+        }
+        return null;
+    }
+
+    private TreeViewportNavigationSupport.TreeHit toHit(String sideName, ReflectGraphicNode<EvolNode> node) {
+        EvolNode evolNode = node.getReflectNode();
+        return new TreeViewportNavigationSupport.TreeHit(
+                "Tanglegram",
+                sideName,
+                evolNode.getName(),
+                node.getChildCount() == 0,
+                evolNode.getLength(),
+                node.getChildCount(),
+                leafNamesForNode(node),
+                roundedPoint(node));
+    }
+
+    private static Point roundedPoint(ReflectGraphicNode<EvolNode> node) {
+        return new Point(
+                (int) Math.round(node.getXSelf()),
+                (int) Math.round(node.getYSelf()));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> leafNamesForNode(ReflectGraphicNode<EvolNode> node) {
+        if (node.getChildCount() == 0) {
+            String name = node.getReflectNode().getName();
+            return name == null || name.trim().isEmpty() ? List.of() : List.of(name.trim());
+        }
+        List<String> leafNames = new ArrayList<>();
+        for (int index = 0; index < node.getChildCount(); index++) {
+            leafNames.addAll(leafNamesForNode((ReflectGraphicNode<EvolNode>) node.getChildAt(index)));
+        }
+        return List.copyOf(leafNames);
     }
 
     private Layout buildLayout(Graphics2D graphics2d) {

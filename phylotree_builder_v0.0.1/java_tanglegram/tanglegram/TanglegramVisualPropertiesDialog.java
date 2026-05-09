@@ -20,6 +20,7 @@ import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 
 final class TanglegramVisualPropertiesDialog extends JDialog {
+    private static volatile String[] cachedFontFamilyNames;
     private final JSpinner connectorGapSpinner;
     private final JSpinner connectorWidthSpinner;
     private final JSpinner connectorDashLengthSpinner;
@@ -53,7 +54,7 @@ final class TanglegramVisualPropertiesDialog extends JDialog {
         connectorDashLengthSpinner = new JSpinner(new SpinnerNumberModel(Double.valueOf(currentOptions.connectorDashLength()), Double.valueOf(1.0d), Double.valueOf(30.0d), Double.valueOf(0.5d)));
         connectorDashGapSpinner = new JSpinner(new SpinnerNumberModel(Double.valueOf(currentOptions.connectorDashGap()), Double.valueOf(1.0d), Double.valueOf(30.0d), Double.valueOf(0.5d)));
         showLeafLabelsCheckBox = new JCheckBox(UiText.text("Show leaf labels", "显示叶节点标签"), currentOptions.showLeafLabels());
-        fontFamilyCombo = new JComboBox<>(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
+        fontFamilyCombo = new JComboBox<>(availableFontFamilyNames());
         fontFamilyCombo.setSelectedItem(currentOptions.labelFontFamily());
         fontStyleCombo = new JComboBox<>(new FontStyleOption[] {
                 new FontStyleOption(java.awt.Font.PLAIN, UiText.text("Plain", "常规")),
@@ -107,6 +108,25 @@ final class TanglegramVisualPropertiesDialog extends JDialog {
             TanglegramRenderOptions currentOptions,
             Consumer<TanglegramRenderOptions> applyCallback) {
         new TanglegramVisualPropertiesDialog(owner, currentOptions, applyCallback).setVisible(true);
+    }
+
+    static void warmUpFontFamilyNames() {
+        if (cachedFontFamilyNames != null) {
+            return;
+        }
+        Thread loader = new Thread(TanglegramVisualPropertiesDialog::availableFontFamilyNames, "tanglegram-font-family-loader");
+        loader.setDaemon(true);
+        loader.start();
+    }
+
+    private static String[] availableFontFamilyNames() {
+        String[] cachedNames = cachedFontFamilyNames;
+        if (cachedNames != null) {
+            return cachedNames.clone();
+        }
+        String[] loadedNames = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
+        cachedFontFamilyNames = loadedNames.clone();
+        return loadedNames;
     }
 
     private void applyValues() {

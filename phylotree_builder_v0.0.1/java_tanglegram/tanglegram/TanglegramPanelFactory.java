@@ -2,14 +2,12 @@ package tanglegram;
 
 import evoltree.struct.EvolNode;
 import evoltree.struct.TreeDecoder;
-import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import javax.swing.BorderFactory;
 import javax.swing.JPanel;
 import javax.swing.UIManager;
 
@@ -54,18 +52,7 @@ public final class TanglegramPanelFactory {
         Font labelFont = resolveLabelFont();
         JPanel innerPanel = new CustomTanglegramPanel(preparedPair, renderOptions, leafArrangementOptions, labelFont);
         innerPanel.setPreferredSize(effectiveSize);
-
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(
-                renderOptions.verticalPadding(),
-                renderOptions.horizontalPadding(),
-                renderOptions.verticalPadding(),
-                renderOptions.horizontalPadding()));
-        panel.add(innerPanel, BorderLayout.CENTER);
-        panel.setPreferredSize(new Dimension(
-                effectiveSize.width + (renderOptions.horizontalPadding() * 2),
-                effectiveSize.height + (renderOptions.verticalPadding() * 2)));
-        return panel;
+        return innerPanel;
     }
 
     private static String readTree(Path treeFile) throws IOException {

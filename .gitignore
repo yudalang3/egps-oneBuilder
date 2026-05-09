@@ -18,5 +18,6 @@
 /input_demo/prot_seqs_with_structure/demo_outputs/
 /input_demo/prot_seqs_with_structure/foldseek_structure_similarity/
 /input_demo/prot_seqs_with_structure/*.aligned.*
+/input_demo/prot_seqs_wnt_human
 *.log
 *.class

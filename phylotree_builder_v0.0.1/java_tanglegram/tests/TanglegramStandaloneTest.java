@@ -4,9 +4,14 @@ import evoltree.struct.EvolNode;
 import evoltree.struct.TreeDecoder;
 import java.awt.Color;
 import java.awt.Container;
+import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.Point;
 import java.awt.Component;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
 import java.awt.image.BufferedImage;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -20,7 +25,12 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JScrollPane;
+import javax.swing.JViewport;
 import javax.swing.JSeparator;
 import javax.swing.SwingUtilities;
 
@@ -68,11 +78,19 @@ public final class TanglegramStandaloneTest {
             run("keepsFourMethodPairsWhenProteinStructureTreeIsMissing", TanglegramStandaloneTest::keepsFourMethodPairsWhenProteinStructureTreeIsMissing);
             run("loadsOnlyAvailablePairsWhenOneMethodIsMissing", TanglegramStandaloneTest::loadsOnlyAvailablePairsWhenOneMethodIsMissing);
             run("rendersPairPanelForResolvedTrees", TanglegramStandaloneTest::rendersPairPanelForResolvedTrees);
+            run("wrapsTanglegramCanvasInScrollableExportableView", TanglegramStandaloneTest::wrapsTanglegramCanvasInScrollableExportableView);
+            run("supportsTanglegramViewportNavigationMenus", TanglegramStandaloneTest::supportsTanglegramViewportNavigationMenus);
+            run("usesScreenCoordinatesForSmoothViewportDragging", TanglegramStandaloneTest::usesScreenCoordinatesForSmoothViewportDragging);
             run("supportsStandaloneVisualPropertiesControls", TanglegramStandaloneTest::supportsStandaloneVisualPropertiesControls);
             run("supportsThreeDAlignmentControls", TanglegramStandaloneTest::supportsThreeDAlignmentControls);
+            run("supportsThreeDViewportNavigationMenus", TanglegramStandaloneTest::supportsThreeDViewportNavigationMenus);
+            run("keepsViewportStableWhenOpeningContextMenuAfterZoom", TanglegramStandaloneTest::keepsViewportStableWhenOpeningContextMenuAfterZoom);
+            run("providesCopyableThreeDNodeInformationWithLeafNames", TanglegramStandaloneTest::providesCopyableThreeDNodeInformationWithLeafNames);
+            run("hidesStaleThreeDRenderAfterCanvasResize", TanglegramStandaloneTest::hidesStaleThreeDRenderAfterCanvasResize);
             run("defaultsThreeDAlignmentRootAnnotation", TanglegramStandaloneTest::defaultsThreeDAlignmentRootAnnotation);
             run("preparesThreeDAnnotationAnchorsBeforePainting", TanglegramStandaloneTest::preparesThreeDAnnotationAnchorsBeforePainting);
             run("preparesThreeDAnnotationsWhenSomeTreesLackClade", TanglegramStandaloneTest::preparesThreeDAnnotationsWhenSomeTreesLackClade);
+            run("resolvesNamedInternalNodeConsistencyAnnotation", TanglegramStandaloneTest::resolvesNamedInternalNodeConsistencyAnnotation);
             run("quickLabelsAndCleansThreeDConsistencyAnnotations", TanglegramStandaloneTest::quickLabelsAndCleansThreeDConsistencyAnnotations);
             run("calculatesZeroTreeDifferenceForIdenticalTrees", TanglegramStandaloneTest::calculatesZeroTreeDifferenceForIdenticalTrees);
             run("calculatesZeroTopologyDifferenceForSameCladesWithDifferentChildOrder", TanglegramStandaloneTest::calculatesZeroTopologyDifferenceForSameCladesWithDifferentChildOrder);
@@ -283,6 +301,83 @@ public final class TanglegramStandaloneTest {
         assertTrue(view.getComponentCount() > 0 && view.getComponent(0) != null, "expected rendered viewport content");
     }
 
+    private static void wrapsTanglegramCanvasInScrollableExportableView() throws Exception {
+        ResizableTanglegramView view = renderedTanglegramView();
+        JScrollPane scrollPane = findRequiredScrollPane(view);
+        JComponent exportComponent = invokeNoArg(view, "getExportComponent", JComponent.class);
+
+        assertTrue(scrollPane.getViewport().getView() == exportComponent,
+                "expected scroll pane viewport to hold the exportable drawing component");
+        assertTrue(exportComponent != view && exportComponent != scrollPane,
+                "expected export to exclude the outer view and scroll bars");
+    }
+
+    private static void supportsTanglegramViewportNavigationMenus() throws Exception {
+        ResizableTanglegramView view = renderedTanglegramView();
+        JScrollPane scrollPane = findRequiredScrollPane(view);
+        JViewport viewport = scrollPane.getViewport();
+        JComponent exportComponent = invokeNoArg(view, "getExportComponent", JComponent.class);
+        Dimension beforeZoom = exportComponent.getPreferredSize();
+
+        dispatchWheel(exportComponent, beforeZoom.width / 2, beforeZoom.height / 2, -1);
+        Dimension afterZoom = exportComponent.getPreferredSize();
+        assertTrue(afterZoom.width > beforeZoom.width && afterZoom.height > beforeZoom.height,
+                "mouse wheel should enlarge the tanglegram drawing component");
+
+        dispatchLeftDrag(exportComponent, new Point(220, 220), new Point(80, 70));
+        Point viewPosition = viewport.getViewPosition();
+        assertTrue(viewPosition.x > 0 || viewPosition.y > 0,
+                "left-button drag should pan the viewport");
+
+        invokeNoArg(view, "fitFrameForTest", Object.class);
+        Dimension extent = viewport.getExtentSize();
+        Dimension fitted = exportComponent.getPreferredSize();
+        assertEquals(extent, fitted, "Fit frame should restore the drawing component to the viewport extent");
+
+        Point nodePoint = invokeNoArg(view, "firstNodePointForTest", Point.class);
+        JPopupMenu nodeMenu = invokeWithPoint(view, "popupMenuForTest", nodePoint, JPopupMenu.class);
+        assertEquals(
+                Arrays.asList("Display more information", "Zoom to see node"),
+                menuItemLabels(nodeMenu),
+                "unexpected node popup items");
+
+        JPopupMenu blankMenu = invokeWithPoint(view, "popupMenuForTest", new Point(3, 3), JPopupMenu.class);
+        assertEquals(
+                Arrays.asList("Refresh (Fit frame)", "Zoom the area"),
+                menuItemLabels(blankMenu),
+                "unexpected blank-area popup items");
+    }
+
+    private static void usesScreenCoordinatesForSmoothViewportDragging() throws Exception {
+        ResizableTanglegramView view = renderedTanglegramView();
+        JScrollPane scrollPane = findRequiredScrollPane(view);
+        JViewport viewport = scrollPane.getViewport();
+        JComponent exportComponent = invokeNoArg(view, "getExportComponent", JComponent.class);
+        dispatchWheel(exportComponent, 450, 350, -2);
+        viewport.setViewPosition(new Point(0, 0));
+
+        long now = System.currentTimeMillis();
+        dispatchMouse(exportComponent, MouseEvent.MOUSE_PRESSED, now, 300, 300, 1000, 1000, MouseEvent.BUTTON1_DOWN_MASK, MouseEvent.BUTTON1);
+        assertEquals(
+                Integer.valueOf(Cursor.CROSSHAIR_CURSOR),
+                Integer.valueOf(exportComponent.getCursor().getType()),
+                "left-button drag should show the crosshair cursor");
+
+        dispatchMouse(exportComponent, MouseEvent.MOUSE_DRAGGED, now + 1L, 200, 200, 900, 900, MouseEvent.BUTTON1_DOWN_MASK, MouseEvent.NOBUTTON);
+        assertEquals(new Point(100, 100), viewport.getViewPosition(),
+                "first drag event should pan by the screen delta");
+
+        dispatchMouse(exportComponent, MouseEvent.MOUSE_DRAGGED, now + 2L, 300, 300, 880, 880, MouseEvent.BUTTON1_DOWN_MASK, MouseEvent.NOBUTTON);
+        assertEquals(new Point(120, 120), viewport.getViewPosition(),
+                "later drag events should ignore component-coordinate feedback from viewport movement");
+
+        dispatchMouse(exportComponent, MouseEvent.MOUSE_RELEASED, now + 3L, 300, 300, 880, 880, 0, MouseEvent.BUTTON1);
+        assertEquals(
+                Integer.valueOf(Cursor.DEFAULT_CURSOR),
+                Integer.valueOf(exportComponent.getCursor().getType()),
+                "cursor should reset after left-button drag");
+    }
+
     private static void supportsStandaloneVisualPropertiesControls() throws Exception {
         Path movedOutput = copySampleOutput();
         TreeSummaryLoadResult result = TreeSummaryLoader.load(movedOutput.resolve("tree_summary"));
@@ -340,6 +435,109 @@ public final class TanglegramStandaloneTest {
         assertTrue(view.getExportComponent() != view, "3D alignment export should exclude bottom control buttons");
     }
 
+    private static void supportsThreeDViewportNavigationMenus() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
+        view.setSize(1100, 780);
+        view.doLayout();
+        JScrollPane scrollPane = findRequiredScrollPane(view);
+        assertTrue(findButtons(view).size() >= 4, "expected bottom 3D controls to remain outside the scroll pane");
+        assertTrue(scrollPane.getViewport().getView() == view.getExportComponent(),
+                "3D scroll pane should wrap the exportable canvas");
+
+        view.renderForCurrentSizeForTest();
+        waitUntil(view::canExport, 3000, "3D alignment view did not finish rendering");
+        JComponent canvas = view.getExportComponent();
+        Dimension beforeZoom = canvas.getPreferredSize();
+        Long sequenceBefore = invokeNoArg(view, "renderSequenceForTest", Long.class);
+
+        dispatchWheel(canvas, beforeZoom.width / 2, beforeZoom.height / 2, -1);
+        Dimension afterZoom = canvas.getPreferredSize();
+        Long sequenceAfter = invokeNoArg(view, "renderSequenceForTest", Long.class);
+        assertTrue(afterZoom.width > beforeZoom.width && afterZoom.height > beforeZoom.height,
+                "mouse wheel should enlarge the 3D alignment canvas");
+        assertTrue(sequenceAfter.longValue() > sequenceBefore.longValue(),
+                "3D zoom should schedule an asynchronous rerender");
+
+        Point nodePoint = invokeNoArg(view, "firstNodePointForTest", Point.class);
+        String hitSummary = invokeWithPoint(view, "hitSummaryForTest", nodePoint, String.class);
+        assertTrue(hitSummary.contains("3D Tree Alignment") && hitSummary.contains("Tree A"),
+                "3D hit testing should identify the rendered layer and node");
+
+        JPopupMenu nodeMenu = invokeWithPoint(view, "popupMenuForTest", nodePoint, JPopupMenu.class);
+        assertEquals(
+                Arrays.asList("Display more information", "Zoom to see node"),
+                menuItemLabels(nodeMenu),
+                "unexpected 3D node popup items");
+
+        JPopupMenu blankMenu = invokeWithPoint(view, "popupMenuForTest", new Point(3, 3), JPopupMenu.class);
+        assertEquals(
+                Arrays.asList("Refresh (Fit frame)", "Zoom the area"),
+                menuItemLabels(blankMenu),
+                "unexpected 3D blank-area popup items");
+    }
+
+    private static void keepsViewportStableWhenOpeningContextMenuAfterZoom() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
+        view.setSize(1100, 780);
+        view.doLayout();
+        view.renderForCurrentSizeForTest();
+        waitUntil(view::canExport, 3000, "3D alignment view did not finish rendering before context-menu check");
+
+        JScrollPane scrollPane = findRequiredScrollPane(view);
+        JViewport viewport = scrollPane.getViewport();
+        JComponent canvas = view.getExportComponent();
+        dispatchWheel(canvas, 560, 360, -2);
+        viewport.setViewPosition(new Point(140, 110));
+        Dimension sizeBefore = canvas.getPreferredSize();
+        Point viewPositionBefore = viewport.getViewPosition();
+
+        JPopupMenu blankMenu = invokeWithPoint(view, "popupMenuForTest", new Point(560, 360), JPopupMenu.class);
+
+        assertTrue(!blankMenu.isLightWeightPopupEnabled(),
+                "context menu should use a heavyweight popup so it is not clipped or repainted as part of the zoomed canvas");
+        assertEquals(sizeBefore, canvas.getPreferredSize(),
+                "opening a context menu after zoom must not resize the 3D canvas");
+        assertEquals(viewPositionBefore, viewport.getViewPosition(),
+                "opening a context menu after zoom must not pan the viewport");
+    }
+
+    private static void providesCopyableThreeDNodeInformationWithLeafNames() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
+        view.setSize(1100, 780);
+        view.doLayout();
+        view.renderForCurrentSizeForTest();
+        waitUntil(view::canExport, 3000, "3D alignment view did not finish rendering before node-information check");
+
+        Point nodePoint = invokeNoArg(view, "firstNodePointForTest", Point.class);
+        String informationText = invokeWithPoint(view, "informationTextForTest", nodePoint, String.class);
+        assertTrue(informationText.contains("Leaf names: Dog,Cow,Frog"),
+                "root node information should include copyable descendant leaf names for consistency annotations");
+        assertTrue(informationText.contains("Copy value for Consistency annotation: Dog,Cow,Frog"),
+                "node information should expose the exact comma-separated consistency annotation value");
+        assertTrue(informationText.contains("View type: 3D Tree Alignment"),
+                "node information should retain the basic view metadata");
+    }
+
+    private static void hidesStaleThreeDRenderAfterCanvasResize() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
+        view.setSize(1100, 780);
+        view.doLayout();
+        view.renderForCurrentSizeForTest();
+        waitUntil(view::canExport, 3000, "3D alignment view did not finish rendering before stale-render check");
+
+        JComponent canvas = view.getExportComponent();
+        Dimension renderedSize = canvas.getSize();
+        canvas.setPreferredSize(new Dimension(renderedSize.width + 240, renderedSize.height + 160));
+        canvas.setSize(canvas.getPreferredSize());
+        setPrivateBoolean(view, "loading", true);
+
+        BufferedImage image = new BufferedImage(canvas.getWidth(), canvas.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        canvas.paint(image.createGraphics());
+
+        assertTrue(countNearBlackPixels(image) < 50,
+                "resized 3D canvas should not paint stale black tree geometry while rerendering");
+    }
+
     private static void defaultsThreeDAlignmentRootAnnotation() throws Exception {
         ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
 
@@ -380,6 +578,24 @@ public final class TanglegramStandaloneTest {
                 "expected quick annotation to be prepared even when a later tree lacks the clade");
         assertEquals(Integer.valueOf(1), Integer.valueOf(view.preparedAnnotationAnchorCountForTest()),
                 "missing clade trees should keep null anchors without failing rendering");
+    }
+
+    private static void resolvesNamedInternalNodeConsistencyAnnotation() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(Arrays.asList(
+                new ImportedTreeSpec(Path.of("tree-a.nwk"), "Tree A", decodeTree("((Dog:1,Cow:1)Mammal:1,Frog:1);")),
+                new ImportedTreeSpec(Path.of("tree-b.nwk"), "Tree B", decodeTree("((Cow:1,Dog:1):1,Frog:1);"))));
+        view.setSize(1100, 780);
+        view.doLayout();
+        view.applyConsistencyAnnotationsForTest(List.of(
+                new ConsistencyAnnotation(List.of("Mammal"), new Color(255, 162, 52, 162), 5.0d)));
+        view.renderForCurrentSizeForTest();
+        waitUntil(view::canExport, 3000, "3D alignment view did not finish rendering with named internal-node annotation");
+
+        List<ConsistencyAnnotation> annotations = view.consistencyAnnotationsForTest();
+        assertEquals(Arrays.asList("Cow", "Dog"), annotations.get(0).leafNames(),
+                "named internal nodes should resolve to their descendant leaf names");
+        assertEquals(Integer.valueOf(2), Integer.valueOf(view.preparedAnnotationAnchorCountForTest()),
+                "resolved internal-node annotation should connect the same clade across both trees");
     }
 
     private static void quickLabelsAndCleansThreeDConsistencyAnnotations() throws Exception {
@@ -906,6 +1122,18 @@ public final class TanglegramStandaloneTest {
         return tempDir;
     }
 
+    private static ResizableTanglegramView renderedTanglegramView() throws Exception {
+        Path movedOutput = copySampleOutput();
+        TreeSummaryLoadResult result = TreeSummaryLoader.load(movedOutput.resolve("tree_summary"));
+        TreePairSpec firstPair = result.availablePairs().get(0);
+        ResizableTanglegramView view = new ResizableTanglegramView(firstPair, new TanglegramPanelFactory());
+        view.setSize(900, 700);
+        view.doLayout();
+        view.renderNowForTest(new Dimension(900, 700));
+        view.doLayout();
+        return view;
+    }
+
     private static void copyRecursively(Path source, Path target) throws Exception {
         try (Stream<Path> paths = Files.walk(source)) {
             for (Path path : paths.collect(Collectors.toList())) {
@@ -941,6 +1169,29 @@ public final class TanglegramStandaloneTest {
         List<JButton> buttons = new ArrayList<>();
         collectButtons(component, buttons);
         return buttons;
+    }
+
+    private static JScrollPane findRequiredScrollPane(Component component) {
+        JScrollPane scrollPane = findScrollPane(component);
+        if (scrollPane == null) {
+            throw new AssertionError("Missing JScrollPane in " + component.getClass().getName());
+        }
+        return scrollPane;
+    }
+
+    private static JScrollPane findScrollPane(Component component) {
+        if (component instanceof JScrollPane scrollPane) {
+            return scrollPane;
+        }
+        if (component instanceof Container container) {
+            for (Component child : container.getComponents()) {
+                JScrollPane found = findScrollPane(child);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private static void collectButtons(Component component, List<JButton> buttons) {
@@ -986,6 +1237,103 @@ public final class TanglegramStandaloneTest {
             }
         }
         return null;
+    }
+
+    private static List<String> menuItemLabels(JPopupMenu popupMenu) {
+        List<String> labels = new ArrayList<>();
+        for (Component component : popupMenu.getComponents()) {
+            if (component instanceof JMenuItem menuItem) {
+                labels.add(menuItem.getText());
+            }
+        }
+        return labels;
+    }
+
+    private static void dispatchWheel(Component component, int x, int y, int wheelRotation) {
+        MouseWheelEvent event = new MouseWheelEvent(
+                component,
+                MouseEvent.MOUSE_WHEEL,
+                System.currentTimeMillis(),
+                0,
+                Math.max(1, x),
+                Math.max(1, y),
+                0,
+                false,
+                MouseWheelEvent.WHEEL_UNIT_SCROLL,
+                1,
+                wheelRotation);
+        component.dispatchEvent(event);
+    }
+
+    private static void dispatchLeftDrag(Component component, Point start, Point end) {
+        long now = System.currentTimeMillis();
+        dispatchMouse(component, MouseEvent.MOUSE_PRESSED, now, start.x, start.y, start.x, start.y, MouseEvent.BUTTON1_DOWN_MASK, MouseEvent.BUTTON1);
+        dispatchMouse(component, MouseEvent.MOUSE_DRAGGED, now + 1L, end.x, end.y, end.x, end.y, MouseEvent.BUTTON1_DOWN_MASK, MouseEvent.NOBUTTON);
+        dispatchMouse(component, MouseEvent.MOUSE_RELEASED, now + 2L, end.x, end.y, end.x, end.y, 0, MouseEvent.BUTTON1);
+    }
+
+    private static void dispatchMouse(
+            Component component,
+            int eventId,
+            long when,
+            int x,
+            int y,
+            int absoluteX,
+            int absoluteY,
+            int modifiers,
+            int button) {
+        component.dispatchEvent(new MouseEvent(
+                component,
+                eventId,
+                when,
+                modifiers,
+                x,
+                y,
+                absoluteX,
+                absoluteY,
+                1,
+                false,
+                button));
+    }
+
+    private static <T> T invokeNoArg(Object target, String methodName, Class<T> returnType) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName);
+        method.setAccessible(true);
+        Object value = method.invoke(target);
+        if (returnType == Object.class) {
+            return null;
+        }
+        return returnType.cast(value);
+    }
+
+    private static <T> T invokeWithPoint(Object target, String methodName, Point point, Class<T> returnType) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName, Point.class);
+        method.setAccessible(true);
+        Object value = method.invoke(target, point);
+        return returnType.cast(value);
+    }
+
+    private static void setPrivateBoolean(Object target, String fieldName, boolean value) throws Exception {
+        java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.setBoolean(target, value);
+    }
+
+    private static int countNearBlackPixels(BufferedImage image) {
+        int count = 0;
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int argb = image.getRGB(x, y);
+                int alpha = (argb >>> 24) & 0xff;
+                int red = (argb >>> 16) & 0xff;
+                int green = (argb >>> 8) & 0xff;
+                int blue = argb & 0xff;
+                if (alpha > 0 && red < 50 && green < 50 && blue < 50) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     private static void waitUntil(BooleanSupplier condition, long timeoutMillis, String message) throws Exception {

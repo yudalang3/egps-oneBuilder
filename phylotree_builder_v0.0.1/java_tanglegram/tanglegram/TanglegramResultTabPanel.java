@@ -48,6 +48,7 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
         this.visualPropertiesButton = new JButton(UiText.text("Visual properties", "可视化属性"));
         this.visualPropertiesButton.setToolTipText(visualPropertiesTooltip());
         this.visualPropertiesButton.addActionListener(event -> openVisualPropertiesDialog());
+        TanglegramVisualPropertiesDialog.warmUpFontFamilyNames();
 
         JButton treeAlignmentButton = new JButton(UiText.text("3D Tree Alignment", "3D 树对齐"));
         treeAlignmentButton.setToolTipText(threeDAlignmentTooltip());
@@ -103,6 +104,9 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
     @Override
     public JComponent getExportComponent() {
         java.awt.Component selectedComponent = pairTabs.getSelectedComponent();
+        if (selectedComponent instanceof ExportableView exportableView) {
+            return exportableView.getExportComponent();
+        }
         if (selectedComponent instanceof JComponent exportComponent) {
             return exportComponent;
         }
@@ -110,7 +114,20 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
     }
 
     @Override
+    public boolean canExport() {
+        java.awt.Component selectedComponent = pairTabs.getSelectedComponent();
+        if (selectedComponent instanceof ExportableView exportableView) {
+            return exportableView.canExport();
+        }
+        return getExportComponent() != null;
+    }
+
+    @Override
     public Class<?> getExportContextClass() {
+        java.awt.Component selectedComponent = pairTabs.getSelectedComponent();
+        if (selectedComponent instanceof ExportableView exportableView) {
+            return exportableView.getExportContextClass();
+        }
         return TanglegramResultTabPanel.class;
     }
 
@@ -184,6 +201,9 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
 
     private void applyRenderOptions(TanglegramRenderOptions updatedOptions) {
         if (updatedOptions == null) {
+            return;
+        }
+        if (updatedOptions.equals(renderOptions)) {
             return;
         }
         int selectedIndex = pairTabs.getSelectedIndex();
