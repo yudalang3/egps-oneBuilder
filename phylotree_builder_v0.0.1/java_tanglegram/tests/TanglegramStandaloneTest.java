@@ -82,12 +82,16 @@ public final class TanglegramStandaloneTest {
             run("wrapsTanglegramCanvasInScrollableExportableView", TanglegramStandaloneTest::wrapsTanglegramCanvasInScrollableExportableView);
             run("supportsTanglegramViewportNavigationMenus", TanglegramStandaloneTest::supportsTanglegramViewportNavigationMenus);
             run("usesScreenCoordinatesForSmoothViewportDragging", TanglegramStandaloneTest::usesScreenCoordinatesForSmoothViewportDragging);
+            run("reusesTanglegramLayoutAcrossRepaints", TanglegramStandaloneTest::reusesTanglegramLayoutAcrossRepaints);
             run("supportsStandaloneVisualPropertiesControls", TanglegramStandaloneTest::supportsStandaloneVisualPropertiesControls);
+            run("preferenceFontFamilyNamesDoNotBlockWhenCold", TanglegramStandaloneTest::preferenceFontFamilyNamesDoNotBlockWhenCold);
             run("supportsThreeDAlignmentControls", TanglegramStandaloneTest::supportsThreeDAlignmentControls);
             run("supportsThreeDViewportNavigationMenus", TanglegramStandaloneTest::supportsThreeDViewportNavigationMenus);
             run("keepsViewportStableWhenOpeningContextMenuAfterZoom", TanglegramStandaloneTest::keepsViewportStableWhenOpeningContextMenuAfterZoom);
             run("providesCopyableThreeDNodeInformationWithLeafNames", TanglegramStandaloneTest::providesCopyableThreeDNodeInformationWithLeafNames);
             run("hidesStaleThreeDRenderAfterCanvasResize", TanglegramStandaloneTest::hidesStaleThreeDRenderAfterCanvasResize);
+            run("centersThreeDLoadingMessageInVisibleViewport", TanglegramStandaloneTest::centersThreeDLoadingMessageInVisibleViewport);
+            run("rendersThreeDAlignmentWithUnnamedLeaves", TanglegramStandaloneTest::rendersThreeDAlignmentWithUnnamedLeaves);
             run("defaultsThreeDAlignmentRootAnnotation", TanglegramStandaloneTest::defaultsThreeDAlignmentRootAnnotation);
             run("preparesThreeDAnnotationAnchorsBeforePainting", TanglegramStandaloneTest::preparesThreeDAnnotationAnchorsBeforePainting);
             run("preparesThreeDAnnotationsWhenSomeTreesLackClade", TanglegramStandaloneTest::preparesThreeDAnnotationsWhenSomeTreesLackClade);
@@ -397,6 +401,35 @@ public final class TanglegramStandaloneTest {
                 "cursor should reset after left-button drag");
     }
 
+    private static void reusesTanglegramLayoutAcrossRepaints() throws Exception {
+        EvolNode leftTree = decodeTree("((C:0.1,D:0.1):0.2,(A:0.1,B:0.1):0.3);");
+        EvolNode rightTree = decodeTree("((D:0.1,C:0.1):0.2,(B:0.1,A:0.1):0.3);");
+        TanglegramPanelFactory factory = new TanglegramPanelFactory(
+                TanglegramRenderOptions.defaults(),
+                TreeLeafArrangementOptions.defaults());
+        JPanel panel = factory.createPanel(
+                new TanglegramPanelFactory.PreparedPair(leftTree, rightTree),
+                new Dimension(900, 700));
+        panel.setSize(900, 700);
+        BufferedImage image = new BufferedImage(900, 700, BufferedImage.TYPE_INT_ARGB);
+
+        panel.paint(image.createGraphics());
+        Object firstLayout = getPrivateField(panel, "cachedLayout", Object.class);
+        panel.paint(image.createGraphics());
+        Object secondLayout = getPrivateField(panel, "cachedLayout", Object.class);
+
+        assertTrue(firstLayout == secondLayout,
+                "tanglegram layout should be reused across repaint-only operations to keep viewport dragging smooth");
+    }
+
+    private static void preferenceFontFamilyNamesDoNotBlockWhenCold() throws Exception {
+        setPrivateStaticField(TanglegramVisualPropertiesDialog.class, "cachedFontFamilyNames", null);
+
+        String[] names = TanglegramVisualPropertiesDialog.availableFontFamilyNamesForDialog();
+
+        assertTrue(names.length > 0, "expected a non-empty fallback font family list before background scan completes");
+    }
+
     private static void supportsStandaloneVisualPropertiesControls() throws Exception {
         Path movedOutput = copySampleOutput();
         TreeSummaryLoadResult result = TreeSummaryLoader.load(movedOutput.resolve("tree_summary"));
@@ -555,6 +588,55 @@ public final class TanglegramStandaloneTest {
 
         assertTrue(countNearBlackPixels(image) < 50,
                 "resized 3D canvas should not paint stale black tree geometry while rerendering");
+    }
+
+    private static void centersThreeDLoadingMessageInVisibleViewport() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
+        view.setSize(900, 640);
+        view.doLayout();
+        JScrollPane scrollPane = findRequiredScrollPane(view);
+        JViewport viewport = scrollPane.getViewport();
+        JComponent canvas = view.getExportComponent();
+        scrollPane.setSize(900, 560);
+        scrollPane.doLayout();
+        canvas.setPreferredSize(new Dimension(1800, 1280));
+        canvas.setSize(1800, 1280);
+        canvas.revalidate();
+        viewport.setViewPosition(new Point(700, 430));
+        setPrivateBoolean(view, "loading", true);
+
+        BufferedImage image = new BufferedImage(1800, 1280, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D graphics = image.createGraphics();
+        graphics.setColor(Color.WHITE);
+        graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
+        graphics.setClip(viewport.getViewRect());
+        canvas.paint(graphics);
+        graphics.dispose();
+
+        assertTrue(countNonWhitePixels(image, viewport.getViewRect()) > 0,
+                "3D loading message should be painted inside the currently visible scrolled viewport");
+    }
+
+    private static void rendersThreeDAlignmentWithUnnamedLeaves() throws Exception {
+        EvolNode leftTree = decodeTree("((A:0.1,B:0.1):0.2,C:0.3);");
+        EvolNode rightTree = decodeTree("((A:0.1,B:0.1):0.2,C:0.3);");
+        firstLeaf(leftTree).setName(null);
+        firstLeaf(rightTree).setName(null);
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(List.of(
+                new ImportedTreeSpec(Path.of("tree-a.nwk"), "Tree A", leftTree),
+                new ImportedTreeSpec(Path.of("tree-b.nwk"), "Tree B", rightTree)));
+        view.setSize(1100, 780);
+        view.doLayout();
+        view.renderForCurrentSizeForTest();
+        waitUntil(view::canExport, 3000, "3D alignment with unnamed leaves did not finish rendering");
+
+        JComponent canvas = view.getExportComponent();
+        Dimension canvasSize = canvas.getPreferredSize();
+        canvas.setSize(canvasSize);
+        BufferedImage image = new BufferedImage(canvasSize.width, canvasSize.height, BufferedImage.TYPE_INT_ARGB);
+        canvas.paint(image.createGraphics());
+
+        assertTrue(countNearBlackPixels(image) > 0, "unnamed leaves should not prevent 3D alignment rendering");
     }
 
     private static void defaultsThreeDAlignmentRootAnnotation() throws Exception {
@@ -1338,6 +1420,18 @@ public final class TanglegramStandaloneTest {
         field.setBoolean(target, value);
     }
 
+    private static <T> T getPrivateField(Object target, String fieldName, Class<T> returnType) throws Exception {
+        java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return returnType.cast(field.get(target));
+    }
+
+    private static void setPrivateStaticField(Class<?> targetClass, String fieldName, Object value) throws Exception {
+        java.lang.reflect.Field field = targetClass.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(null, value);
+    }
+
     private static int countNearBlackPixels(BufferedImage image) {
         int count = 0;
         for (int y = 0; y < image.getHeight(); y++) {
@@ -1348,6 +1442,22 @@ public final class TanglegramStandaloneTest {
                 int green = (argb >>> 8) & 0xff;
                 int blue = argb & 0xff;
                 if (alpha > 0 && red < 50 && green < 50 && blue < 50) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static int countNonWhitePixels(BufferedImage image, java.awt.Rectangle area) {
+        int count = 0;
+        int maxY = Math.min(image.getHeight(), area.y + area.height);
+        int maxX = Math.min(image.getWidth(), area.x + area.width);
+        for (int y = Math.max(0, area.y); y < maxY; y++) {
+            for (int x = Math.max(0, area.x); x < maxX; x++) {
+                Color color = new Color(image.getRGB(x, y), true);
+                if (color.getAlpha() > 0
+                        && (color.getRed() < 245 || color.getGreen() < 245 || color.getBlue() < 245)) {
                     count++;
                 }
             }

@@ -1165,12 +1165,12 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             graphics2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
             if (shouldPaintLoadingMessage()) {
-                paintCenteredMessage(graphics2d, "Preparing 3D tree alignment...", new Color(94, 112, 137));
+                paintCenteredMessage(graphics2d, "Preparing 3D tree alignment...", new Color(94, 112, 137), getVisibleRect());
                 graphics2d.dispose();
                 return;
             }
             if (errorMessage != null) {
-                paintCenteredMessage(graphics2d, errorMessage, new Color(184, 41, 41));
+                paintCenteredMessage(graphics2d, errorMessage, new Color(184, 41, 41), getVisibleRect());
                 graphics2d.dispose();
                 return;
             }
@@ -1193,13 +1193,23 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         }
     }
 
-    private static void paintCenteredMessage(Graphics2D graphics2d, String message, Color color) {
+    private static void paintCenteredMessage(Graphics2D graphics2d, String message, Color color, Rectangle visibleBounds) {
         graphics2d.setColor(color);
         FontMetrics fontMetrics = graphics2d.getFontMetrics();
         String safeMessage = message == null ? " " : message;
+        Rectangle clipBounds = graphics2d.getClipBounds();
+        if (clipBounds == null) {
+            clipBounds = new Rectangle(0, 0, 1, 1);
+        }
+        if (visibleBounds != null && visibleBounds.width > 0 && visibleBounds.height > 0) {
+            clipBounds = clipBounds.intersection(visibleBounds);
+            if (clipBounds.isEmpty()) {
+                clipBounds = new Rectangle(visibleBounds);
+            }
+        }
         int textWidth = fontMetrics.stringWidth(safeMessage);
-        int x = Math.max(12, (graphics2d.getClipBounds().width - textWidth) / 2);
-        int y = Math.max(fontMetrics.getHeight(), graphics2d.getClipBounds().height / 2);
+        int x = clipBounds.x + Math.max(12, (clipBounds.width - textWidth) / 2);
+        int y = clipBounds.y + Math.max(fontMetrics.getHeight(), clipBounds.height / 2);
         graphics2d.drawString(safeMessage, x, y);
     }
 
@@ -1230,12 +1240,13 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
         if (node.getChildCount() == 0) {
             String name = node.getReflectNode().getName();
+            String labelText = name == null ? "" : name;
             Graphics2D labelGraphics = (Graphics2D) graphics2d.create();
             labelGraphics.setFont(resolveLeafLabelFont());
             labelGraphics.setColor(treeLabelColor());
             labelGraphics.translate(node.getYSelf() - 2.0d, labelBaseY);
             labelGraphics.rotate(-Math.PI / 2.0d);
-            labelGraphics.drawString(name, 0, 0);
+            labelGraphics.drawString(labelText, 0, 0);
             labelGraphics.dispose();
 
             graphics2d.setColor(treeLineColor());

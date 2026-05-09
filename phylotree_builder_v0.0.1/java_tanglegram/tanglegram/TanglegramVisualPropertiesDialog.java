@@ -3,6 +3,7 @@ package tanglegram;
 import java.awt.BorderLayout;
 import java.awt.Dialog;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -20,6 +21,11 @@ import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 
 final class TanglegramVisualPropertiesDialog extends JDialog {
+    private static final String[] FALLBACK_FONT_FAMILY_NAMES = new String[] {
+            Font.SANS_SERIF,
+            Font.SERIF,
+            Font.MONOSPACED
+    };
     private static volatile String[] cachedFontFamilyNames;
     private final JSpinner connectorGapSpinner;
     private final JSpinner connectorWidthSpinner;
@@ -54,7 +60,7 @@ final class TanglegramVisualPropertiesDialog extends JDialog {
         connectorDashLengthSpinner = new JSpinner(new SpinnerNumberModel(Double.valueOf(currentOptions.connectorDashLength()), Double.valueOf(1.0d), Double.valueOf(30.0d), Double.valueOf(0.5d)));
         connectorDashGapSpinner = new JSpinner(new SpinnerNumberModel(Double.valueOf(currentOptions.connectorDashGap()), Double.valueOf(1.0d), Double.valueOf(30.0d), Double.valueOf(0.5d)));
         showLeafLabelsCheckBox = new JCheckBox(UiText.text("Show leaf labels", "显示叶节点标签"), currentOptions.showLeafLabels());
-        fontFamilyCombo = new JComboBox<>(availableFontFamilyNames());
+        fontFamilyCombo = new JComboBox<>(availableFontFamilyNamesForDialog());
         fontFamilyCombo.setSelectedItem(currentOptions.labelFontFamily());
         fontStyleCombo = new JComboBox<>(new FontStyleOption[] {
                 new FontStyleOption(java.awt.Font.PLAIN, UiText.text("Plain", "常规")),
@@ -117,6 +123,15 @@ final class TanglegramVisualPropertiesDialog extends JDialog {
         Thread loader = new Thread(TanglegramVisualPropertiesDialog::availableFontFamilyNames, "tanglegram-font-family-loader");
         loader.setDaemon(true);
         loader.start();
+    }
+
+    static String[] availableFontFamilyNamesForDialog() {
+        String[] cachedNames = cachedFontFamilyNames;
+        if (cachedNames != null) {
+            return cachedNames.clone();
+        }
+        warmUpFontFamilyNames();
+        return FALLBACK_FONT_FAMILY_NAMES.clone();
     }
 
     static String[] availableFontFamilyNames() {

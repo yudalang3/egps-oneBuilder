@@ -37,6 +37,7 @@ final class CustomTanglegramPanel extends JPanel {
     private final Font labelFont;
     private final Font branchLengthFont;
     private volatile Layout cachedLayout;
+    private volatile Dimension cachedLayoutSize;
 
     CustomTanglegramPanel(
             TanglegramPanelFactory.PreparedPair preparedPair,
@@ -60,8 +61,7 @@ final class CustomTanglegramPanel extends JPanel {
         Graphics2D graphics2d = (Graphics2D) graphics.create();
         graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         graphics2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        Layout layout = buildLayout(graphics2d);
-        cachedLayout = layout;
+        Layout layout = layoutForPainting(graphics2d);
         drawTreeStructure(graphics2d, layout.leftRoot());
         drawTreeStructure(graphics2d, layout.rightRoot());
         drawConnectors(graphics2d, layout.leftLeafEndpoints(), layout.rightLeafEndpoints());
@@ -88,7 +88,8 @@ final class CustomTanglegramPanel extends JPanel {
 
     private Layout layoutForHitTesting() {
         Layout layout = cachedLayout;
-        if (layout != null) {
+        Dimension size = currentLayoutSize();
+        if (layout != null && size.equals(cachedLayoutSize)) {
             return layout;
         }
         Dimension paintableSize = ensurePaintableSize();
@@ -101,10 +102,34 @@ final class CustomTanglegramPanel extends JPanel {
             graphics2d.setFont(labelFont);
             layout = buildLayout(graphics2d);
             cachedLayout = layout;
+            cachedLayoutSize = currentLayoutSize();
             return layout;
         } finally {
             graphics2d.dispose();
         }
+    }
+
+    private Layout layoutForPainting(Graphics2D graphics2d) {
+        Dimension size = currentLayoutSize();
+        Layout layout = cachedLayout;
+        if (layout != null && size.equals(cachedLayoutSize)) {
+            return layout;
+        }
+        layout = buildLayout(graphics2d);
+        cachedLayout = layout;
+        cachedLayoutSize = size;
+        return layout;
+    }
+
+    private Dimension currentLayoutSize() {
+        Dimension size = getSize();
+        if (size.width > 0 && size.height > 0) {
+            return new Dimension(size);
+        }
+        Dimension preferredSize = getPreferredSize();
+        return new Dimension(
+                Math.max(1, preferredSize.width),
+                Math.max(1, preferredSize.height));
     }
 
     private Dimension ensurePaintableSize() {
