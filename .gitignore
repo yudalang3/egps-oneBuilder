@@ -15,13 +15,16 @@
 /docs/
 /old_archive/
 /apptainer
-/input_demo/prot_seqs_with_structure/demo_outputs/
-/input_demo/prot_seqs_with_structure/foldseek_structure_similarity/
-/input_demo/prot_seqs_with_structure/*.aligned.*
-/input_demo/prot_seqs_wnt_human
+/input_demo/prot_seqs_fzd_human/demo_outputs/
+/input_demo/prot_seqs_fzd_human/foldseek_structure_similarity/
+/input_demo/prot_seqs_fzd_human/*.aligned.*
+/input_demo/prot_seqs_wnt_human/demo_outputs/
+/input_demo/prot_seqs_wnt_human/foldseek_structure_similarity/
+/input_demo/prot_seqs_wnt_human/*.aligned.*
 *.log
 *.class
 /launch.md
+/skills/
 
 
 *~

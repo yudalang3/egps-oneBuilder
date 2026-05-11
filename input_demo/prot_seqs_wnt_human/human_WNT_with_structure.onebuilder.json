@@ -1,9 +1,9 @@
 {
   "run": {
     "input_type": "PROTEIN",
-    "input_file": "human_FZD_paralogs.fasta",
+    "input_file": "human_WNT_paralogs_protein.fasta",
     "output_base_dir": "demo_outputs",
-    "output_prefix": "human_FZD_with_structure_demo"
+    "output_prefix": "human_WNT_with_structure_demo"
   },
   "alignment": {
     "run_alignment_first": true,
@@ -89,7 +89,7 @@
       "enabled": true,
       "backend": "foldseek",
       "use_structure_manifest": true,
-      "structure_manifest_file": "human_FZD_structure_mapping.tsv",
+      "structure_manifest_file": "human_WNT_structure_mapping.tsv",
       "similarity_rule": "mean_qtmscore_ttmscore",
       "missing_distance": "1"
     }
