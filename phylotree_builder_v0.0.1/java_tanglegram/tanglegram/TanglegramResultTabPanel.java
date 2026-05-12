@@ -182,7 +182,7 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
                 defaults.labelFontFamily(),
                 defaults.labelFontStyle(),
                 defaults.showLeafLabels(),
-                4,
+                20,
                 2,
                 160,
                 defaults.connectorStrokeWidth(),
@@ -262,7 +262,8 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
         StringBuilder summary = new StringBuilder();
         summary.append(UiText.text("Source type: ", "来源类型: ")).append(sourceKind.displayName()).append('\n');
         summary.append(UiText.text("Source name: ", "来源名称: ")).append(sourceName).append('\n');
-        summary.append(UiText.text("Created at: ", "创建时间: ")).append(TIMESTAMP_FORMAT.format(LocalDateTime.now())).append('\n');
+        summary.append(UiText.text("Created at: ", "创建时间: ")).append(TIMESTAMP_FORMAT.format(LocalDateTime.now()))
+                .append('\n');
         summary.append(UiText.text("Tree count: ", "树数量: ")).append(importedTrees.size()).append('\n');
         summary.append(UiText.text("Pair count: ", "比较对数量: ")).append(pairSpecs.size()).append('\n');
         summary.append('\n').append(UiText.text("Imported trees:", "已导入的树:")).append('\n');
