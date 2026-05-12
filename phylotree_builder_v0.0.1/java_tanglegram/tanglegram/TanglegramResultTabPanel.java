@@ -65,9 +65,11 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
 
         JPanel summaryPanel = new JPanel(new BorderLayout());
         summaryPanel.setBorder(BorderFactory.createLineBorder(new Color(226, 232, 241)));
+        summaryPanel.setMinimumSize(new java.awt.Dimension(0, 24));
         summaryPanel.add(summaryArea, BorderLayout.CENTER);
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, this.pairTabs, summaryPanel);
+        splitPane.setOneTouchExpandable(true);
         splitPane.setResizeWeight(0.94d);
         splitPane.setDividerSize(6);
         splitPane.setBorder(null);
