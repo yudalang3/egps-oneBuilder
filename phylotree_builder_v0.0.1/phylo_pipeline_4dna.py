@@ -284,11 +284,13 @@ class PhylogeneticPipeline:
 
     def setup_logging(self):
         """设置日志系统"""
-        log_file = f"phylo_pipeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        log_file = self.output_dir / f"phylo_pipeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
         logging.basicConfig(
             level=logging.DEBUG,
             format="%(asctime)s - %(levelname)s - %(message)s",
-            handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
+            handlers=[logging.FileHandler(log_file, encoding="utf-8"), logging.StreamHandler()],
+            force=True,
         )
         self.logger = LocalizedLogger(logging.getLogger(__name__), self.translator)
 
@@ -1029,7 +1031,7 @@ class PhylogeneticPipeline:
 
         for tree_file in tree_files:
             if tree_file is None or not Path(tree_file).exists():
-                ret_paths.append(tree_file)
+                ret_paths.append(None)
                 continue
 
             tree_file = Path(tree_file)
@@ -1039,7 +1041,7 @@ class PhylogeneticPipeline:
                 self.logger.warning(f"MAD executable not found: {self.mad_method_path}")
                 self.logger.warning("Falling back to eGPS midpoint rerooting")
                 fallback_paths = self.reroot_tree_by_egps_midpoint([tree_file])
-                ret_paths.append(fallback_paths[0] if fallback_paths else tree_file)
+                ret_paths.append(fallback_paths[0] if fallback_paths else None)
                 continue
 
             cmd = [
@@ -1064,7 +1066,7 @@ class PhylogeneticPipeline:
                 self.logger.error(f"MAD 定根失败: {tree_file}")
                 self.logger.warning("Falling back to eGPS midpoint rerooting")
                 fallback_paths = self.reroot_tree_by_egps_midpoint([tree_file])
-                ret_paths.append(fallback_paths[0] if fallback_paths else tree_file)
+                ret_paths.append(fallback_paths[0] if fallback_paths else None)
             elif not self._tree_file_has_content(path_output):
                 self.logger.warning(f"MAD generated an empty rooted tree for {tree_file}")
                 try:
@@ -1073,7 +1075,7 @@ class PhylogeneticPipeline:
                     pass
                 self.logger.warning("Falling back to eGPS midpoint rerooting")
                 fallback_paths = self.reroot_tree_by_egps_midpoint([tree_file])
-                ret_paths.append(fallback_paths[0] if fallback_paths else tree_file)
+                ret_paths.append(fallback_paths[0] if fallback_paths else None)
             else:
                 self.logger.info(f"Rerooting completed: {tree_file}")
                 ret_paths.append(path_output)
@@ -1090,7 +1092,7 @@ class PhylogeneticPipeline:
 
         for tree_file in tree_files:
             if tree_file is None or not Path(tree_file).exists():
-                ret_paths.append(tree_file)
+                ret_paths.append(None)
                 continue
 
             tree_file = Path(tree_file)
@@ -1125,13 +1127,13 @@ class PhylogeneticPipeline:
                     self.logger.error(f"eGPS midpoint rerooting failed: {tree_file}")
                     if stderr:
                         self.logger.error(stderr)
-                    ret_paths.append(tree_file)
+                    ret_paths.append(None)
                 else:
                     self.logger.info(f"Rerooting completed: {tree_file}")
                     ret_paths.append(path_output)
             except Exception as e:
                 self.logger.error(f"eGPS midpoint rerooting exception: {e}")
-                ret_paths.append(tree_file)
+                ret_paths.append(None)
 
         return ret_paths
 
@@ -1150,7 +1152,7 @@ class PhylogeneticPipeline:
         ret_paths: List[Path] = []
         for tree_file in tree_files:
             if tree_file is None or not Path(tree_file).exists():
-                ret_paths.append(tree_file)
+                ret_paths.append(None)
                 continue
 
             tree_file = Path(tree_file)
@@ -1171,7 +1173,7 @@ class PhylogeneticPipeline:
                 self.logger.info(f"已恢复树文件名称: {tree_file}")
             except Exception as e:
                 self.logger.error(f"恢复树文件名称失败 {tree_file}: {e}")
-                ret_paths.append(tree_file)
+                ret_paths.append(None)
 
         return ret_paths
 
@@ -1194,15 +1196,20 @@ class PhylogeneticPipeline:
             export_path = export_path.resolve()
             try:
                 export_path.parent.mkdir(parents=True, exist_ok=True)
-                if source_path != export_path:
-                    shutil.copy2(source_path, export_path)
+                validated_tree = self._postprocess_tree_with_egps(
+                    source_path,
+                    output_file=export_path,
+                    sanitize_for_mad=True,
+                )
+                if validated_tree is None or not self._tree_file_has_content(export_path):
+                    raise RuntimeError("final tree validation failed")
                 published_trees.append(export_path)
-                self.logger.info(f"Published final Newick export: {export_path}")
+                self.logger.info(f"Published final validated Newick export: {export_path}")
             except Exception as exception:
                 self.logger.warning(
                     f"Could not publish final Newick export {export_path}: {exception}"
                 )
-                published_trees.append(Path(tree_file))
+                published_trees.append(None)
 
         published_trees.extend(tree_files[4:])
         return published_trees
@@ -1247,7 +1254,7 @@ class PhylogeneticPipeline:
         ret_paths: List[Path] = []
         for tree_file in tree_files:
             if tree_file is None or not Path(tree_file).exists():
-                ret_paths.append(tree_file)
+                ret_paths.append(None)
                 continue
 
             # 保证是 Path
@@ -1270,7 +1277,7 @@ class PhylogeneticPipeline:
                 ret_paths.append(path_output)
             except Exception as e:
                 self.logger.error(f"Ladderize failed {tree_file}: {e}")
-                ret_paths.append(tree_file)
+                ret_paths.append(None)
 
         return ret_paths
 

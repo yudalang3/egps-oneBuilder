@@ -42,15 +42,28 @@ public final class RerootTreeCommand {
 
         PhyloTreeEncoderDecoder codec = new PhyloTreeEncoderDecoder();
         DefaultPhyNode root = codec.decode(newick);
+        int removedBlankLeafCount = TreeLeafSanitizer.removeBlankZeroLengthLeaves(root);
+        if (removedBlankLeafCount > 0) {
+            System.err.println("WARNING: removed " + removedBlankLeafCount
+                    + " blank zero-length terminal leaf artifact(s)");
+        }
+        TreeLeafSanitizer.validateNamedLeaves(root);
         EvolNode rerooted = EvolTreeOperator.rootAtMidPoint(root);
+        DefaultPhyNode outputRoot = root;
         if (!(rerooted instanceof DefaultPhyNode)) {
             String returnedType = rerooted == null ? "null" : rerooted.getClass().getSimpleName();
             System.err.println("WARNING: midpoint rooting left tree unchanged because eGPS returned "
                     + returnedType);
-            writeOutput(outputFile, newick);
-            return;
+        } else {
+            outputRoot = (DefaultPhyNode) rerooted;
         }
-        String output = codec.encode((DefaultPhyNode) rerooted).trim();
+        removedBlankLeafCount = TreeLeafSanitizer.removeBlankZeroLengthLeaves(outputRoot);
+        if (removedBlankLeafCount > 0) {
+            System.err.println("WARNING: removed " + removedBlankLeafCount
+                    + " blank zero-length terminal leaf artifact(s) after rerooting");
+        }
+        TreeLeafSanitizer.validateNamedLeaves(outputRoot);
+        String output = codec.encode(outputRoot).trim();
         if (!output.endsWith(";")) {
             output += ";";
         }

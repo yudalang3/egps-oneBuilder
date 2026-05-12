@@ -1,5 +1,8 @@
 package onebuilder;
 
+import evoltree.phylogeny.DefaultPhyNode;
+import evoltree.phylogeny.PhyloTreeEncoderDecoder;
+import evoltree.struct.util.EvolNodeUtil;
 import java.awt.GraphicsEnvironment;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
@@ -7,8 +10,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import javax.swing.SwingUtilities;
 import org.json.JSONObject;
 import tanglegram.UiLanguage;
@@ -35,7 +40,11 @@ public final class OneBuilderStandaloneTest {
             run("defaultsRerootPanelToVisibleLadderizationRules", OneBuilderStandaloneTest::defaultsRerootPanelToVisibleLadderizationRules);
             run("rerootTreeCommandUsesEgpsMidpointRooting", OneBuilderStandaloneTest::rerootTreeCommandUsesEgpsMidpointRooting);
             run("rerootTreeCommandNormalizesPhylipMultiTreeOutput", OneBuilderStandaloneTest::rerootTreeCommandNormalizesPhylipMultiTreeOutput);
+            run("rerootTreeCommandRemovesBlankZeroLengthLeafArtifact", OneBuilderStandaloneTest::rerootTreeCommandRemovesBlankZeroLengthLeafArtifact);
             run("treePostprocessCommandUsesEgpsTreeUtilities", OneBuilderStandaloneTest::treePostprocessCommandUsesEgpsTreeUtilities);
+            run("treePostprocessCommandRemovesBlankZeroLengthLeafArtifact", OneBuilderStandaloneTest::treePostprocessCommandRemovesBlankZeroLengthLeafArtifact);
+            run("treePostprocessCommandRejectsBlankNonzeroLeaf", OneBuilderStandaloneTest::treePostprocessCommandRejectsBlankNonzeroLeaf);
+            run("treePostprocessCommandRejectsDuplicateLeafNames", OneBuilderStandaloneTest::treePostprocessCommandRejectsDuplicateLeafNames);
             run("treePostprocessCommandUsesLeafNameStringRule", OneBuilderStandaloneTest::treePostprocessCommandUsesLeafNameStringRule);
             run("detectsPlatformSupport", OneBuilderStandaloneTest::detectsPlatformSupport);
             run("tracksWorkflowTabUnlocks", OneBuilderStandaloneTest::tracksWorkflowTabUnlocks);
@@ -501,6 +510,28 @@ public final class OneBuilderStandaloneTest {
                 "expected only one tree in normalized output");
     }
 
+    private static void rerootTreeCommandRemovesBlankZeroLengthLeafArtifact() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("onebuilder-midpoint-blank-leaf-");
+        Path inputTree = tempDirectory.resolve("input.nwk");
+        Path outputTree = tempDirectory.resolve("output.nwk");
+        Files.writeString(inputTree,
+                "((:0,seq1:0.13319,(seq2:0.11405,seq3:0.12607):0.0128):0.06968,seq4:0.4);",
+                StandardCharsets.UTF_8);
+
+        int exitCode = RerootTreeCommand.run(new String[] {
+                "--method", "root-at-middle-point",
+                "--input", inputTree.toString(),
+                "--output", outputTree.toString()
+        });
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(exitCode),
+                "midpoint rerooting should remove synthetic blank zero-length leaves");
+        assertEquals(
+                new LinkedHashSet<>(Arrays.asList("seq1", "seq2", "seq3", "seq4")),
+                readLeafNames(outputTree),
+                "midpoint rerooting should preserve exactly the named input leaves");
+    }
+
     private static void treePostprocessCommandUsesEgpsTreeUtilities() throws Exception {
         Path tempDirectory = Files.createTempDirectory("onebuilder-tree-postprocess-");
         Path inputTree = tempDirectory.resolve("input.nwk");
@@ -535,6 +566,58 @@ public final class OneBuilderStandaloneTest {
         assertTrue(output.contains(":1"), "expected branch lengths to be rewritten to one");
         assertTrue(!output.contains(":3") && !output.contains(":4") && !output.contains(":5"),
                 "expected original branch lengths to be replaced");
+    }
+
+    private static void treePostprocessCommandRemovesBlankZeroLengthLeafArtifact() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("onebuilder-tree-blank-leaf-");
+        Path inputTree = tempDirectory.resolve("input.nwk");
+        Path outputTree = tempDirectory.resolve("output.nwk");
+        Files.writeString(inputTree,
+                "((:0,seq1:0.13319,(seq2:0.11405,seq3:0.12607):0.0128):0.06968,seq4:0.4);",
+                StandardCharsets.UTF_8);
+
+        int exitCode = TreePostprocessCommand.run(new String[] {
+                "--input", inputTree.toString(),
+                "--output", outputTree.toString(),
+                "--sanitize-for-mad"
+        });
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(exitCode),
+                "tree postprocess should remove synthetic blank zero-length leaves");
+        assertEquals(
+                new LinkedHashSet<>(Arrays.asList("seq1", "seq2", "seq3", "seq4")),
+                readLeafNames(outputTree),
+                "tree postprocess should preserve exactly the named input leaves");
+    }
+
+    private static void treePostprocessCommandRejectsBlankNonzeroLeaf() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("onebuilder-tree-blank-nonzero-");
+        Path inputTree = tempDirectory.resolve("input.nwk");
+        Path outputTree = tempDirectory.resolve("output.nwk");
+        Files.writeString(inputTree, "((:0.5,seq1:0.1):0.2,seq2:0.3);", StandardCharsets.UTF_8);
+
+        int exitCode = TreePostprocessCommand.run(new String[] {
+                "--input", inputTree.toString(),
+                "--output", outputTree.toString()
+        });
+
+        assertTrue(exitCode != 0, "blank named leaves with nonzero lengths should be rejected");
+        assertTrue(!Files.exists(outputTree), "invalid blank nonzero leaf trees should not be written");
+    }
+
+    private static void treePostprocessCommandRejectsDuplicateLeafNames() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("onebuilder-tree-duplicate-leaf-");
+        Path inputTree = tempDirectory.resolve("input.nwk");
+        Path outputTree = tempDirectory.resolve("output.nwk");
+        Files.writeString(inputTree, "((seq1:0.1,seq1:0.2):0.3,seq2:0.4);", StandardCharsets.UTF_8);
+
+        int exitCode = TreePostprocessCommand.run(new String[] {
+                "--input", inputTree.toString(),
+                "--output", outputTree.toString()
+        });
+
+        assertTrue(exitCode != 0, "duplicate leaf names should be rejected");
+        assertTrue(!Files.exists(outputTree), "duplicate leaf-name trees should not be written");
     }
 
     private static void treePostprocessCommandUsesLeafNameStringRule() throws Exception {
@@ -1491,6 +1574,16 @@ public final class OneBuilderStandaloneTest {
         } catch (Exception exception) {
             throw new RuntimeException(exception);
         }
+    }
+
+    private static Set<String> readLeafNames(Path treeFile) throws Exception {
+        DefaultPhyNode root = new PhyloTreeEncoderDecoder().decode(
+                Files.readString(treeFile, StandardCharsets.UTF_8).trim());
+        Set<String> leafNames = new LinkedHashSet<>();
+        for (DefaultPhyNode leaf : EvolNodeUtil.getLeaves(root)) {
+            leafNames.add(leaf.getName() == null ? "" : leaf.getName().trim());
+        }
+        return leafNames;
     }
 
     private static Path findRepoRoot() {

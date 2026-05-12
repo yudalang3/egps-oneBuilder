@@ -32,6 +32,12 @@ public final class TreePostprocessCommand {
             CommandOptions options = CommandOptions.parse(args);
             String inputNewick = readTreeText(options.inputFile);
             DefaultPhyNode root = decodeTree(inputNewick);
+            int removedBlankLeafCount = TreeLeafSanitizer.removeBlankZeroLengthLeaves(root);
+            if (removedBlankLeafCount > 0) {
+                System.err.println("WARNING: removed " + removedBlankLeafCount
+                        + " blank zero-length terminal leaf artifact(s)");
+            }
+            TreeLeafSanitizer.validateNamedLeaves(root);
             int negativeBranchCount = countNegativeBranchLengths(root);
             if (negativeBranchCount > 0 && (options.clampNegativeBranchLengths || options.sanitizeForMad)) {
                 System.err.println("WARNING: detected " + negativeBranchCount
@@ -48,6 +54,7 @@ public final class TreePostprocessCommand {
             }
             if (options.renameMapFile != null) {
                 renameLeaves(root, readRenameMap(options.renameMapFile));
+                TreeLeafSanitizer.validateNamedLeaves(root);
             }
             if (options.ladderizeDirection != null) {
                 EvolNodeUtil.initializeSize(root);
@@ -83,6 +90,7 @@ public final class TreePostprocessCommand {
     }
 
     private static void writeTree(DefaultPhyNode root, Path outputFile, boolean sanitizeForMad) throws Exception {
+        TreeLeafSanitizer.validateNamedLeaves(root);
         String output = new PhyloTreeEncoderDecoder().encode(root).trim();
         if (!output.endsWith(";")) {
             output += ";";
