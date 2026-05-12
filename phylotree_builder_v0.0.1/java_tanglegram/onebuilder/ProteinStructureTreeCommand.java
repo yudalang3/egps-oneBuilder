@@ -23,22 +23,26 @@ public final class ProteinStructureTreeCommand {
     static int run(String[] args) {
         try {
             CommandOptions options = CommandOptions.parse(args);
-            DistanceMatrix matrix = readDistanceMatrix(options.inputFile);
-            TreeReconMethod method = createMethod(options.method);
-            NodeEGPSv1 root = method.tree(matrix.distances, matrix.names);
-            String newick = TreeCoder.code(root).trim();
-            if (!newick.endsWith(";")) {
-                newick += ";";
-            }
-            if (options.outputFile.getParent() != null) {
-                Files.createDirectories(options.outputFile.getParent());
-            }
-            Files.writeString(options.outputFile, newick + System.lineSeparator(), StandardCharsets.UTF_8);
+            buildTree(options.method, options.inputFile, options.outputFile);
             return 0;
         } catch (Exception exception) {
             System.err.println("Failed to build protein structure tree: " + exception.getMessage());
             return 1;
         }
+    }
+
+    public static void buildTree(String methodName, Path inputFile, Path outputFile) throws Exception {
+        DistanceMatrix matrix = readDistanceMatrix(inputFile);
+        TreeReconMethod method = createMethod(methodName);
+        NodeEGPSv1 root = method.tree(matrix.distances, matrix.names);
+        String newick = TreeCoder.code(root).trim();
+        if (!newick.endsWith(";")) {
+            newick += ";";
+        }
+        if (outputFile.getParent() != null) {
+            Files.createDirectories(outputFile.getParent());
+        }
+        Files.writeString(outputFile, newick + System.lineSeparator(), StandardCharsets.UTF_8);
     }
 
     private static TreeReconMethod createMethod(String method) {

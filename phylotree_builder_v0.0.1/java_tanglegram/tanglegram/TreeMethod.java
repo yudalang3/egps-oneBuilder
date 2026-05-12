@@ -43,7 +43,7 @@ public enum TreeMethod {
                     "parsimony_method/parsimony_tree.nwk")),
     PROTEIN_STRUCTURE(
             "Protein_structure",
-            "PS",
+            "ProteinCluster",
             Arrays.asList(
                     "protein_structure/structure_tree.nwk"));
 

@@ -6,10 +6,10 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import onebuilder.ProteinStructureTreeCommand;
 
 public final class TreeSummaryLoader {
     private TreeSummaryLoader() {
@@ -33,28 +33,12 @@ public final class TreeSummaryLoader {
             warnings.add("tree_meta_data.tsv not found, using standard output layout fallback.");
         }
 
-        Map<TreeMethod, Path> resolvedTrees = new EnumMap<>(TreeMethod.class);
-        List<TreeMethod> missingMethods = new ArrayList<>();
-        List<TreeMethod> missingOptionalMethods = new ArrayList<>();
-        for (TreeMethod method : TreeMethod.DISPLAY_ORDER) {
-            Path resolvedTree = resolveTree(method, metadataEntries.get(method), normalizedTreeSummaryDir, outputRootDir);
-            if (resolvedTree == null) {
-                if (method.optional()) {
-                    missingOptionalMethods.add(method);
-                } else {
-                    missingMethods.add(method);
-                }
-            } else {
-                resolvedTrees.put(method, resolvedTree);
-            }
-        }
-
-        if (!missingMethods.isEmpty()) {
-            warnings.add("Missing methods: " + formatMethods(missingMethods));
-        }
-        if (!missingOptionalMethods.isEmpty()) {
-            warnings.add("Missing optional methods: " + formatMethods(missingOptionalMethods));
-        }
+        Map<TreeMethod, Path> resolvedTrees = resolveAvailableTrees(
+                metadataEntries,
+                normalizedTreeSummaryDir,
+                outputRootDir,
+                warnings);
+        List<TreeMethod> missingMethods = missingMethods(resolvedTrees);
 
         return new TreeSummaryLoadResult(normalizedTreeSummaryDir, outputRootDir, resolvedTrees, missingMethods, warnings);
     }
@@ -65,35 +49,88 @@ public final class TreeSummaryLoader {
             throw new IOException("Directory does not exist: " + normalizedOutputRootDir);
         }
 
-        List<String> missingDirectories = new ArrayList<>();
-        for (String directoryName : Arrays.asList(
-                "bayesian_method",
-                "distance_method",
-                "maximum_likelihood",
-                "parsimony_method",
-                "tree_summary")) {
-            if (!Files.isDirectory(normalizedOutputRootDir.resolve(directoryName))) {
-                missingDirectories.add(directoryName);
-            }
-        }
-        if (!missingDirectories.isEmpty()) {
-            throw new IOException("Missing required directories: " + missingDirectories);
+        Path treeSummaryDir = normalizedOutputRootDir.resolve("tree_summary");
+        Map<TreeMethod, String> metadataEntries = readMetadata(treeSummaryDir.resolve("tree_meta_data.tsv"));
+        List<String> warnings = new ArrayList<>();
+        if (!Files.isDirectory(treeSummaryDir)) {
+            warnings.add("tree_summary not found, using method output directories directly.");
+        } else if (metadataEntries.isEmpty()) {
+            warnings.add("tree_meta_data.tsv not found, using standard output layout fallback.");
         }
 
-        List<String> missingTrees = new ArrayList<>();
+        Map<TreeMethod, Path> resolvedTrees = resolveAvailableTrees(
+                metadataEntries,
+                treeSummaryDir,
+                normalizedOutputRootDir,
+                warnings);
+        if (resolvedTrees.size() < 2) {
+            throw new IOException("At least two readable tree files are required in the selected result folder.");
+        }
+
+        return new TreeSummaryLoadResult(
+                treeSummaryDir.toAbsolutePath().normalize(),
+                normalizedOutputRootDir,
+                resolvedTrees,
+                missingMethods(resolvedTrees),
+                warnings);
+    }
+
+    private static Map<TreeMethod, Path> resolveAvailableTrees(
+            Map<TreeMethod, String> metadataEntries,
+            Path treeSummaryDir,
+            Path outputRootDir,
+            List<String> warnings) {
+        Map<TreeMethod, Path> resolvedTrees = new EnumMap<>(TreeMethod.class);
+        List<TreeMethod> missingMethods = new ArrayList<>();
+        for (TreeMethod method : TreeMethod.DISPLAY_ORDER) {
+            Path resolvedTree = resolveTree(method, metadataEntries.get(method), treeSummaryDir, outputRootDir);
+            if (resolvedTree == null && method == TreeMethod.PROTEIN_STRUCTURE) {
+                resolvedTree = resolveOrBuildProteinStructureTree(outputRootDir, warnings);
+            }
+            if (resolvedTree == null) {
+                missingMethods.add(method);
+            } else {
+                resolvedTrees.put(method, resolvedTree);
+            }
+        }
+        if (!missingMethods.isEmpty()) {
+            warnings.add("Missing methods: " + formatMethods(missingMethods));
+        }
+        return resolvedTrees;
+    }
+
+    private static List<TreeMethod> missingMethods(Map<TreeMethod, Path> resolvedTrees) {
+        List<TreeMethod> missingMethods = new ArrayList<>();
         for (TreeMethod method : TreeMethod.DISPLAY_ORDER) {
             if (method.optional()) {
                 continue;
             }
-            if (resolveTree(method, null, normalizedOutputRootDir.resolve("tree_summary"), normalizedOutputRootDir) == null) {
-                missingTrees.add(method.shortLabel());
+            if (!resolvedTrees.containsKey(method)) {
+                missingMethods.add(method);
             }
         }
-        if (!missingTrees.isEmpty()) {
-            throw new IOException("Missing required tree files for: " + missingTrees);
+        return missingMethods;
+    }
+
+    private static Path resolveOrBuildProteinStructureTree(Path outputRootDir, List<String> warnings) {
+        Path structureTree = outputRootDir.resolve("protein_structure").resolve("structure_tree.nwk").normalize();
+        if (Files.isRegularFile(structureTree)) {
+            return structureTree.toAbsolutePath().normalize();
         }
 
-        return load(normalizedOutputRootDir.resolve("tree_summary"));
+        Path distanceMatrix = outputRootDir.resolve("protein_structure").resolve("distance_matrix.tsv").normalize();
+        if (!Files.isRegularFile(distanceMatrix)) {
+            return null;
+        }
+
+        try {
+            ProteinStructureTreeCommand.buildTree("NJ", distanceMatrix, structureTree);
+            warnings.add("ProteinCluster tree was generated from protein_structure/distance_matrix.tsv.");
+            return structureTree.toAbsolutePath().normalize();
+        } catch (Exception exception) {
+            warnings.add("ProteinCluster tree could not be generated: " + exception.getMessage());
+            return null;
+        }
     }
 
     private static Map<TreeMethod, String> readMetadata(Path metadataFile) throws IOException {

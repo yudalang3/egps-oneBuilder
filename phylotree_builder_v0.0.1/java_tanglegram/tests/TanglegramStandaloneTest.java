@@ -76,6 +76,7 @@ public final class TanglegramStandaloneTest {
             run("buildsFixedPairOrderForAllMethods", TanglegramStandaloneTest::buildsFixedPairOrderForAllMethods);
             run("buildsProteinStructurePairsWhenStructureTreeExists", TanglegramStandaloneTest::buildsProteinStructurePairsWhenStructureTreeExists);
             run("keepsFourMethodPairsWhenProteinStructureTreeIsMissing", TanglegramStandaloneTest::keepsFourMethodPairsWhenProteinStructureTreeIsMissing);
+            run("loadsRunResultWithoutTreeSummaryAndBuildsProteinCluster", TanglegramStandaloneTest::loadsRunResultWithoutTreeSummaryAndBuildsProteinCluster);
             run("loadsOnlyAvailablePairsWhenOneMethodIsMissing", TanglegramStandaloneTest::loadsOnlyAvailablePairsWhenOneMethodIsMissing);
             run("rendersPairPanelForResolvedTrees", TanglegramStandaloneTest::rendersPairPanelForResolvedTrees);
             run("rendersTanglegramWithUnnamedLeaves", TanglegramStandaloneTest::rendersTanglegramWithUnnamedLeaves);
@@ -265,8 +266,8 @@ public final class TanglegramStandaloneTest {
 
         assertEquals(5, result.resolvedTrees().size(), "expected all five trees");
         assertEquals(10, pairs.size(), "expected ten tree pairs");
-        assertEquals("NJ-PS", pairs.get(3).tabName(), "pair with structure tree should follow NJ-MP");
-        assertEquals("MP-PS", pairs.get(9).tabName(), "last pair should compare MP and structure tree");
+        assertEquals("NJ-ProteinCluster", pairs.get(3).tabName(), "pair with structure tree should follow NJ-MP");
+        assertEquals("MP-ProteinCluster", pairs.get(9).tabName(), "last pair should compare MP and structure tree");
     }
 
     private static void keepsFourMethodPairsWhenProteinStructureTreeIsMissing() throws Exception {
@@ -278,6 +279,29 @@ public final class TanglegramStandaloneTest {
         assertEquals(6, result.availablePairs().size(), "expected original six pairs without structure tree");
         assertTrue(!result.missingMethods().contains(TreeMethod.PROTEIN_STRUCTURE),
                 "missing optional structure tree should not be a required missing method");
+    }
+
+    private static void loadsRunResultWithoutTreeSummaryAndBuildsProteinCluster() throws Exception {
+        Path movedOutput = copySampleOutput();
+        deleteRecursively(movedOutput.resolve("tree_summary"));
+        Path structureDir = movedOutput.resolve("protein_structure");
+        Files.createDirectories(structureDir);
+        Files.writeString(
+                structureDir.resolve("distance_matrix.tsv"),
+                "\tseq1\tseq2\tseq3\n"
+                        + "seq1\t0\t0.2\t0.4\n"
+                        + "seq2\t0.2\t0\t0.3\n"
+                        + "seq3\t0.4\t0.3\t0\n");
+
+        TreeSummaryLoadResult result = TreeSummaryLoader.loadRunResult(movedOutput);
+        List<TreePairSpec> pairs = result.availablePairs();
+
+        assertEquals(5, result.resolvedTrees().size(), "expected four method trees plus generated ProteinCluster");
+        assertTrue(Files.isRegularFile(structureDir.resolve("structure_tree.nwk")),
+                "expected ProteinCluster tree to be generated from the distance matrix");
+        assertEquals(10, pairs.size(), "expected ten pairwise comparisons for five trees");
+        assertTrue(pairs.stream().map(TreePairSpec::tabName).anyMatch("NJ-ProteinCluster"::equals),
+                "expected ProteinCluster to participate in pairwise comparisons");
     }
 
     private static void loadsOnlyAvailablePairsWhenOneMethodIsMissing() throws Exception {

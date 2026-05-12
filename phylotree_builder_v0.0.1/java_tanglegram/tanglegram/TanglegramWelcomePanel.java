@@ -638,13 +638,18 @@ final class TanglegramWelcomePanel extends JPanel {
 
         if (lowerCaseMessage.contains("missing required directories")) {
             return UiText.text(
-                    "The selected folder is not a complete oneBuilder result folder.\n\nWhat to do:\n- Choose the main output folder of oneBuilder.\n- Make sure it contains bayesian_method, distance_method, maximum_likelihood, parsimony_method, and tree_summary.",
-                    "所选文件夹不是完整的 oneBuilder 结果目录。\n\n如何操作：\n- 选择 oneBuilder 的主输出目录。\n- 确保包含 bayesian_method、distance_method、maximum_likelihood、parsimony_method 和 tree_summary。");
+                    "The selected folder does not look like a oneBuilder result folder.\n\nWhat to do:\n- Choose the main output folder of oneBuilder.\n- It can contain any two or more available tree results, such as distance_method, maximum_likelihood, bayesian_method, parsimony_method, protein_structure, or tree_summary.",
+                    "所选文件夹不像 oneBuilder 结果目录。\n\n如何操作：\n- 选择 oneBuilder 的主输出目录。\n- 其中可以包含任意两个或更多可用树结果，例如 distance_method、maximum_likelihood、bayesian_method、parsimony_method、protein_structure 或 tree_summary。");
         }
         if (lowerCaseMessage.contains("missing required tree files")) {
             return UiText.text(
-                    "Some expected tree files are missing from the selected result folder.\n\nWhat to do:\n- Confirm the run finished successfully.\n- Check that NJ, ML, BI, and MP tree files were generated.\n- If only some methods are available, import the existing tree files manually instead.",
-                    "在所选结果目录中缺少部分预期的树文件。\n\n如何操作：\n- 确认运行已成功完成。\n- 检查 NJ、ML、BI 和 MP 树文件是否已生成。\n- 如果只有部分方法可用，请手动导入已有的树文件。");
+                    "Some expected tree files are missing from the selected result folder.\n\nWhat to do:\n- Confirm the run finished successfully.\n- The viewer can still load any two or more available trees; remove empty outputs or choose a folder with at least two generated trees.",
+                    "在所选结果目录中缺少部分预期的树文件。\n\n如何操作：\n- 确认运行已成功完成。\n- 查看器仍可加载任意两个或更多可用树；请移除空输出，或选择至少包含两棵生成树的目录。");
+        }
+        if (lowerCaseMessage.contains("at least two readable tree files")) {
+            return UiText.text(
+                    "The selected result folder does not contain enough readable tree files.\n\nWhat to do:\n- Choose a oneBuilder output folder with at least two generated trees.\n- Protein structure output can be loaded when protein_structure/distance_matrix.tsv exists; the viewer will generate ProteinCluster automatically.",
+                    "所选结果目录中可读取的树文件不足。\n\n如何操作：\n- 选择至少包含两棵生成树的 oneBuilder 输出目录。\n- 如果存在 protein_structure/distance_matrix.tsv，查看器会自动生成 ProteinCluster 并导入。");
         }
         if (lowerCaseMessage.contains("invalid tsv row")) {
             return UiText.text(
