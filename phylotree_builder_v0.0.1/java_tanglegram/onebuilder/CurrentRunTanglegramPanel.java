@@ -2,6 +2,7 @@ package onebuilder;
 
 import com.jidesoft.swing.JideTabbedPane;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -52,6 +53,8 @@ final class CurrentRunTanglegramPanel extends JPanel {
         comparisonTabs.setTabLayoutPolicy(JideTabbedPane.SCROLL_TAB_LAYOUT);
         comparisonTabs.setShowCloseButton(false);
         comparisonTabs.setShowCloseButtonOnTab(false);
+        comparisonTabs.setForeground(Color.BLACK);
+        comparisonTabs.setBoldActiveTab(true);
         add(comparisonTabs, BorderLayout.CENTER);
 
         summaryLabel = new JLabel(UiText.text("No current run loaded.", "当前没有已加载的运行结果。"));

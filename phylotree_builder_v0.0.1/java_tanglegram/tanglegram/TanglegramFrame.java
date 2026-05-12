@@ -73,6 +73,8 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
         workspaceTabs.setTabShape(JideTabbedPane.SHAPE_OFFICE2003);
         workspaceTabs.setColorTheme(JideTabbedPane.COLOR_THEME_WINXP);
         workspaceTabs.setTabResizeMode(JideTabbedPane.RESIZE_MODE_FIT);
+        workspaceTabs.setForeground(Color.BLACK);
+        workspaceTabs.setBoldActiveTab(true);
         workspaceTabs.addTab(welcomeTabTitle, welcomePanel);
         workspaceTabs.setTabClosableAt(0, false);
         workspaceTabs.setBorder(BorderFactory.createEmptyBorder());

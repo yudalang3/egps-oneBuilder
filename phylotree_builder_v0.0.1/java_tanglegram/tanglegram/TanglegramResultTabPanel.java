@@ -140,6 +140,8 @@ final class TanglegramResultTabPanel extends JPanel implements ExportableView {
         tabs.setTabShape(JideTabbedPane.SHAPE_OFFICE2003);
         tabs.setColorTheme(JideTabbedPane.COLOR_THEME_WINXP);
         tabs.setTabResizeMode(JideTabbedPane.RESIZE_MODE_FIT);
+        tabs.setForeground(Color.BLACK);
+        tabs.setBoldActiveTab(true);
         return tabs;
     }
 

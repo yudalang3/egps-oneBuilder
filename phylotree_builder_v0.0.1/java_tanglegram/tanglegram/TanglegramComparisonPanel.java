@@ -2,6 +2,7 @@ package tanglegram;
 
 import com.jidesoft.swing.JideTabbedPane;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -73,6 +74,7 @@ public final class TanglegramComparisonPanel extends JPanel {
         tabs.setShowTabButtons(false);
         tabs.setTabShape(JideTabbedPane.SHAPE_FLAT);
         tabs.setBoldActiveTab(true);
+        tabs.setForeground(Color.BLACK);
         tabs.setTabResizeMode(JideTabbedPane.RESIZE_MODE_FIT);
         return tabs;
     }
