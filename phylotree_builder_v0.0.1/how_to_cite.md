@@ -6,6 +6,11 @@ If you use this workflow, please cite the eGPS-onebuilder software repository fi
 
 eGPS-onebuilder. GitHub repository: <https://github.com/yudalang3/egps-oneBuilder>
 
+and eGPS 1.0
+
+Yu, D. et al. eGPS 1.0: comprehensive software for multi-omic and evolutionary analyses. Natl Sci Rev 6, 867-869 (2019). https://doi.org:10.1093/nsr/nwz079
+
+
 ## Core workflow software
 
 Please also cite the tools that contributed to the analyses you report.
@@ -47,10 +52,6 @@ Tria, F. D. K., Landan, G., and Dagan, T. (2017). Phylogenetic rooting using min
 ### Biopython
 
 Cock, P. J. A., Antao, T., Chang, J. T., Chapman, B. A., Cox, C. J., Dalke, A., Friedberg, I., Hamelryck, T., Kauff, F., Wilczynski, B., and de Hoon, M. J. L. (2009). Biopython: freely available Python tools for computational molecular biology and bioinformatics. *Bioinformatics*, 25(11), 1422-1423. https://doi.org/10.1093/bioinformatics/btp163
-
-### ETE Toolkit
-
-Huerta-Cepas, J., Serra, F., and Bork, P. (2016). ETE 3: Reconstruction, analysis, and visualization of phylogenomic data. *Molecular Biology and Evolution*, 33(6), 1635-1638. https://doi.org/10.1093/molbev/msw046
 
 ### Matplotlib
 
