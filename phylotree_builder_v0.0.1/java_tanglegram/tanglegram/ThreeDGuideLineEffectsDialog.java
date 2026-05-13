@@ -21,6 +21,7 @@ import javax.swing.SpinnerNumberModel;
 
 final class ThreeDGuideLineEffectsDialog extends JDialog {
     private final JCheckBox showDashLineCheckBox;
+    private final JCheckBox showLeafNamesCheckBox;
     private final JSpinner strokeWidthSpinner;
     private final JSpinner dashLengthSpinner;
     private final JSpinner dashGapSpinner;
@@ -47,6 +48,7 @@ final class ThreeDGuideLineEffectsDialog extends JDialog {
         GridBagConstraints constraints = baseConstraints();
 
         showDashLineCheckBox = new JCheckBox("Show dash line", safeOptions.showDashLine());
+        showLeafNamesCheckBox = new JCheckBox("Show leaf names", safeOptions.showLeafNames());
         strokeWidthSpinner = new JSpinner(new SpinnerNumberModel(
                 Double.valueOf(safeOptions.strokeWidth()), Double.valueOf(0.5d), Double.valueOf(8.0d), Double.valueOf(0.1d)));
         dashLengthSpinner = new JSpinner(new SpinnerNumberModel(
@@ -62,12 +64,14 @@ final class ThreeDGuideLineEffectsDialog extends JDialog {
         constraints.gridy = 0;
         constraints.gridwidth = 2;
         formPanel.add(showDashLineCheckBox, constraints);
+        constraints.gridy = 1;
+        formPanel.add(showLeafNamesCheckBox, constraints);
         constraints.gridwidth = 1;
 
-        addRow(formPanel, constraints, 1, "Dashed line width", strokeWidthSpinner);
-        addRow(formPanel, constraints, 2, "Dash length", dashLengthSpinner);
-        addRow(formPanel, constraints, 3, "Dash gap", dashGapSpinner);
-        addRow(formPanel, constraints, 4, "Guide line color", colorButton);
+        addRow(formPanel, constraints, 2, "Dashed line width", strokeWidthSpinner);
+        addRow(formPanel, constraints, 3, "Dash length", dashLengthSpinner);
+        addRow(formPanel, constraints, 4, "Dash gap", dashGapSpinner);
+        addRow(formPanel, constraints, 5, "Guide line color", colorButton);
 
         add(formPanel, BorderLayout.CENTER);
 
@@ -102,6 +106,7 @@ final class ThreeDGuideLineEffectsDialog extends JDialog {
     private void applyValues() {
         applyCallback.accept(new ThreeDGuideLineOptions(
                 showDashLineCheckBox.isSelected(),
+                showLeafNamesCheckBox.isSelected(),
                 ((Double) strokeWidthSpinner.getValue()).floatValue(),
                 ((Double) dashLengthSpinner.getValue()).floatValue(),
                 ((Double) dashGapSpinner.getValue()).floatValue(),

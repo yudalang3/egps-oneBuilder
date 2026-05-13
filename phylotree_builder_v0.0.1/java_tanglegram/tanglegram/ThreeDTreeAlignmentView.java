@@ -56,9 +56,11 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     private static final int MIN_SHEET_WIDTH = 120;
     private static final int MIN_SHEET_HEIGHT = 220;
     private static final int SHEET_TITLE_HEIGHT = 18;
-    private static final int LABEL_BAND_HEIGHT = 74;
     private static final int CONTENT_PADDING_X = 20;
     private static final int CONTENT_PADDING_TOP = 20;
+    private static final int LABEL_TIP_GAP = 4;
+    private static final int LABEL_BOTTOM_PADDING = 8;
+    private static final int HIDDEN_LABEL_BAND_HEIGHT = 10;
     private static final int SCALE_BAR_TARGET_LENGTH = 52;
     private static final int SCALE_BAR_TOP_Y = 64;
     private static final int TITLE_BASELINE_OFFSET_Y = -8;
@@ -467,8 +469,6 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         int contentX = CONTENT_PADDING_X;
         int contentY = CONTENT_PADDING_TOP + SHEET_TITLE_HEIGHT;
         int treeWidth = Math.max(70, sheetWidth - (CONTENT_PADDING_X * 2));
-        int treeHeight = Math.max(90, sheetHeight - contentY - LABEL_BAND_HEIGHT - 12);
-        int labelBaseY = treeHeight + LABEL_BAND_HEIGHT - 10;
 
         List<PreparedLayer> layers = new ArrayList<>(layerCount);
         for (int index = 0; index < layerCount; index++) {
@@ -478,6 +478,12 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             }
             EvolNode copiedRoot = TreeDataLoader.copyTree(importedTree.root());
             ReflectGraphicNode<EvolNode> graphicRoot = new ReflectGraphicNode<>(copiedRoot);
+            int labelBandHeight = labelBandHeight(
+                    longestLeafLabelWidth(graphicRoot, resolveLeafLabelFont(visualOptions)),
+                    guideLineOptions.showLeafNames(),
+                    visualOptions.leafLabelFontSize());
+            int treeHeight = Math.max(90, sheetHeight - contentY - labelBandHeight - 12);
+            int labelBaseY = treeHeight + LABEL_TIP_GAP + (guideLineOptions.showLeafNames() ? visualOptions.leafLabelFontSize() : 0);
             SingleTreeLayoutCalculator calculator = new SingleTreeLayoutCalculator();
             calculator.calculateTree(graphicRoot, new Dimension(treeHeight, treeWidth));
             ScaleBar scaleBar = scaleBar(calculator.widthRatio(), calculator.maxDepth(), SCALE_BAR_TARGET_LENGTH);
@@ -495,6 +501,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                     treeWidth,
                     treeHeight,
                     labelBaseY,
+                    labelBandHeight,
                     scaleBar,
                     sheetFillColor(index),
                     sheetBorderColor(index),
@@ -570,7 +577,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         Graphics2D titleGraphics = (Graphics2D) graphics2d.create();
         titleGraphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         titleGraphics.setFont(resolveTitleFont(visualOptions));
-        titleGraphics.setColor(Color.BLACK);
+        titleGraphics.setColor(visualOptions.treeTitleColor());
         for (PreparedLayer layer : layers) {
             titleGraphics.drawString(layer.label(), layer.x() + 8, titleBaselineY(layer.y(), layer.sheetWidth()));
         }
@@ -585,11 +592,11 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         Graphics2D scaleGraphics = (Graphics2D) graphics2d.create();
         scaleGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         scaleGraphics.setFont(resolveScaleBarFont(visualOptions));
-        scaleGraphics.setColor(new Color(65, 72, 82, 210));
+        scaleGraphics.setColor(visualOptions.scaleBarColor());
         int x = Math.max(preparedLayer.contentX() + 18, preparedLayer.sheetWidth() - preparedLayer.contentX() - 12);
         int y = SCALE_BAR_TOP_Y;
-        int length = Math.min(scaleBar.pixelWidth(), Math.max(1, preparedLayer.sheetHeight() - y - LABEL_BAND_HEIGHT));
-        scaleGraphics.setStroke(new BasicStroke(1.1f));
+        int length = Math.min(scaleBar.pixelWidth(), Math.max(1, preparedLayer.sheetHeight() - y - preparedLayer.labelBandHeight()));
+        scaleGraphics.setStroke(new BasicStroke(Math.max(0.5f, visualOptions.scaleBarLineThickness())));
         Line2D.Double scaleLine = scaleBarLine(x, y, length);
         scaleGraphics.draw(scaleLine);
         scaleGraphics.draw(new Line2D.Double(x - 3.0d, y, x + 3.0d, y));
@@ -758,6 +765,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         legendGraphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
         legendGraphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         legendGraphics.setFont(resolveLegendFont(visualOptions));
+        legendGraphics.setColor(visualOptions.legendColor());
         FontMetrics metrics = legendGraphics.getFontMetrics();
         int fixedItemWidth = Math.max(210, metrics.stringWidth(LEGEND_WIDTH_REFERENCE_LABEL) + 34);
 
@@ -794,7 +802,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         metricGraphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
         metricGraphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         metricGraphics.setFont(resolveMetricsFont(visualOptions));
-        metricGraphics.setColor(Color.BLACK);
+        metricGraphics.setColor(visualOptions.metricsColor());
         metricGraphics.drawString("Topology difference index : " + formatMetricValue(safeMetrics.topologyDifferenceIndex()), 16, 24);
         metricGraphics.drawString("Branch-length difference index : " + formatMetricValue(safeMetrics.branchLengthDifferenceIndex()), 16, 43);
         metricGraphics.dispose();
@@ -847,6 +855,9 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
     private static String formatScaleLabel(double value) {
         if (value >= 1.0d) {
+            if (Math.abs(value - 1.0d) < 0.000001d) {
+                return "1.0";
+            }
             return String.format(Locale.ROOT, "%.0f", value);
         }
         if (value >= 0.1d) {
@@ -1387,7 +1398,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         Stroke originalStroke = graphics2d.getStroke();
         Stroke treeStroke = treeStroke(visualOptions);
         graphics2d.setStroke(treeStroke);
-        graphics2d.setColor(treeLineColor());
+        graphics2d.setColor(visualOptions.treeLineColor());
 
         double xSelf = node.getYSelf();
         double ySelf = node.getXSelf();
@@ -1408,10 +1419,12 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             String labelText = name == null ? "" : name;
             Graphics2D labelGraphics = (Graphics2D) graphics2d.create();
             labelGraphics.setFont(resolveLeafLabelFont(visualOptions));
-            labelGraphics.setColor(treeLabelColor());
-            labelGraphics.translate(node.getYSelf() - 2.0d, labelBaseY);
-            labelGraphics.rotate(-Math.PI / 2.0d);
-            labelGraphics.drawString(labelText, 0, 0);
+            labelGraphics.setColor(visualOptions.leafLabelColor());
+            if (guideLineOptions.showLeafNames()) {
+                labelGraphics.translate(node.getYSelf() - 2.0d, labelBaseY);
+                labelGraphics.rotate(-Math.PI / 2.0d);
+                labelGraphics.drawString(labelText, 0, 0);
+            }
             labelGraphics.dispose();
 
             graphics2d.setColor(guideLineOptions.color());
@@ -1421,7 +1434,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                 graphics2d.draw(guideLine);
             }
             graphics2d.setStroke(treeStroke);
-            graphics2d.setColor(treeLineColor());
+            graphics2d.setColor(visualOptions.treeLineColor());
         }
 
         graphics2d.setStroke(originalStroke);
@@ -1443,6 +1456,18 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         return leafGuideLine(x, leafY, baseY);
     }
 
+    private static int labelBandHeight(int longestLeafLabelWidth, boolean showLeafNames, int leafLabelFontSize) {
+        if (!showLeafNames) {
+            return HIDDEN_LABEL_BAND_HEIGHT;
+        }
+        int labelFootprint = Math.max(0, longestLeafLabelWidth) + LABEL_TIP_GAP + LABEL_BOTTOM_PADDING;
+        return Math.max(leafLabelFontSize + LABEL_BOTTOM_PADDING, labelFootprint);
+    }
+
+    static int labelBandHeightForTest(int longestLeafLabelWidth, boolean showLeafNames, int leafLabelFontSize) {
+        return labelBandHeight(longestLeafLabelWidth, showLeafNames, leafLabelFontSize);
+    }
+
     @SuppressWarnings("unchecked")
     private static double deepestLeafY(ReflectGraphicNode<EvolNode> node) {
         if (node.getChildCount() == 0) {
@@ -1454,6 +1479,29 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             deepestY = Math.max(deepestY, deepestLeafY(child));
         }
         return deepestY;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int longestLeafLabelWidth(ReflectGraphicNode<EvolNode> node, Font font) {
+        if (node.getChildCount() == 0) {
+            String name = node.getReflectNode().getName();
+            return fontStringWidth(font, name == null ? "" : name);
+        }
+        int longestWidth = 0;
+        for (int index = 0; index < node.getChildCount(); index++) {
+            ReflectGraphicNode<EvolNode> child = (ReflectGraphicNode<EvolNode>) node.getChildAt(index);
+            longestWidth = Math.max(longestWidth, longestLeafLabelWidth(child, font));
+        }
+        return longestWidth;
+    }
+
+    private static int fontStringWidth(Font font, String text) {
+        java.awt.image.BufferedImage image = new java.awt.image.BufferedImage(1, 1, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics2d = image.createGraphics();
+        graphics2d.setFont(font);
+        int width = graphics2d.getFontMetrics().stringWidth(text == null ? "" : text);
+        graphics2d.dispose();
+        return width;
     }
 
     private static Font resolveLeafLabelFont(ThreeDVisualOptions visualOptions) {
@@ -1486,14 +1534,6 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
     private static Stroke treeStroke(ThreeDVisualOptions visualOptions) {
         return new BasicStroke(Math.max(0.5f, visualOptions.treeLineThickness()));
-    }
-
-    private static Color treeLineColor() {
-        return Color.BLACK;
-    }
-
-    private static Color treeLabelColor() {
-        return Color.BLACK;
     }
 
     private static Color sheetFillColor(int index) {
@@ -1559,6 +1599,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             int treeWidth,
             int treeHeight,
             int labelBaseY,
+            int labelBandHeight,
             ScaleBar scaleBar,
             Color fillColor,
             Color borderColor,

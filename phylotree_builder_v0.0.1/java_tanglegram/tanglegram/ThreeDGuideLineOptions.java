@@ -6,6 +6,7 @@ import java.awt.Stroke;
 
 record ThreeDGuideLineOptions(
         boolean showDashLine,
+        boolean showLeafNames,
         float strokeWidth,
         float dashLength,
         float dashGap,
@@ -16,7 +17,7 @@ record ThreeDGuideLineOptions(
     private static final Color DEFAULT_COLOR = new Color(80, 80, 80);
 
     static ThreeDGuideLineOptions defaults() {
-        return new ThreeDGuideLineOptions(true, DEFAULT_STROKE_WIDTH, DEFAULT_DASH_LENGTH, DEFAULT_DASH_GAP, DEFAULT_COLOR);
+        return new ThreeDGuideLineOptions(true, true, DEFAULT_STROKE_WIDTH, DEFAULT_DASH_LENGTH, DEFAULT_DASH_GAP, DEFAULT_COLOR);
     }
 
     Stroke stroke() {

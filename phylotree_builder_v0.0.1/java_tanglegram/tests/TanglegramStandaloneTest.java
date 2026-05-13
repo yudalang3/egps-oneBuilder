@@ -96,6 +96,8 @@ public final class TanglegramStandaloneTest {
             run("supportsThreeDAlignmentControls", TanglegramStandaloneTest::supportsThreeDAlignmentControls);
             run("supportsThreeDBaseGuideLineEffects", TanglegramStandaloneTest::supportsThreeDBaseGuideLineEffects);
             run("supportsThreeDVisualProperties", TanglegramStandaloneTest::supportsThreeDVisualProperties);
+            run("usesMeasuredLeafLabelBandInThreeDAlignment", TanglegramStandaloneTest::usesMeasuredLeafLabelBandInThreeDAlignment);
+            run("hidesThreeDLeafNamesFromBaseGuideLineEffects", TanglegramStandaloneTest::hidesThreeDLeafNamesFromBaseGuideLineEffects);
             run("usesTiltedSheetAverageForThreeDTitlePosition", TanglegramStandaloneTest::usesTiltedSheetAverageForThreeDTitlePosition);
             run("startsThreeDGuideLineDashesAtLeafBranch", TanglegramStandaloneTest::startsThreeDGuideLineDashesAtLeafBranch);
             run("omitsThreeDGuideLineForDeepestLeaf", TanglegramStandaloneTest::omitsThreeDGuideLineForDeepestLeaf);
@@ -657,17 +659,21 @@ public final class TanglegramStandaloneTest {
         ThreeDGuideLineOptions defaultOptions = invokeNoArg(view, "guideLineOptionsForTest", ThreeDGuideLineOptions.class);
         assertTrue(defaultOptions.showDashLine(),
                 "3D guide lines should be dashed by default");
+        assertTrue(defaultOptions.showLeafNames(),
+                "3D leaf names should be visible by default");
         assertEquals(new Color(80, 80, 80), defaultOptions.color(),
                 "3D guide line default color should be dark gray");
         assertTrue(defaultOptions.strokeForTest().getDashArray() != null,
                 "default 3D guide line stroke should be dashed");
 
-        ThreeDGuideLineOptions solidOptions = new ThreeDGuideLineOptions(false, 1.8f, 9.0f, 4.0f, Color.BLUE);
+        ThreeDGuideLineOptions solidOptions = new ThreeDGuideLineOptions(false, false, 1.8f, 9.0f, 4.0f, Color.BLUE);
         invokeOneArg(view, "applyGuideLineOptionsForTest", ThreeDGuideLineOptions.class, solidOptions);
 
         ThreeDGuideLineOptions appliedOptions = invokeNoArg(view, "guideLineOptionsForTest", ThreeDGuideLineOptions.class);
         assertTrue(!appliedOptions.showDashLine(),
                 "unchecked Show dash line should keep guide lines visible as solid strokes");
+        assertTrue(!appliedOptions.showLeafNames(),
+                "unchecked Show leaf names should hide leaf labels in the 3D view");
         assertEquals(Color.BLUE, appliedOptions.color(),
                 "3D guide line color picker should update the rendered guide line color");
         assertTrue(appliedOptions.strokeForTest().getDashArray() == null,
@@ -677,17 +683,48 @@ public final class TanglegramStandaloneTest {
     private static void supportsThreeDVisualProperties() throws Exception {
         ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
         ThreeDVisualOptions defaults = invokeNoArg(view, "visualOptionsForTest", ThreeDVisualOptions.class);
-        assertEquals(Integer.valueOf(defaults.previousDefaultTitleFontSizeForTest() * 2),
-                Integer.valueOf(defaults.treeTitleFontSize()),
-                "3D title font should default to twice the previous title size");
+        assertEquals(Integer.valueOf(18), Integer.valueOf(defaults.treeTitleFontSize()),
+                "3D title font should default to 18");
+        assertEquals(Integer.valueOf(10), Integer.valueOf(defaults.legendFontSize()),
+                "3D legend font should default to 10");
         assertTrue(defaults.treeLineThickness() > 1.0f,
                 "3D tree line thickness should expose the current branch stroke width");
+        assertEquals(new Color(65, 72, 82, 210), defaults.scaleBarColor(),
+                "3D scale-bar color should be exposed as a visual property");
 
-        ThreeDVisualOptions updated = new ThreeDVisualOptions(15, 28, 2.4f, 13, 11, 10);
+        ThreeDVisualOptions updated = new ThreeDVisualOptions(
+                15,
+                Color.DARK_GRAY,
+                28,
+                Color.BLUE,
+                2.4f,
+                Color.RED,
+                13,
+                Color.GREEN,
+                11,
+                Color.MAGENTA,
+                10,
+                1.7f,
+                Color.ORANGE);
         invokeOneArg(view, "applyVisualOptionsForTest", ThreeDVisualOptions.class, updated);
 
         ThreeDVisualOptions applied = invokeNoArg(view, "visualOptionsForTest", ThreeDVisualOptions.class);
         assertEquals(updated, applied, "3D visual properties should update every exposed size control");
+    }
+
+    private static void usesMeasuredLeafLabelBandInThreeDAlignment() {
+        assertEquals(Integer.valueOf(19),
+                Integer.valueOf(ThreeDTreeAlignmentView.labelBandHeightForTest(0, true, 11)),
+                "short or empty leaf labels should not force the old fixed 74 px bottom band");
+        assertEquals(Integer.valueOf(56),
+                Integer.valueOf(ThreeDTreeAlignmentView.labelBandHeightForTest(44, true, 11)),
+                "3D label band should use measured longest leaf name width plus padding");
+    }
+
+    private static void hidesThreeDLeafNamesFromBaseGuideLineEffects() {
+        assertEquals(Integer.valueOf(10),
+                Integer.valueOf(ThreeDTreeAlignmentView.labelBandHeightForTest(44, false, 11)),
+                "hidden leaf names should treat the longest leaf label width as zero so tips reach the base");
     }
 
     private static void usesTiltedSheetAverageForThreeDTitlePosition() {
@@ -723,8 +760,11 @@ public final class TanglegramStandaloneTest {
                 "scale bar should choose a branch length that fits the target pixel width");
         assertEquals(Integer.valueOf(20), invokeNoArgUnchecked(scaleBar, "pixelWidth", Integer.class),
                 "scale bar pixel width should use the current tree's branch-length ratio");
-        assertEquals("1", invokeNoArgUnchecked(scaleBar, "label", String.class),
-                "scale bar should use a compact branch-length label");
+        assertEquals("1.0", invokeNoArgUnchecked(scaleBar, "label", String.class),
+                "scale bar should show one decimal place for 1.0 while preserving 10 as an integer");
+        Object tenScaleBar = ThreeDTreeAlignmentView.scaleBarForTest(2.0d, 10.0d, 30);
+        assertEquals("10", invokeNoArgUnchecked(tenScaleBar, "label", String.class),
+                "scale bar should keep 10 as an integer label");
     }
 
     private static void usesVerticalThreeDScaleBars() {
