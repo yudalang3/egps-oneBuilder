@@ -99,6 +99,7 @@ public final class TanglegramStandaloneTest {
             run("usesMeasuredLeafLabelBandInThreeDAlignment", TanglegramStandaloneTest::usesMeasuredLeafLabelBandInThreeDAlignment);
             run("anchorsThreeDLeafLabelsToSheetFloor", TanglegramStandaloneTest::anchorsThreeDLeafLabelsToSheetFloor);
             run("calculatesThreeDLeafLabelGeometryFromDeepestTip", TanglegramStandaloneTest::calculatesThreeDLeafLabelGeometryFromDeepestTip);
+            run("centersThreeDLeafLabelsByFontHeight", TanglegramStandaloneTest::centersThreeDLeafLabelsByFontHeight);
             run("recalculatesThreeDLayoutWhenLeafNamesVisibilityChanges", TanglegramStandaloneTest::recalculatesThreeDLayoutWhenLeafNamesVisibilityChanges);
             run("recalculatesThreeDLayoutWhenVisualPropertiesChange", TanglegramStandaloneTest::recalculatesThreeDLayoutWhenVisualPropertiesChange);
             run("hidesThreeDLeafNamesFromBaseGuideLineEffects", TanglegramStandaloneTest::hidesThreeDLeafNamesFromBaseGuideLineEffects);
@@ -749,6 +750,15 @@ public final class TanglegramStandaloneTest {
         Object hiddenGeometry = ThreeDTreeAlignmentView.leafLabelGeometryForTest(300, 38, 44, false);
         assertEquals(Integer.valueOf(284), invokeNoArgUnchecked(hiddenGeometry, "treeHeight", Integer.class),
                 "hidden leaf names should let tips reach the label base plus the single-tree blank length");
+    }
+
+    private static void centersThreeDLeafLabelsByFontHeight() {
+        assertEquals(Double.valueOf(129.0d),
+                Double.valueOf(ThreeDTreeAlignmentView.leafLabelAnchorXForTest(120.0d, 18)),
+                "3D leaf label anchor should move right by half of the current font height");
+        assertEquals(Double.valueOf(128.5d),
+                Double.valueOf(ThreeDTreeAlignmentView.leafLabelAnchorXForTest(120.0d, 17)),
+                "3D leaf label anchor should preserve half-pixel offsets for odd font heights");
     }
 
     private static void recalculatesThreeDLayoutWhenLeafNamesVisibilityChanges() throws Exception {

@@ -1427,7 +1427,9 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             labelGraphics.setFont(resolveLeafLabelFont(visualOptions));
             labelGraphics.setColor(visualOptions.leafLabelColor());
             if (guideLineOptions.showLeafNames()) {
-                labelGraphics.translate(node.getYSelf() - 2.0d, labelBaseY);
+                labelGraphics.translate(
+                        leafLabelAnchorX(node.getYSelf(), labelGraphics.getFontMetrics().getHeight()),
+                        labelBaseY);
                 labelGraphics.rotate(-Math.PI / 2.0d);
                 labelGraphics.drawString(labelText, 0, 0);
             }
@@ -1449,6 +1451,14 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             ReflectGraphicNode<EvolNode> child = (ReflectGraphicNode<EvolNode>) node.getChildAt(index);
             drawStandingTree(graphics2d, child, guideBaseY, labelBaseY, guideLineOptions, visualOptions);
         }
+    }
+
+    private static double leafLabelAnchorX(double leafX, int fontHeight) {
+        return leafX + (fontHeight / 2.0d);
+    }
+
+    static double leafLabelAnchorXForTest(double leafX, int fontHeight) {
+        return leafLabelAnchorX(leafX, fontHeight);
     }
 
     private static Line2D.Double leafGuideLine(double x, double leafY, double baseY) {
