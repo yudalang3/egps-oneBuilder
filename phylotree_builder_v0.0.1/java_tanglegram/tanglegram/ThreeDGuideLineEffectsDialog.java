@@ -16,8 +16,10 @@ import javax.swing.JColorChooser;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JSeparator;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingConstants;
 
 final class ThreeDGuideLineEffectsDialog extends JDialog {
     private final JCheckBox showDashLineCheckBox;
@@ -47,8 +49,8 @@ final class ThreeDGuideLineEffectsDialog extends JDialog {
                 BorderFactory.createEmptyBorder(10, 10, 8, 10)));
         GridBagConstraints constraints = baseConstraints();
 
-        showDashLineCheckBox = new JCheckBox("Show dash line", safeOptions.showDashLine());
         showLeafNamesCheckBox = new JCheckBox("Show leaf names", safeOptions.showLeafNames());
+        showDashLineCheckBox = new JCheckBox("Show dash line", safeOptions.showDashLine());
         strokeWidthSpinner = new JSpinner(new SpinnerNumberModel(
                 Double.valueOf(safeOptions.strokeWidth()), Double.valueOf(0.5d), Double.valueOf(8.0d), Double.valueOf(0.1d)));
         dashLengthSpinner = new JSpinner(new SpinnerNumberModel(
@@ -63,15 +65,17 @@ final class ThreeDGuideLineEffectsDialog extends JDialog {
         constraints.gridx = 0;
         constraints.gridy = 0;
         constraints.gridwidth = 2;
-        formPanel.add(showDashLineCheckBox, constraints);
-        constraints.gridy = 1;
         formPanel.add(showLeafNamesCheckBox, constraints);
+        constraints.gridy = 1;
+        formPanel.add(new JSeparator(SwingConstants.HORIZONTAL), constraints);
+        constraints.gridy = 2;
+        formPanel.add(showDashLineCheckBox, constraints);
         constraints.gridwidth = 1;
 
-        addRow(formPanel, constraints, 2, "Dashed line width", strokeWidthSpinner);
-        addRow(formPanel, constraints, 3, "Dash length", dashLengthSpinner);
-        addRow(formPanel, constraints, 4, "Dash gap", dashGapSpinner);
-        addRow(formPanel, constraints, 5, "Guide line color", colorButton);
+        addRow(formPanel, constraints, 3, "Dashed line width", strokeWidthSpinner);
+        addRow(formPanel, constraints, 4, "Dash length", dashLengthSpinner);
+        addRow(formPanel, constraints, 5, "Dash gap", dashGapSpinner);
+        addRow(formPanel, constraints, 6, "Guide line color", colorButton);
 
         add(formPanel, BorderLayout.CENTER);
 
@@ -90,9 +94,9 @@ final class ThreeDGuideLineEffectsDialog extends JDialog {
         buttonPanel.add(cancelButton);
         add(buttonPanel, BorderLayout.SOUTH);
 
-        setPreferredSize(new java.awt.Dimension(460, 270));
+        setPreferredSize(new java.awt.Dimension(560, 360));
         pack();
-        setMinimumSize(new java.awt.Dimension(420, 240));
+        setMinimumSize(new java.awt.Dimension(520, 320));
         setLocationRelativeTo(owner);
     }
 

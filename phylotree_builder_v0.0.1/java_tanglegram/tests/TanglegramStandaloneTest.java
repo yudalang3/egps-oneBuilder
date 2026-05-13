@@ -97,6 +97,9 @@ public final class TanglegramStandaloneTest {
             run("supportsThreeDBaseGuideLineEffects", TanglegramStandaloneTest::supportsThreeDBaseGuideLineEffects);
             run("supportsThreeDVisualProperties", TanglegramStandaloneTest::supportsThreeDVisualProperties);
             run("usesMeasuredLeafLabelBandInThreeDAlignment", TanglegramStandaloneTest::usesMeasuredLeafLabelBandInThreeDAlignment);
+            run("anchorsThreeDLeafLabelsToSheetFloor", TanglegramStandaloneTest::anchorsThreeDLeafLabelsToSheetFloor);
+            run("recalculatesThreeDLayoutWhenLeafNamesVisibilityChanges", TanglegramStandaloneTest::recalculatesThreeDLayoutWhenLeafNamesVisibilityChanges);
+            run("recalculatesThreeDLayoutWhenVisualPropertiesChange", TanglegramStandaloneTest::recalculatesThreeDLayoutWhenVisualPropertiesChange);
             run("hidesThreeDLeafNamesFromBaseGuideLineEffects", TanglegramStandaloneTest::hidesThreeDLeafNamesFromBaseGuideLineEffects);
             run("usesTiltedSheetAverageForThreeDTitlePosition", TanglegramStandaloneTest::usesTiltedSheetAverageForThreeDTitlePosition);
             run("startsThreeDGuideLineDashesAtLeafBranch", TanglegramStandaloneTest::startsThreeDGuideLineDashesAtLeafBranch);
@@ -719,6 +722,56 @@ public final class TanglegramStandaloneTest {
         assertEquals(Integer.valueOf(56),
                 Integer.valueOf(ThreeDTreeAlignmentView.labelBandHeightForTest(44, true, 11)),
                 "3D label band should use measured longest leaf name width plus padding");
+    }
+
+    private static void anchorsThreeDLeafLabelsToSheetFloor() {
+        assertEquals(Integer.valueOf(254),
+                Integer.valueOf(ThreeDTreeAlignmentView.labelBaseYForTest(300, 38, true)),
+                "visible 3D leaf labels should end at the bottom sheet floor in tree-local coordinates");
+        assertEquals(Integer.valueOf(256),
+                Integer.valueOf(ThreeDTreeAlignmentView.labelBaseYForTest(300, 38, false)),
+                "hidden 3D leaf labels should let guide lines and tips reach the bottom sheet floor");
+    }
+
+    private static void recalculatesThreeDLayoutWhenLeafNamesVisibilityChanges() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
+        Long sequenceBefore = invokeNoArg(view, "renderSequenceForTest", Long.class);
+
+        invokeOneArg(
+                view,
+                "applyGuideLineOptionsForTest",
+                ThreeDGuideLineOptions.class,
+                new ThreeDGuideLineOptions(true, false, 1.1f, 6.0f, 5.0f, new Color(80, 80, 80)));
+
+        Long sequenceAfter = invokeNoArg(view, "renderSequenceForTest", Long.class);
+        assertTrue(sequenceAfter.longValue() > sequenceBefore.longValue(),
+                "changing Show leaf names must schedule a full 3D layout recalculation");
+    }
+
+    private static void recalculatesThreeDLayoutWhenVisualPropertiesChange() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
+        Long sequenceBefore = invokeNoArg(view, "renderSequenceForTest", Long.class);
+        ThreeDVisualOptions defaults = invokeNoArg(view, "visualOptionsForTest", ThreeDVisualOptions.class);
+        ThreeDVisualOptions updated = new ThreeDVisualOptions(
+                defaults.metricsFontSize(),
+                defaults.metricsColor(),
+                defaults.treeTitleFontSize(),
+                defaults.treeTitleColor(),
+                defaults.treeLineThickness(),
+                defaults.treeLineColor(),
+                defaults.leafLabelFontSize() + 2,
+                defaults.leafLabelColor(),
+                defaults.legendFontSize(),
+                defaults.legendColor(),
+                defaults.scaleBarFontSize(),
+                defaults.scaleBarLineThickness(),
+                defaults.scaleBarColor());
+
+        invokeOneArg(view, "applyVisualOptionsForTest", ThreeDVisualOptions.class, updated);
+
+        Long sequenceAfter = invokeNoArg(view, "renderSequenceForTest", Long.class);
+        assertTrue(sequenceAfter.longValue() > sequenceBefore.longValue(),
+                "changing 3D visual properties must schedule a full layout recalculation because leaf font size affects label width");
     }
 
     private static void hidesThreeDLeafNamesFromBaseGuideLineEffects() {

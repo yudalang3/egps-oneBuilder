@@ -221,7 +221,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             return;
         }
         guideLineOptions = updatedOptions;
-        canvas.repaint();
+        scheduleRender();
     }
 
     private void applyVisualOptions(ThreeDVisualOptions updatedOptions) {
@@ -229,7 +229,7 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             return;
         }
         visualOptions = updatedOptions;
-        canvas.repaint();
+        scheduleRender();
     }
 
     private void openConsistencyAnnotationDialog() {
@@ -478,12 +478,13 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             }
             EvolNode copiedRoot = TreeDataLoader.copyTree(importedTree.root());
             ReflectGraphicNode<EvolNode> graphicRoot = new ReflectGraphicNode<>(copiedRoot);
+            int longestLeafLabelWidth = longestLeafLabelWidth(graphicRoot, resolveLeafLabelFont(visualOptions));
             int labelBandHeight = labelBandHeight(
-                    longestLeafLabelWidth(graphicRoot, resolveLeafLabelFont(visualOptions)),
+                    longestLeafLabelWidth,
                     guideLineOptions.showLeafNames(),
                     visualOptions.leafLabelFontSize());
-            int treeHeight = Math.max(90, sheetHeight - contentY - labelBandHeight - 12);
-            int labelBaseY = treeHeight + LABEL_TIP_GAP + (guideLineOptions.showLeafNames() ? visualOptions.leafLabelFontSize() : 0);
+            int labelBaseY = labelBaseY(sheetHeight, contentY, guideLineOptions.showLeafNames());
+            int treeHeight = Math.max(90, labelBaseY - labelBandHeight - 12);
             SingleTreeLayoutCalculator calculator = new SingleTreeLayoutCalculator();
             calculator.calculateTree(graphicRoot, new Dimension(treeHeight, treeWidth));
             ScaleBar scaleBar = scaleBar(calculator.widthRatio(), calculator.maxDepth(), SCALE_BAR_TARGET_LENGTH);
@@ -1466,6 +1467,18 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
 
     static int labelBandHeightForTest(int longestLeafLabelWidth, boolean showLeafNames, int leafLabelFontSize) {
         return labelBandHeight(longestLeafLabelWidth, showLeafNames, leafLabelFontSize);
+    }
+
+    private static int labelBaseY(int sheetHeight, int contentY, boolean showLeafNames) {
+        int floorLocalY = Math.max(0, sheetHeight - contentY - LABEL_BOTTOM_PADDING);
+        if (!showLeafNames) {
+            return floorLocalY + 2;
+        }
+        return floorLocalY;
+    }
+
+    static int labelBaseYForTest(int sheetHeight, int contentY, boolean showLeafNames) {
+        return labelBaseY(sheetHeight, contentY, showLeafNames);
     }
 
     @SuppressWarnings("unchecked")

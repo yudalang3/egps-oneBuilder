@@ -109,9 +109,9 @@ final class ThreeDVisualPropertiesDialog extends JDialog {
         add(formPanel, BorderLayout.CENTER);
         add(createButtonPanel(), BorderLayout.SOUTH);
 
-        setPreferredSize(new java.awt.Dimension(540, 620));
+        setPreferredSize(new java.awt.Dimension(620, 720));
         pack();
-        setMinimumSize(new java.awt.Dimension(500, 540));
+        setMinimumSize(new java.awt.Dimension(580, 640));
         setLocationRelativeTo(owner);
     }
 
