@@ -282,7 +282,12 @@ final class TanglegramWelcomePanel extends JPanel {
         if (selection != JFileChooser.APPROVE_OPTION) {
             return;
         }
-        Path selectedDirectory = fileChooser.getSelectedFile().toPath();
+        Path selectedDirectory = selectedChooserPath(
+                fileChooser.getSelectedFile(),
+                UiText.text("Could not open the selected running result folder.", "无法打开所选运行结果目录。"));
+        if (selectedDirectory == null) {
+            return;
+        }
         runInBackground("Loading running result", () -> {
             TreeSummaryLoadResult loadResult = TreeSummaryLoader.loadRunResult(selectedDirectory);
             return loadResult;
@@ -308,7 +313,12 @@ final class TanglegramWelcomePanel extends JPanel {
         if (selection != JFileChooser.APPROVE_OPTION) {
             return;
         }
-        Path selectedFile = fileChooser.getSelectedFile().toPath();
+        Path selectedFile = selectedChooserPath(
+                fileChooser.getSelectedFile(),
+                UiText.text("Could not open the selected config file.", "无法打开所选配置文件。"));
+        if (selectedFile == null) {
+            return;
+        }
         runInBackground("Loading TSV config", () -> TreeImportConfigIO.readTsv(selectedFile), importedTrees -> {
             lastTsvConfigPath = selectedFile.toAbsolutePath().normalize();
             UiPreferenceStore.saveRecentConfigFile(lastTsvConfigPath);
@@ -631,6 +641,19 @@ final class TanglegramWelcomePanel extends JPanel {
         errorLogPanel.repaint();
     }
 
+    private Path selectedChooserPath(java.io.File selectedFile, String failureTitle) {
+        if (selectedFile == null) {
+            showUserError(failureTitle, UiText.text("No file or folder was selected.", "未选择文件或目录。"));
+            return null;
+        }
+        try {
+            return selectedFile.toPath().toAbsolutePath().normalize();
+        } catch (Exception exception) {
+            showUserError(failureTitle, exception.getMessage());
+            return null;
+        }
+    }
+
     private FileFilter createConfigFileFilter() {
         return new FileFilter() {
             @Override
@@ -697,6 +720,12 @@ final class TanglegramWelcomePanel extends JPanel {
             return UiText.text(
                     "One of the tree file paths does not point to a real file.\n\nWhat to do:\n- Check the path in that row.\n- Double-click the Tree Path cell to choose the file again.\n- If you pasted the path manually, remove extra spaces or quotes and try again.",
                     "某一行的树文件路径指向的文件不存在。\n\n如何操作：\n- 检查该行的路径。\n- 双击 Tree Path 单元格重新选择文件。\n- 如果是手动粘贴的路径，请去除多余的空格或引号后重试。");
+        }
+        if (lowerCaseMessage.contains("illegal char <") || lowerCaseMessage.contains("invalidpathexception")
+                || lowerCaseMessage.contains("malformed input") || lowerCaseMessage.contains("unmappable")) {
+            return UiText.text(
+                    "The selected path is not valid on this system.\n\nWhat to do:\n- Select the folder or file directly in the dialog.\n- Do not paste a quoted path into the picker.",
+                    "所选路径在当前系统上无效。\n\n如何操作：\n- 在对话框里直接选择文件夹或文件。\n- 不要把带引号的路径粘贴到选择器里。");
         }
         if (lowerCaseMessage.contains("directory does not exist")) {
             return UiText.text(

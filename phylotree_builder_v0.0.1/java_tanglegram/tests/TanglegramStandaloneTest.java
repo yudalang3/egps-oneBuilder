@@ -26,12 +26,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JViewport;
 import javax.swing.JSeparator;
+import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 
 public final class TanglegramStandaloneTest {
@@ -55,6 +57,7 @@ public final class TanglegramStandaloneTest {
             run("resolvesStoredWindowSizes", TanglegramStandaloneTest::resolvesStoredWindowSizes);
             run("usesPreferenceBackedTanglegramDefaults", TanglegramStandaloneTest::usesPreferenceBackedTanglegramDefaults);
             run("configuresWelcomeImportActions", TanglegramStandaloneTest::configuresWelcomeImportActions);
+            run("rejectsInvalidChooserPathsWithUserFacingMessage", TanglegramStandaloneTest::rejectsInvalidChooserPathsWithUserFacingMessage);
             run("defaultsTreeLeafArrangementRules", TanglegramStandaloneTest::defaultsTreeLeafArrangementRules);
             run("leavesArrangementDisabledUntilApplied", TanglegramStandaloneTest::leavesArrangementDisabledUntilApplied);
             run("arrangesByCladeSizeUp", TanglegramStandaloneTest::arrangesByCladeSizeUp);
@@ -238,6 +241,33 @@ public final class TanglegramStandaloneTest {
                 "load/export config file tooltips should match");
         assertNull(findButtonOrNull(buttons, "Browse Selected..."),
                 "Browse Selected button should be removed from the import panel");
+    }
+
+    private static void rejectsInvalidChooserPathsWithUserFacingMessage() throws Exception {
+        TanglegramWelcomePanel panel = createWelcomePanel();
+        java.io.File invalidFile = new java.io.File("\"C:\\Users\\yudal\\Documents\\broken path\"");
+        AtomicReference<Path> resultRef = new AtomicReference<>();
+
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                resultRef.set(invokeWithFileArg(
+                        panel,
+                        "selectedChooserPath",
+                        invalidFile,
+                        "Could not open the selected running result folder.",
+                        Path.class));
+            } catch (Exception exception) {
+                throw new RuntimeException(exception);
+            }
+        });
+
+        assertNull(resultRef.get(), "invalid chooser paths should be rejected");
+        JLabel statusLabel = getPrivateField(panel, "statusLabel", JLabel.class);
+        JTextArea errorLogArea = getPrivateField(panel, "errorLogArea", JTextArea.class);
+        assertTrue(statusLabel.getText().contains("Could not open the selected"),
+                "expected chooser failure to update the status label");
+        assertTrue(errorLogArea.getText().contains("not valid on this system"),
+                "expected chooser failure to explain the invalid path");
     }
 
     private static void buildsFixedPairOrderForAllMethods() throws Exception {
@@ -1552,6 +1582,18 @@ public final class TanglegramStandaloneTest {
         Method method = target.getClass().getDeclaredMethod(methodName, Point.class);
         method.setAccessible(true);
         Object value = method.invoke(target, point);
+        return returnType.cast(value);
+    }
+
+    private static <T> T invokeWithFileArg(
+            Object target,
+            String methodName,
+            java.io.File file,
+            String textArg,
+            Class<T> returnType) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName, java.io.File.class, String.class);
+        method.setAccessible(true);
+        Object value = method.invoke(target, file, textArg);
         return returnType.cast(value);
     }
 
