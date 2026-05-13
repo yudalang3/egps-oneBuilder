@@ -94,6 +94,13 @@ public final class TanglegramStandaloneTest {
             run("supportsStandaloneVisualPropertiesControls", TanglegramStandaloneTest::supportsStandaloneVisualPropertiesControls);
             run("preferenceFontFamilyNamesDoNotBlockWhenCold", TanglegramStandaloneTest::preferenceFontFamilyNamesDoNotBlockWhenCold);
             run("supportsThreeDAlignmentControls", TanglegramStandaloneTest::supportsThreeDAlignmentControls);
+            run("supportsThreeDBaseGuideLineEffects", TanglegramStandaloneTest::supportsThreeDBaseGuideLineEffects);
+            run("supportsThreeDVisualProperties", TanglegramStandaloneTest::supportsThreeDVisualProperties);
+            run("usesTiltedSheetAverageForThreeDTitlePosition", TanglegramStandaloneTest::usesTiltedSheetAverageForThreeDTitlePosition);
+            run("startsThreeDGuideLineDashesAtLeafBranch", TanglegramStandaloneTest::startsThreeDGuideLineDashesAtLeafBranch);
+            run("omitsThreeDGuideLineForDeepestLeaf", TanglegramStandaloneTest::omitsThreeDGuideLineForDeepestLeaf);
+            run("calculatesThreeDScaleBarForEachTree", TanglegramStandaloneTest::calculatesThreeDScaleBarForEachTree);
+            run("usesVerticalThreeDScaleBars", TanglegramStandaloneTest::usesVerticalThreeDScaleBars);
             run("supportsThreeDViewportNavigationMenus", TanglegramStandaloneTest::supportsThreeDViewportNavigationMenus);
             run("keepsViewportStableWhenOpeningContextMenuAfterZoom", TanglegramStandaloneTest::keepsViewportStableWhenOpeningContextMenuAfterZoom);
             run("providesCopyableThreeDNodeInformationWithLeafNames", TanglegramStandaloneTest::providesCopyableThreeDNodeInformationWithLeafNames);
@@ -607,6 +614,8 @@ public final class TanglegramStandaloneTest {
         List<JButton> buttons = findButtons(view);
 
         JButton treeOrderButton = findButton(buttons, "Tree order");
+        JButton guideLineButton = findButton(buttons, "Base guide line effects");
+        JButton visualPropertiesButton = findButton(buttons, "Visual properties");
         JButton annotationButton = findButton(buttons, "Consistency annotation");
         JButton quickButton = findButton(buttons, "Quick label consistency");
         JButton cleanButton = findButton(buttons, "Clean all labels");
@@ -615,6 +624,14 @@ public final class TanglegramStandaloneTest {
                 "Reorder the trees in this 3D alignment view without changing the imported data or tree files.",
                 treeOrderButton.getToolTipText(),
                 "unexpected tree order tooltip");
+        assertEquals(
+                "Adjust the dashed or solid guide lines that extend each 3D tree leaf to the base.",
+                guideLineButton.getToolTipText(),
+                "unexpected base guide line tooltip");
+        assertEquals(
+                "Adjust 3D title, label, legend, scale-bar, metrics, and tree-line sizing.",
+                visualPropertiesButton.getToolTipText(),
+                "unexpected 3D visual properties tooltip");
         assertEquals(
                 "Connect clades or clusters that contain exactly the same leaf set across the aligned trees using translucent Sankey ribbons.",
                 annotationButton.getToolTipText(),
@@ -627,7 +644,100 @@ public final class TanglegramStandaloneTest {
                 "Remove all consistency labels and hide all annotation ribbons, markers, and legend entries from this 3D Alignment view.",
                 cleanButton.getToolTipText(),
                 "unexpected clean labels tooltip");
+        List<String> labels = buttons.stream().map(JButton::getText).collect(Collectors.toList());
+        assertTrue(labels.indexOf("Base guide line effects") < labels.indexOf("Visual properties"),
+                "Visual properties should be placed after Base guide line effects");
+        assertTrue(labels.indexOf("Visual properties") < labels.indexOf("Consistency annotation"),
+                "Visual properties should be placed before Consistency annotation");
         assertTrue(view.getExportComponent() != view, "3D alignment export should exclude bottom control buttons");
+    }
+
+    private static void supportsThreeDBaseGuideLineEffects() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
+        ThreeDGuideLineOptions defaultOptions = invokeNoArg(view, "guideLineOptionsForTest", ThreeDGuideLineOptions.class);
+        assertTrue(defaultOptions.showDashLine(),
+                "3D guide lines should be dashed by default");
+        assertEquals(new Color(80, 80, 80), defaultOptions.color(),
+                "3D guide line default color should be dark gray");
+        assertTrue(defaultOptions.strokeForTest().getDashArray() != null,
+                "default 3D guide line stroke should be dashed");
+
+        ThreeDGuideLineOptions solidOptions = new ThreeDGuideLineOptions(false, 1.8f, 9.0f, 4.0f, Color.BLUE);
+        invokeOneArg(view, "applyGuideLineOptionsForTest", ThreeDGuideLineOptions.class, solidOptions);
+
+        ThreeDGuideLineOptions appliedOptions = invokeNoArg(view, "guideLineOptionsForTest", ThreeDGuideLineOptions.class);
+        assertTrue(!appliedOptions.showDashLine(),
+                "unchecked Show dash line should keep guide lines visible as solid strokes");
+        assertEquals(Color.BLUE, appliedOptions.color(),
+                "3D guide line color picker should update the rendered guide line color");
+        assertTrue(appliedOptions.strokeForTest().getDashArray() == null,
+                "unchecked Show dash line should create a solid stroke");
+    }
+
+    private static void supportsThreeDVisualProperties() throws Exception {
+        ThreeDTreeAlignmentView view = new ThreeDTreeAlignmentView(sampleImportedTrees());
+        ThreeDVisualOptions defaults = invokeNoArg(view, "visualOptionsForTest", ThreeDVisualOptions.class);
+        assertEquals(Integer.valueOf(defaults.previousDefaultTitleFontSizeForTest() * 2),
+                Integer.valueOf(defaults.treeTitleFontSize()),
+                "3D title font should default to twice the previous title size");
+        assertTrue(defaults.treeLineThickness() > 1.0f,
+                "3D tree line thickness should expose the current branch stroke width");
+
+        ThreeDVisualOptions updated = new ThreeDVisualOptions(15, 28, 2.4f, 13, 11, 10);
+        invokeOneArg(view, "applyVisualOptionsForTest", ThreeDVisualOptions.class, updated);
+
+        ThreeDVisualOptions applied = invokeNoArg(view, "visualOptionsForTest", ThreeDVisualOptions.class);
+        assertEquals(updated, applied, "3D visual properties should update every exposed size control");
+    }
+
+    private static void usesTiltedSheetAverageForThreeDTitlePosition() {
+        int baselineY = ThreeDTreeAlignmentView.titleBaselineYForTest(100, 200);
+
+        assertEquals(Integer.valueOf(64), Integer.valueOf(baselineY),
+                "3D tree titles should use the average height between the tilted sheet's left and right top edges");
+    }
+
+    private static void startsThreeDGuideLineDashesAtLeafBranch() {
+        java.awt.geom.Line2D.Double guideLine = ThreeDTreeAlignmentView.leafGuideLineForTest(42.0d, 88.0d, 260.0d);
+
+        assertEquals(Double.valueOf(42.0d), Double.valueOf(guideLine.getX1()),
+                "guide line should start at the leaf branch x coordinate");
+        assertEquals(Double.valueOf(88.0d), Double.valueOf(guideLine.getY1()),
+                "guide line dash phase should start at the black leaf branch endpoint");
+        assertEquals(Double.valueOf(42.0d), Double.valueOf(guideLine.getX2()),
+                "guide line should keep the same x coordinate to the base");
+        assertEquals(Double.valueOf(260.0d), Double.valueOf(guideLine.getY2()),
+                "guide line should extend to the shared base coordinate");
+    }
+
+    private static void omitsThreeDGuideLineForDeepestLeaf() {
+        java.awt.geom.Line2D.Double guideLine = ThreeDTreeAlignmentView.leafGuideLineForTest(42.0d, 260.0d, 260.0d);
+
+        assertNull(guideLine, "deepest 3D lineage should not draw an extra base guide line");
+    }
+
+    private static void calculatesThreeDScaleBarForEachTree() {
+        Object scaleBar = ThreeDTreeAlignmentView.scaleBarForTest(20.0d, 2.0d, 30);
+
+        assertEquals(Double.valueOf(1.0d), invokeNoArgUnchecked(scaleBar, "branchLength", Double.class),
+                "scale bar should choose a branch length that fits the target pixel width");
+        assertEquals(Integer.valueOf(20), invokeNoArgUnchecked(scaleBar, "pixelWidth", Integer.class),
+                "scale bar pixel width should use the current tree's branch-length ratio");
+        assertEquals("1", invokeNoArgUnchecked(scaleBar, "label", String.class),
+                "scale bar should use a compact branch-length label");
+    }
+
+    private static void usesVerticalThreeDScaleBars() {
+        java.awt.geom.Line2D.Double line = ThreeDTreeAlignmentView.scaleBarLineForTest(120, 70, 30);
+
+        assertEquals(Double.valueOf(120.0d), Double.valueOf(line.getX1()),
+                "vertical scale bar should keep a fixed x coordinate");
+        assertEquals(Double.valueOf(120.0d), Double.valueOf(line.getX2()),
+                "vertical scale bar should keep a fixed x coordinate");
+        assertEquals(Double.valueOf(70.0d), Double.valueOf(line.getY1()),
+                "vertical scale bar should start at the requested top y coordinate");
+        assertEquals(Double.valueOf(100.0d), Double.valueOf(line.getY2()),
+                "vertical scale bar should extend downward by the pixel length");
     }
 
     private static void supportsThreeDViewportNavigationMenus() throws Exception {
@@ -1578,11 +1688,25 @@ public final class TanglegramStandaloneTest {
         return returnType.cast(value);
     }
 
+    private static <T> T invokeNoArgUnchecked(Object target, String methodName, Class<T> returnType) {
+        try {
+            return invokeNoArg(target, methodName, returnType);
+        } catch (Exception exception) {
+            throw new AssertionError("Failed to call " + methodName + ": " + exception.getMessage(), exception);
+        }
+    }
+
     private static <T> T invokeWithPoint(Object target, String methodName, Point point, Class<T> returnType) throws Exception {
         Method method = target.getClass().getDeclaredMethod(methodName, Point.class);
         method.setAccessible(true);
         Object value = method.invoke(target, point);
         return returnType.cast(value);
+    }
+
+    private static void invokeOneArg(Object target, String methodName, Class<?> parameterType, Object argument) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName, parameterType);
+        method.setAccessible(true);
+        method.invoke(target, argument);
     }
 
     private static <T> T invokeWithFileArg(
