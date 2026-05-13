@@ -318,7 +318,7 @@ public final class OneBuilderStandaloneTest {
         assertEquals("mean_qtmscore_ttmscore",
                 root.getJSONObject("methods").getJSONObject("protein_structure").getString("similarity_rule"),
                 "expected default Foldseek similarity rule");
-        assertEquals("1",
+        assertEquals("13.81551056",
                 root.getJSONObject("methods").getJSONObject("protein_structure").getString("missing_distance"),
                 "expected explicit missing Foldseek pair distance policy");
         assertEquals("SwiftNJ",

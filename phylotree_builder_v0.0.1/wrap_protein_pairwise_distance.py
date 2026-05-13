@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import os
 import re
 import shutil
@@ -22,6 +23,14 @@ SIMILARITY_RULES = {
     "prob",
     "fident",
 }
+
+# Random-baseline TM-score for typical protein lengths (~150 residues).
+# Zhang & Skolnick (2004) show TM-scores below this threshold are
+# indistinguishable from random structural superpositions.
+TM_RANDOM_BASELINE = 0.17
+TM_LOG_FLOOR = 1e-6
+TM_SATURATED_DISTANCE = -math.log(TM_LOG_FLOOR)
+DEFAULT_MISSING_DISTANCE = f"{TM_SATURATED_DISTANCE:.8f}"
 ALL_OUTPUT_COLUMNS = [
     "query",
     "target",
@@ -81,7 +90,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--missing-distance",
-        default="1",
+        default=DEFAULT_MISSING_DISTANCE,
         help="Distance value used when Foldseek reports no hit for a pair. Use an empty string to keep blanks.",
     )
     parser.add_argument(
@@ -99,6 +108,12 @@ def main() -> int:
     if not sequence_ids:
         raise SystemExit(f"No FASTA records found in {input_fasta}")
     similarity_rule = normalize_similarity_rule(args.similarity_rule)
+    if not uses_tm_log_distance(similarity_rule):
+        print(
+            "WARNING: selected similarity rule uses a linear, non-model-based distance "
+            "conversion. Interpret the resulting tree as exploratory rather than a "
+            "TM-score-based structural evolutionary distance tree."
+        )
     prostt5_model_path = None
     if not args.structure_manifest:
         prostt5_model_path = resolve_required_prostt5_model(args.prostt5_model)
@@ -157,7 +172,7 @@ def main() -> int:
         run_config_extra = {"prostt5_model_path": str(prostt5_model_path)}
 
     write_pairwise_scores(output_dir / "pairwise_scores.tsv", rows)
-    write_matrices(output_dir, sequence_ids, rows, args.missing_distance)
+    write_matrices(output_dir, sequence_ids, rows, args.missing_distance, similarity_rule)
     write_run_config(
         output_dir / "run_config.json",
         input_fasta,
@@ -440,7 +455,7 @@ def normalize_foldseek_rows(
             query = map_foldseek_id(raw.get("query", ""), id_lookup)
             target = map_foldseek_id(raw.get("target", ""), id_lookup)
             similarity, score_type = choose_similarity(raw, pair_type, similarity_rule)
-            distance = None if similarity is None else max(0.0, 1.0 - similarity)
+            distance = similarity_to_distance(similarity, score_type)
             row = {column: "" for column in ALL_OUTPUT_COLUMNS}
             row.update(raw)
             row.update(
@@ -467,6 +482,37 @@ def map_foldseek_id(raw_id: str, id_lookup: dict[str, str]) -> str:
     return raw_id
 
 
+def similarity_to_distance(similarity: float | None, score_type: str) -> float | None:
+    """Convert a similarity score to an evolutionary distance.
+
+    For TM-score-based metrics the conversion uses a log-correction
+    analogous to Jukes-Cantor that accounts for the random-baseline
+    saturation of structural similarity:
+
+        d = -ln((TM - TM_random) / (1 - TM_random))
+
+    This stretches distances at the low-similarity end so that
+    distantly-related proteins receive appropriately large distances
+    instead of being compressed into the narrow [0.7, 0.83] range
+    produced by the naive linear mapping d = 1 - TM.
+
+    For non-TM metrics (prob, fident) the linear mapping d = 1 - S is
+    retained because no validated evolutionary model exists for those
+    scores.
+    """
+    if similarity is None:
+        return None
+    if score_type in (
+        "foldseek_tmscore_mean",
+        "foldseek_alntmscore",
+    ):
+        effective = (similarity - TM_RANDOM_BASELINE) / (1.0 - TM_RANDOM_BASELINE)
+        effective = max(effective, TM_LOG_FLOOR)  # floor to avoid -inf
+        return max(0.0, -math.log(effective))
+    # Fallback: linear mapping for non-TM metrics
+    return max(0.0, 1.0 - similarity)
+
+
 def choose_similarity(raw: dict[str, str], pair_type: str, similarity_rule: str) -> tuple[float | None, str]:
     rule = normalize_similarity_rule(similarity_rule)
     if rule == "mean_qtmscore_ttmscore":
@@ -474,12 +520,10 @@ def choose_similarity(raw: dict[str, str], pair_type: str, similarity_rule: str)
         ttmscore = parse_float(raw.get("ttmscore"))
         if qtmscore is not None and ttmscore is not None:
             return (qtmscore + ttmscore) / 2.0, "foldseek_tmscore_mean"
-        alntmscore = parse_float(raw.get("alntmscore"))
-        if alntmscore is not None:
-            return alntmscore, "foldseek_alntmscore"
-        prob = parse_float(raw.get("prob"))
-        if prob is not None:
-            return prob, "foldseek_prostt5_prob" if pair_type == "sequence_vs_sequence" else "foldseek_prob"
+        # Do NOT fall back to alntmscore or prob — mixing different
+        # metric scales within the same distance matrix produces
+        # inconsistent distances and corrupts tree topology.
+        return None, "unavailable"
     elif rule == "alntmscore":
         return parse_float(raw.get("alntmscore")), "foldseek_alntmscore"
     elif rule == "prob":
@@ -512,21 +556,59 @@ def write_pairwise_scores(path: Path, rows: list[dict[str, str]]) -> None:
             writer.writerow({column: row.get(column, "") for column in ALL_OUTPUT_COLUMNS})
 
 
-def write_matrices(output_dir: Path, sequence_ids: list[str], rows: list[dict[str, str]], missing_distance: str = "1") -> None:
+def write_matrices(
+    output_dir: Path,
+    sequence_ids: list[str],
+    rows: list[dict[str, str]],
+    missing_distance: str = DEFAULT_MISSING_DISTANCE,
+    similarity_rule: str = "mean_qtmscore_ttmscore",
+) -> None:
     similarity_by_pair = symmetric_pair_values(rows, "similarity")
     distance_by_pair = symmetric_pair_values(rows, "distance")
-    missing_similarity = format_missing_similarity(missing_distance)
+    missing_similarity = format_missing_similarity(missing_distance, similarity_rule)
+
+    # Warn when a large proportion of pairs have no Foldseek hit.
+    total_off_diagonal = len(sequence_ids) * (len(sequence_ids) - 1)
+    if total_off_diagonal > 0:
+        found_pairs = sum(
+            1 for q in sequence_ids for t in sequence_ids
+            if q != t and (q, t) in distance_by_pair
+        )
+        missing_fraction = 1.0 - found_pairs / total_off_diagonal
+        if missing_fraction > 0.2:
+            print(
+                f"WARNING: {missing_fraction:.0%} of pairwise distances are missing "
+                f"(filled with default={missing_distance}). The resulting tree topology "
+                f"may be unreliable for distantly-related proteins."
+            )
+
     write_matrix(output_dir / "similarity_matrix.tsv", sequence_ids, similarity_by_pair, "1", missing_similarity)
     write_matrix(output_dir / "distance_matrix.tsv", sequence_ids, distance_by_pair, "0", missing_distance)
 
 
-def format_missing_similarity(missing_distance: str) -> str:
+def format_missing_similarity(missing_distance: str, similarity_rule: str = "mean_qtmscore_ttmscore") -> str:
     if missing_distance is None or str(missing_distance) == "":
         return ""
     parsed = parse_float(str(missing_distance))
     if parsed is None:
         return ""
+    if uses_tm_log_distance(similarity_rule):
+        similarity = TM_RANDOM_BASELINE + (1.0 - TM_RANDOM_BASELINE) * math.exp(-parsed)
+        return format_float(min(1.0, max(0.0, similarity)))
     return format_float(max(0.0, 1.0 - parsed))
+
+
+def uses_tm_log_distance(similarity_rule: str | None) -> bool:
+    return normalize_similarity_rule(similarity_rule) in {
+        "mean_qtmscore_ttmscore",
+        "alntmscore",
+    }
+
+
+def distance_transform_model(similarity_rule: str | None) -> str:
+    if uses_tm_log_distance(similarity_rule):
+        return "tm_log_random_baseline_0.17"
+    return "linear_non_model_based"
 
 
 def symmetric_pair_values(rows: list[dict[str, str]], column: str) -> dict[tuple[str, str], str]:
@@ -599,6 +681,9 @@ def write_run_config(
         "foldseek_args": foldseek_args,
         "similarity_rule": similarity_rule,
         "missing_distance": missing_distance,
+        "distance_transform": distance_transform_model(similarity_rule),
+        "tm_random_baseline": TM_RANDOM_BASELINE if uses_tm_log_distance(similarity_rule) else None,
+        "tm_log_floor": TM_LOG_FLOOR if uses_tm_log_distance(similarity_rule) else None,
         **extra,
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

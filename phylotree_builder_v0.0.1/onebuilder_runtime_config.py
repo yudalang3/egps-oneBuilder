@@ -67,7 +67,7 @@ PROTEIN_DEFAULTS = {
         "prostt5_model_path": None,
         "sequence_only_mode": "prostt5",
         "similarity_rule": "mean_qtmscore_ttmscore",
-        "missing_distance": "1",
+        "missing_distance": "13.81551056",
         "tree_builder_method": "NJ",
         "threads": 0,
         "sensitivity": 9.5,
@@ -158,7 +158,7 @@ DNA_DEFAULTS = {
         "prostt5_model_path": None,
         "sequence_only_mode": "prostt5",
         "similarity_rule": "mean_qtmscore_ttmscore",
-        "missing_distance": "1",
+        "missing_distance": "13.81551056",
         "tree_builder_method": "NJ",
         "threads": 0,
         "sensitivity": 9.5,
@@ -381,7 +381,7 @@ def _merge_protein_structure(target, overrides, input_type):
     similarity_rule = str(target.get("similarity_rule") or "mean_qtmscore_ttmscore").strip()
     target["similarity_rule"] = similarity_rule or "mean_qtmscore_ttmscore"
     missing_distance = target.get("missing_distance")
-    target["missing_distance"] = str(missing_distance).strip() if missing_distance is not None else "1"
+    target["missing_distance"] = str(missing_distance).strip() if missing_distance is not None else "13.81551056"
     target["tree_builder_method"] = _normalize_protein_structure_tree_builder_method(
         target.get("tree_builder_method")
     )
