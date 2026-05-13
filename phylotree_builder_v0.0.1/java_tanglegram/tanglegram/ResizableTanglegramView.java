@@ -23,8 +23,10 @@ public final class ResizableTanglegramView extends JPanel implements ExportableV
     private final Timer renderTimer;
     private final AtomicLong renderSequence;
     private final JScrollPane scrollPane;
+    private final Object preparedPairLock;
     private JComponent exportComponent;
     private TreeViewportNavigationSupport.Controller navigationController;
+    private TanglegramPanelFactory.PreparedPair preparedPair;
 
     public ResizableTanglegramView(TreePairSpec pairSpec, TanglegramPanelFactory panelFactory) {
         this(pairSpec, panelFactory, TanglegramRenderOptions.defaults());
@@ -40,6 +42,7 @@ public final class ResizableTanglegramView extends JPanel implements ExportableV
         this.renderTimer = new Timer(RENDER_DELAY_MS, event -> renderToViewport());
         this.renderSequence = new AtomicLong();
         this.scrollPane = new JScrollPane();
+        this.preparedPairLock = new Object();
         this.renderTimer.setRepeats(false);
         setLayout(new BorderLayout());
         setBorder(null);
@@ -58,7 +61,7 @@ public final class ResizableTanglegramView extends JPanel implements ExportableV
     }
 
     public void renderNowForTest(Dimension dimension) throws Exception {
-        setContent(panelFactory.createPanel(pairSpec, dimension));
+        setContent(panelFactory.createPanel(preparePairOnce(), dimension));
     }
 
     JScrollPane scrollPaneForTest() {
@@ -95,7 +98,7 @@ public final class ResizableTanglegramView extends JPanel implements ExportableV
         setContent(loadingPanel());
         Thread renderThread = new Thread(() -> {
             try {
-                TanglegramPanelFactory.PreparedPair preparedPair = panelFactory.preparePair(pairSpec);
+                TanglegramPanelFactory.PreparedPair preparedPair = preparePairOnce();
                 SwingUtilities.invokeLater(() -> {
                     if (renderId != renderSequence.get()) {
                         return;
@@ -116,6 +119,19 @@ public final class ResizableTanglegramView extends JPanel implements ExportableV
         }, "tanglegram-renderer");
         renderThread.setDaemon(true);
         renderThread.start();
+    }
+
+    private TanglegramPanelFactory.PreparedPair preparePairOnce() throws Exception {
+        TanglegramPanelFactory.PreparedPair cachedPreparedPair = preparedPair;
+        if (cachedPreparedPair != null) {
+            return cachedPreparedPair;
+        }
+        synchronized (preparedPairLock) {
+            if (preparedPair == null) {
+                preparedPair = panelFactory.preparePair(pairSpec);
+            }
+            return preparedPair;
+        }
     }
 
     private Dimension getViewportSize() {

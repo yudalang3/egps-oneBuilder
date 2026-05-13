@@ -74,6 +74,10 @@ public final class TanglegramStandaloneTest {
             run("configuresStandaloneResultActions", TanglegramStandaloneTest::configuresStandaloneResultActions);
             run("resolvesMovedSampleTreesFromFallbackLayout", TanglegramStandaloneTest::resolvesMovedSampleTreesFromFallbackLayout);
             run("buildsFixedPairOrderForAllMethods", TanglegramStandaloneTest::buildsFixedPairOrderForAllMethods);
+            run("loadsTreeDistanceAndRfDistanceFromMatrices", TanglegramStandaloneTest::loadsTreeDistanceAndRfDistanceFromMatrices);
+            run("keepsRunningResultMetricsWhenLoadingTable", TanglegramStandaloneTest::keepsRunningResultMetricsWhenLoadingTable);
+            run("fallsBackToJavaRfWhenRfMatrixIsMissing", TanglegramStandaloneTest::fallsBackToJavaRfWhenRfMatrixIsMissing);
+            run("usesJavaRfOnlyForManualTreePairs", TanglegramStandaloneTest::usesJavaRfOnlyForManualTreePairs);
             run("buildsProteinStructurePairsWhenStructureTreeExists", TanglegramStandaloneTest::buildsProteinStructurePairsWhenStructureTreeExists);
             run("keepsFourMethodPairsWhenProteinStructureTreeIsMissing", TanglegramStandaloneTest::keepsFourMethodPairsWhenProteinStructureTreeIsMissing);
             run("loadsRunResultWithoutTreeSummaryAndBuildsProteinCluster", TanglegramStandaloneTest::loadsRunResultWithoutTreeSummaryAndBuildsProteinCluster);
@@ -249,6 +253,91 @@ public final class TanglegramStandaloneTest {
         assertEquals("ML-BI", pairs.get(3).tabName(), "pair 4 mismatch");
         assertEquals("ML-MP", pairs.get(4).tabName(), "pair 5 mismatch");
         assertEquals("BI-MP", pairs.get(5).tabName(), "pair 6 mismatch");
+    }
+
+    private static void loadsTreeDistanceAndRfDistanceFromMatrices() throws Exception {
+        Path movedOutput = copySampleOutput();
+        writeDistanceMatrix(
+                movedOutput.resolve("tree_summary").resolve("tree_distance_matrix.tsv"),
+                "0.125",
+                "0.5");
+        writeDistanceMatrix(
+                movedOutput.resolve("tree_summary").resolve("rf_distance_matrix.tsv"),
+                "17",
+                "3");
+
+        TreePairSpec firstPair = TreeSummaryLoader.load(movedOutput.resolve("tree_summary")).availablePairs().get(0);
+        TanglegramPanelFactory.PreparedPair preparedPair = new TanglegramPanelFactory().preparePair(firstPair);
+
+        assertNear(0.125d, firstPair.treeDistance().doubleValue(), 0.000001d,
+                "expected TreeDist to come from tree_distance_matrix.tsv");
+        assertEquals(Integer.valueOf(17), firstPair.robinsonFouldsDistance(),
+                "expected RF to come from rf_distance_matrix.tsv");
+        assertNear(0.125d, preparedPair.treeDistance().doubleValue(), 0.000001d,
+                "prepared pair should preserve matrix TreeDist");
+        assertEquals(Integer.valueOf(17), Integer.valueOf(preparedPair.robinsonFouldsDistance()),
+                "prepared pair should preserve matrix RF instead of recalculating it");
+    }
+
+    private static void keepsRunningResultMetricsWhenLoadingTable() throws Exception {
+        Path movedOutput = copySampleOutput();
+        writeDistanceMatrix(
+                movedOutput.resolve("tree_summary").resolve("tree_distance_matrix.tsv"),
+                "0.125",
+                "0.5");
+        writeDistanceMatrix(
+                movedOutput.resolve("tree_summary").resolve("rf_distance_matrix.tsv"),
+                "17",
+                "3");
+        AtomicReference<TanglegramWelcomePanel.LoadedImportSession> sessionRef = new AtomicReference<>();
+        TanglegramWelcomePanel panel = new TanglegramWelcomePanel(sessionRef::set);
+        TreeSummaryLoadResult loadResult = TreeSummaryLoader.loadRunResult(movedOutput);
+
+        panel.loadRunningResultForTest(movedOutput, loadResult);
+        panel.loadCurrentTableForTest();
+
+        waitUntil(() -> sessionRef.get() != null, 5000L, "expected running result table load to create a session");
+        TanglegramWelcomePanel.LoadedImportSession session = sessionRef.get();
+        TreePairSpec firstPair = session.pairSpecs().get(0);
+        assertNear(0.125d, firstPair.treeDistance().doubleValue(), 0.000001d,
+                "running result Load Tree Data should preserve TreeDist from matrix");
+        assertEquals(Integer.valueOf(17), firstPair.robinsonFouldsDistance(),
+                "running result Load Tree Data should preserve RF from matrix");
+    }
+
+    private static void fallsBackToJavaRfWhenRfMatrixIsMissing() throws Exception {
+        Path tempDir = createTwoMethodOutput();
+        Files.deleteIfExists(tempDir.resolve("tree_summary").resolve("rf_distance_matrix.tsv"));
+
+        TreePairSpec firstPair = TreeSummaryLoader.load(tempDir.resolve("tree_summary")).availablePairs().get(0);
+        TanglegramPanelFactory.PreparedPair preparedPair = new TanglegramPanelFactory().preparePair(firstPair);
+
+        assertNear(0.75d, firstPair.treeDistance().doubleValue(), 0.000001d,
+                "expected TreeDist to remain available without RF matrix");
+        assertNull(firstPair.robinsonFouldsDistance(), "pair spec should not invent RF before tree parsing");
+        assertNear(0.75d, preparedPair.treeDistance().doubleValue(), 0.000001d,
+                "prepared pair should preserve matrix TreeDist");
+        assertEquals(Integer.valueOf(4), Integer.valueOf(preparedPair.robinsonFouldsDistance()),
+                "expected prepared pair to calculate RF from Java fallback");
+        deleteRecursively(tempDir);
+    }
+
+    private static void usesJavaRfOnlyForManualTreePairs() throws Exception {
+        Path tempDir = Files.createTempDirectory("tanglegram-manual-rf-");
+        Path leftTree = tempDir.resolve("left.nwk");
+        Path rightTree = tempDir.resolve("right.nwk");
+        Files.writeString(leftTree, "((A:0.1,B:0.1):0.2,(C:0.1,D:0.1):0.2);\n");
+        Files.writeString(rightTree, "((A:0.1,C:0.1):0.2,(B:0.1,D:0.1):0.2);\n");
+
+        TreePairSpec manualPair = new TreePairSpec("left", "right", leftTree, rightTree);
+        TanglegramPanelFactory.PreparedPair preparedPair = new TanglegramPanelFactory().preparePair(manualPair);
+
+        assertNull(manualPair.treeDistance(), "manual tree pairs should not have TreeDist");
+        assertNull(manualPair.robinsonFouldsDistance(), "manual tree pairs should not have matrix RF");
+        assertNull(preparedPair.treeDistance(), "manual prepared pairs should not show TreeDist");
+        assertEquals(Integer.valueOf(4), Integer.valueOf(preparedPair.robinsonFouldsDistance()),
+                "manual prepared pairs should use Java RF fallback");
+        deleteRecursively(tempDir);
     }
 
     private static void buildsProteinStructurePairsWhenStructureTreeExists() throws Exception {
@@ -1257,6 +1346,34 @@ public final class TanglegramStandaloneTest {
         view.renderNowForTest(new Dimension(900, 700));
         view.doLayout();
         return view;
+    }
+
+    private static Path createTwoMethodOutput() throws Exception {
+        Path tempDir = Files.createTempDirectory("tanglegram-metric-output-");
+        Path treeSummaryDir = tempDir.resolve("tree_summary");
+        Path distanceDir = tempDir.resolve("distance_method");
+        Path mlDir = tempDir.resolve("maximum_likelihood");
+        Files.createDirectories(treeSummaryDir);
+        Files.createDirectories(distanceDir);
+        Files.createDirectories(mlDir);
+
+        Path distanceTree = distanceDir.resolve("distance_tree.nwk");
+        Path mlTree = mlDir.resolve("ml_tree.treefile");
+        Files.writeString(distanceTree, "((A:0.1,B:0.1):0.2,(C:0.1,D:0.1):0.2);\n");
+        Files.writeString(mlTree, "((A:0.1,C:0.1):0.2,(B:0.1,D:0.1):0.2);\n");
+        Files.writeString(treeSummaryDir.resolve("tree_meta_data.tsv"),
+                "NJ_phylip\t" + distanceTree + "\n"
+                        + "ML_iqtree\t" + mlTree + "\n");
+        writeDistanceMatrix(treeSummaryDir.resolve("tree_distance_matrix.tsv"), "0.75", "0.75");
+        writeDistanceMatrix(treeSummaryDir.resolve("rf_distance_matrix.tsv"), "9", "9");
+        return tempDir;
+    }
+
+    private static void writeDistanceMatrix(Path matrixFile, String njToMl, String mlToNj) throws Exception {
+        Files.writeString(matrixFile,
+                "NJ_phylip\tML_iqtree\n"
+                        + "NJ_phylip\t0\t" + njToMl + "\n"
+                        + "ML_iqtree\t" + mlToNj + "\t0\n");
     }
 
     private static void copyRecursively(Path source, Path target) throws Exception {

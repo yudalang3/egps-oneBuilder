@@ -67,7 +67,26 @@ final class CustomTanglegramPanel extends JPanel {
         drawConnectors(graphics2d, layout.leftLeafEndpoints(), layout.rightLeafEndpoints());
         drawLeafLabels(graphics2d, layout.leftLeafEndpoints(), true);
         drawLeafLabels(graphics2d, layout.rightLeafEndpoints(), false);
+        drawDistanceMetrics(graphics2d);
         graphics2d.dispose();
+    }
+
+    private void drawDistanceMetrics(Graphics2D graphics2d) {
+        Graphics2D metricGraphics = (Graphics2D) graphics2d.create();
+        metricGraphics.setFont(branchLengthFont);
+        metricGraphics.setColor(new Color(20, 24, 30));
+        FontMetrics metrics = metricGraphics.getFontMetrics();
+        int baselineY = Math.max(metrics.getAscent() + 4, 15);
+        Double treeDistance = preparedPair.treeDistance();
+        if (treeDistance != null) {
+            metricGraphics.drawString("TreeDist: " + formatTreeDistance(treeDistance.doubleValue()), 12, baselineY);
+            baselineY += metrics.getHeight();
+        }
+        metricGraphics.drawString(
+                UiText.text("RF distance: ", "RF \u8ddd\u79bb: ") + preparedPair.robinsonFouldsDistance(),
+                12,
+                baselineY);
+        metricGraphics.dispose();
     }
 
     TreeViewportNavigationSupport.TreeHit hitAt(Point point) {
@@ -440,6 +459,14 @@ final class CustomTanglegramPanel extends JPanel {
         }
         String raw = String.valueOf(length);
         return raw.length() > 8 ? raw.substring(0, 8) : raw;
+    }
+
+    private static String formatTreeDistance(double distance) {
+        if (Double.isNaN(distance) || Double.isInfinite(distance)) {
+            return "N/A";
+        }
+        String raw = String.valueOf(distance);
+        return raw.length() > 10 ? raw.substring(0, 10) : raw;
     }
 
     private record LeafEndpoint(String name, double connectorX, double y, int labelX, int baselineY) {

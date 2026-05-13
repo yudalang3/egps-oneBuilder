@@ -39,8 +39,19 @@ public final class TreeSummaryLoader {
                 outputRootDir,
                 warnings);
         List<TreeMethod> missingMethods = missingMethods(resolvedTrees);
+        Map<TreeMethod, Map<TreeMethod, Double>> treeDistances = readDoubleMatrix(
+                normalizedTreeSummaryDir.resolve("tree_distance_matrix.tsv"));
+        Map<TreeMethod, Map<TreeMethod, Integer>> robinsonFouldsDistances = readIntegerMatrix(
+                normalizedTreeSummaryDir.resolve("rf_distance_matrix.tsv"));
 
-        return new TreeSummaryLoadResult(normalizedTreeSummaryDir, outputRootDir, resolvedTrees, missingMethods, warnings);
+        return new TreeSummaryLoadResult(
+                normalizedTreeSummaryDir,
+                outputRootDir,
+                resolvedTrees,
+                treeDistances,
+                robinsonFouldsDistances,
+                missingMethods,
+                warnings);
     }
 
     public static TreeSummaryLoadResult loadRunResult(Path outputRootDir) throws IOException {
@@ -71,6 +82,8 @@ public final class TreeSummaryLoader {
                 treeSummaryDir.toAbsolutePath().normalize(),
                 normalizedOutputRootDir,
                 resolvedTrees,
+                readDoubleMatrix(treeSummaryDir.resolve("tree_distance_matrix.tsv")),
+                readIntegerMatrix(treeSummaryDir.resolve("rf_distance_matrix.tsv")),
                 missingMethods(resolvedTrees),
                 warnings);
     }
@@ -156,6 +169,71 @@ public final class TreeSummaryLoader {
         }
 
         return metadataEntries;
+    }
+
+    private static Map<TreeMethod, Map<TreeMethod, Double>> readDoubleMatrix(Path matrixFile) throws IOException {
+        Map<TreeMethod, Map<TreeMethod, Double>> matrix = new EnumMap<>(TreeMethod.class);
+        if (!Files.exists(matrixFile)) {
+            return matrix;
+        }
+
+        List<String> lines = Files.readAllLines(matrixFile, StandardCharsets.UTF_8);
+        if (lines.isEmpty()) {
+            return matrix;
+        }
+        List<TreeMethod> columns = parseMatrixHeader(lines.get(0));
+        for (int lineIndex = 1; lineIndex < lines.size(); lineIndex++) {
+            String[] pieces = lines.get(lineIndex).split("\t", -1);
+            if (pieces.length == 0) {
+                continue;
+            }
+            TreeMethod rowMethod = TreeMethod.fromMetadataKey(pieces[0].trim());
+            if (rowMethod == null) {
+                continue;
+            }
+            EnumMap<TreeMethod, Double> row = new EnumMap<>(TreeMethod.class);
+            for (int columnIndex = 0; columnIndex < columns.size(); columnIndex++) {
+                int pieceIndex = columnIndex + 1;
+                if (pieceIndex >= pieces.length || columns.get(columnIndex) == null) {
+                    continue;
+                }
+                try {
+                    row.put(columns.get(columnIndex), Double.valueOf(pieces[pieceIndex].trim()));
+                } catch (NumberFormatException ignored) {
+                    // Keep loading available matrix entries even if one cell is malformed.
+                }
+            }
+            matrix.put(rowMethod, row);
+        }
+        return matrix;
+    }
+
+    private static Map<TreeMethod, Map<TreeMethod, Integer>> readIntegerMatrix(Path matrixFile) throws IOException {
+        Map<TreeMethod, Map<TreeMethod, Integer>> matrix = new EnumMap<>(TreeMethod.class);
+        Map<TreeMethod, Map<TreeMethod, Double>> doubleMatrix = readDoubleMatrix(matrixFile);
+        for (Map.Entry<TreeMethod, Map<TreeMethod, Double>> rowEntry : doubleMatrix.entrySet()) {
+            EnumMap<TreeMethod, Integer> row = new EnumMap<>(TreeMethod.class);
+            for (Map.Entry<TreeMethod, Double> cellEntry : rowEntry.getValue().entrySet()) {
+                row.put(cellEntry.getKey(), Integer.valueOf((int) Math.round(cellEntry.getValue().doubleValue())));
+            }
+            matrix.put(rowEntry.getKey(), row);
+        }
+        return matrix;
+    }
+
+    private static List<TreeMethod> parseMatrixHeader(String headerLine) {
+        List<TreeMethod> columns = new ArrayList<>();
+        String[] pieces = headerLine.split("\t", -1);
+        int startIndex = matrixHeaderHasRowNameColumn(headerLine) ? 1 : 0;
+        for (int index = startIndex; index < pieces.length; index++) {
+            columns.add(TreeMethod.fromMetadataKey(pieces[index].trim()));
+        }
+        return columns;
+    }
+
+    private static boolean matrixHeaderHasRowNameColumn(String headerLine) {
+        String[] pieces = headerLine.split("\t", -1);
+        return pieces.length > 0 && TreeMethod.fromMetadataKey(pieces[0].trim()) == null;
     }
 
     private static Path resolveTree(

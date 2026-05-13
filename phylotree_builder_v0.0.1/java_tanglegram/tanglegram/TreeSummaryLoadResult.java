@@ -11,6 +11,8 @@ public final class TreeSummaryLoadResult {
     private final Path treeSummaryDir;
     private final Path outputRootDir;
     private final Map<TreeMethod, Path> resolvedTrees;
+    private final Map<TreeMethod, Map<TreeMethod, Double>> treeDistances;
+    private final Map<TreeMethod, Map<TreeMethod, Integer>> robinsonFouldsDistances;
     private final List<TreeMethod> missingMethods;
     private final List<String> warnings;
 
@@ -18,6 +20,8 @@ public final class TreeSummaryLoadResult {
             Path treeSummaryDir,
             Path outputRootDir,
             Map<TreeMethod, Path> resolvedTrees,
+            Map<TreeMethod, Map<TreeMethod, Double>> treeDistances,
+            Map<TreeMethod, Map<TreeMethod, Integer>> robinsonFouldsDistances,
             List<TreeMethod> missingMethods,
             List<String> warnings) {
         this.treeSummaryDir = treeSummaryDir;
@@ -25,6 +29,8 @@ public final class TreeSummaryLoadResult {
         EnumMap<TreeMethod, Path> safeResolvedTrees = new EnumMap<>(TreeMethod.class);
         safeResolvedTrees.putAll(resolvedTrees);
         this.resolvedTrees = Collections.unmodifiableMap(safeResolvedTrees);
+        this.treeDistances = copyNestedMap(treeDistances);
+        this.robinsonFouldsDistances = copyNestedMap(robinsonFouldsDistances);
         this.missingMethods = Collections.unmodifiableList(new ArrayList<>(missingMethods));
         this.warnings = Collections.unmodifiableList(new ArrayList<>(warnings));
     }
@@ -39,6 +45,14 @@ public final class TreeSummaryLoadResult {
 
     public Map<TreeMethod, Path> resolvedTrees() {
         return resolvedTrees;
+    }
+
+    public Map<TreeMethod, Map<TreeMethod, Double>> treeDistances() {
+        return treeDistances;
+    }
+
+    public Map<TreeMethod, Map<TreeMethod, Integer>> robinsonFouldsDistances() {
+        return robinsonFouldsDistances;
     }
 
     public List<TreeMethod> missingMethods() {
@@ -63,9 +77,38 @@ public final class TreeSummaryLoadResult {
                 if (rightTree == null) {
                     continue;
                 }
-                pairs.add(new TreePairSpec(leftMethod, rightMethod, leftTree, rightTree));
+                pairs.add(new TreePairSpec(
+                        leftMethod,
+                        rightMethod,
+                        leftTree,
+                        rightTree,
+                        treeDistance(leftMethod, rightMethod),
+                        robinsonFouldsDistance(leftMethod, rightMethod)));
             }
         }
         return pairs;
+    }
+
+    private Double treeDistance(TreeMethod leftMethod, TreeMethod rightMethod) {
+        Map<TreeMethod, Double> row = treeDistances.get(leftMethod);
+        return row == null ? null : row.get(rightMethod);
+    }
+
+    private Integer robinsonFouldsDistance(TreeMethod leftMethod, TreeMethod rightMethod) {
+        Map<TreeMethod, Integer> row = robinsonFouldsDistances.get(leftMethod);
+        return row == null ? null : row.get(rightMethod);
+    }
+
+    private static <T> Map<TreeMethod, Map<TreeMethod, T>> copyNestedMap(Map<TreeMethod, Map<TreeMethod, T>> source) {
+        EnumMap<TreeMethod, Map<TreeMethod, T>> outer = new EnumMap<>(TreeMethod.class);
+        if (source == null) {
+            return Collections.unmodifiableMap(outer);
+        }
+        for (Map.Entry<TreeMethod, Map<TreeMethod, T>> entry : source.entrySet()) {
+            EnumMap<TreeMethod, T> inner = new EnumMap<>(TreeMethod.class);
+            inner.putAll(entry.getValue());
+            outer.put(entry.getKey(), Collections.unmodifiableMap(inner));
+        }
+        return Collections.unmodifiableMap(outer);
     }
 }

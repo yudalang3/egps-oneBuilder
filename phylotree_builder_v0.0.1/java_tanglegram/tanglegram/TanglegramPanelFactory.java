@@ -44,7 +44,7 @@ public final class TanglegramPanelFactory {
         TreeDecoder decoder = new TreeDecoder();
         EvolNode leftTree = decoder.decode(readTree(pairSpec.leftTree()));
         EvolNode rightTree = decoder.decode(readTree(pairSpec.rightTree()));
-        return new PreparedPair(leftTree, rightTree);
+        return new PreparedPair(leftTree, rightTree, pairSpec.treeDistance(), pairSpec.robinsonFouldsDistance());
     }
 
     public JPanel createPanel(PreparedPair preparedPair, Dimension requestedSize) {
@@ -59,7 +59,24 @@ public final class TanglegramPanelFactory {
         return new String(Files.readAllBytes(treeFile), StandardCharsets.UTF_8).trim();
     }
 
-    public record PreparedPair(EvolNode leftTree, EvolNode rightTree) {
+    public record PreparedPair(EvolNode leftTree, EvolNode rightTree, Double treeDistance, int robinsonFouldsDistance) {
+        public PreparedPair(EvolNode leftTree, EvolNode rightTree) {
+            this(leftTree, rightTree, null, null);
+        }
+
+        public PreparedPair(
+                EvolNode leftTree,
+                EvolNode rightTree,
+                Double treeDistance,
+                Integer robinsonFouldsDistance) {
+            this(
+                    leftTree,
+                    rightTree,
+                    treeDistance,
+                    robinsonFouldsDistance == null
+                            ? RobinsonFouldsDistanceCalculator.count(leftTree, rightTree)
+                            : robinsonFouldsDistance.intValue());
+        }
     }
 
     private Font resolveLabelFont() {

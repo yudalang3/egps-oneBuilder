@@ -53,6 +53,7 @@ final class TanglegramWelcomePanel extends JPanel {
     private Path lastTreeFilePath;
     private ImportSourceKind currentSourceKind;
     private String currentSourceName;
+    private List<TreePairSpec> currentRunningResultPairs;
 
     TanglegramWelcomePanel(Consumer<LoadedImportSession> loadConsumer) {
         super(new BorderLayout(0, 12));
@@ -68,6 +69,7 @@ final class TanglegramWelcomePanel extends JPanel {
         this.lastTreeFilePath = UiPreferenceStore.loadRecentTreeFileDir();
         this.currentSourceKind = ImportSourceKind.MANUAL;
         this.currentSourceName = "manual";
+        this.currentRunningResultPairs = List.of();
         buildUi();
     }
 
@@ -283,13 +285,15 @@ final class TanglegramWelcomePanel extends JPanel {
         Path selectedDirectory = fileChooser.getSelectedFile().toPath();
         runInBackground("Loading running result", () -> {
             TreeSummaryLoadResult loadResult = TreeSummaryLoader.loadRunResult(selectedDirectory);
-            return importedTreesFromLoadResult(loadResult);
-        }, importedTrees -> {
+            return loadResult;
+        }, loadResult -> {
             lastRunningResultDir = selectedDirectory.toAbsolutePath().normalize();
             UiPreferenceStore.saveRecentRunningResultDir(lastRunningResultDir);
             currentSourceKind = ImportSourceKind.RUNNING_RESULT;
             Path fileName = lastRunningResultDir.getFileName();
             currentSourceName = fileName == null ? lastRunningResultDir.toString() : fileName.toString();
+            currentRunningResultPairs = loadResult.availablePairs();
+            List<ImportedTreeSpec> importedTrees = importedTreesFromLoadResult(loadResult);
             replaceRows(importedTrees);
             showSuccess(UiText.text("Loaded running result config from ", "已加载运行结果配置: ") + lastRunningResultDir + ".");
         });
@@ -441,7 +445,7 @@ final class TanglegramWelcomePanel extends JPanel {
                             "\u81f3\u5c11\u9700\u8981\u4e24\u4e2a\u53ef\u8bfb\u7684\u6811\u6587\u4ef6\u3002\n\n\u5982\u4f55\u64cd\u4f5c\uff1a\n- \u6dfb\u52a0\u4e00\u4e2a\u6811\u6587\u4ef6\uff0c\u6216\n- \u79fb\u9664\u4e0d\u5b8c\u6574\u7684\u884c\uff0c\u7136\u540e\u518d\u6b21\u70b9\u51fb\u201c\u52a0\u8f7d\u6811\u6570\u636e\u201d\u3002"));
             return;
         }
-        List<TreePairSpec> pairSpecs = buildPairSpecs(importedTrees);
+        List<TreePairSpec> pairSpecs = currentPairSpecs(importedTrees);
         String sourceName = deriveSourceName(importedTrees);
         ImportSourceKind sourceKind = deriveSourceKind(importedTrees);
         runInBackground("Loading tree data", () -> new LoadedImportSession(
@@ -492,6 +496,16 @@ final class TanglegramWelcomePanel extends JPanel {
         return pairSpecs;
     }
 
+    private List<TreePairSpec> currentPairSpecs(List<ImportedTreeSpec> importedTrees) {
+        if (currentSourceKind == ImportSourceKind.RUNNING_RESULT
+                && lastRunningResultDir != null
+                && matchesRunningResult(importedTrees, lastRunningResultDir)
+                && currentRunningResultPairs.size() > 0) {
+            return currentRunningResultPairs;
+        }
+        return buildPairSpecs(importedTrees);
+    }
+
     private static List<ImportedTreeSpec> importedTreesFromLoadResult(TreeSummaryLoadResult loadResult) {
         List<ImportedTreeSpec> importedTrees = new ArrayList<>();
         for (TreeMethod method : TreeMethod.DISPLAY_ORDER) {
@@ -501,6 +515,19 @@ final class TanglegramWelcomePanel extends JPanel {
             }
         }
         return importedTrees;
+    }
+
+    void loadRunningResultForTest(Path outputDirectory, TreeSummaryLoadResult loadResult) {
+        lastRunningResultDir = outputDirectory.toAbsolutePath().normalize();
+        currentSourceKind = ImportSourceKind.RUNNING_RESULT;
+        Path fileName = lastRunningResultDir.getFileName();
+        currentSourceName = fileName == null ? lastRunningResultDir.toString() : fileName.toString();
+        currentRunningResultPairs = loadResult.availablePairs();
+        replaceRows(importedTreesFromLoadResult(loadResult));
+    }
+
+    void loadCurrentTableForTest() {
+        loadCurrentTable();
     }
 
     private static List<ImportedTreeSpec> resolveImportedTrees(List<ImportedTreeSpec> importedTrees) throws Exception {
