@@ -483,8 +483,13 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
                     longestLeafLabelWidth,
                     guideLineOptions.showLeafNames(),
                     visualOptions.leafLabelFontSize());
-            int labelBaseY = labelBaseY(sheetHeight, contentY, guideLineOptions.showLeafNames());
-            int treeHeight = Math.max(90, labelBaseY - labelBandHeight - 12);
+            LeafLabelGeometry labelGeometry = leafLabelGeometry(
+                    sheetHeight,
+                    contentY,
+                    longestLeafLabelWidth,
+                    guideLineOptions.showLeafNames());
+            int labelBaseY = labelGeometry.labelBaseY();
+            int treeHeight = Math.max(90, labelGeometry.treeHeight());
             SingleTreeLayoutCalculator calculator = new SingleTreeLayoutCalculator();
             calculator.calculateTree(graphicRoot, new Dimension(treeHeight, treeWidth));
             ScaleBar scaleBar = scaleBar(calculator.widthRatio(), calculator.maxDepth(), SCALE_BAR_TARGET_LENGTH);
@@ -1470,15 +1475,31 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
     }
 
     private static int labelBaseY(int sheetHeight, int contentY, boolean showLeafNames) {
-        int floorLocalY = Math.max(0, sheetHeight - contentY - LABEL_BOTTOM_PADDING);
-        if (!showLeafNames) {
-            return floorLocalY + 2;
-        }
-        return floorLocalY;
+        return Math.max(0, sheetHeight - contentY - LABEL_BOTTOM_PADDING);
     }
 
     static int labelBaseYForTest(int sheetHeight, int contentY, boolean showLeafNames) {
         return labelBaseY(sheetHeight, contentY, showLeafNames);
+    }
+
+    private static LeafLabelGeometry leafLabelGeometry(
+            int sheetHeight,
+            int contentY,
+            int longestLeafLabelWidth,
+            boolean showLeafNames) {
+        int labelBaseY = labelBaseY(sheetHeight, contentY, showLeafNames);
+        int labelTopY = showLeafNames ? labelBaseY - Math.max(0, longestLeafLabelWidth) : labelBaseY;
+        int desiredDeepestLeafY = showLeafNames ? labelTopY - LABEL_TIP_GAP : labelBaseY;
+        int treeHeight = desiredDeepestLeafY + SingleTreeLayoutCalculator.blankLength();
+        return new LeafLabelGeometry(labelBaseY, labelTopY, desiredDeepestLeafY, treeHeight);
+    }
+
+    static LeafLabelGeometry leafLabelGeometryForTest(
+            int sheetHeight,
+            int contentY,
+            int longestLeafLabelWidth,
+            boolean showLeafNames) {
+        return leafLabelGeometry(sheetHeight, contentY, longestLeafLabelWidth, showLeafNames);
     }
 
     @SuppressWarnings("unchecked")
@@ -1619,6 +1640,9 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
             Color shadowColor) {
     }
 
+    record LeafLabelGeometry(int labelBaseY, int labelTopY, int desiredDeepestLeafY, int treeHeight) {
+    }
+
     record ScaleBar(double branchLength, int pixelWidth, String label) {
     }
 
@@ -1628,6 +1652,10 @@ final class ThreeDTreeAlignmentView extends JPanel implements ExportableView {
         private int heightIndex;
         private double widthRatio;
         private double maxDepth;
+
+        private static int blankLength() {
+            return BLANK_LENGTH;
+        }
 
         <T extends EvolNode> void calculateTree(ReflectGraphicNode<T> root, Dimension dimension) {
             heightIndex = 0;

@@ -98,6 +98,7 @@ public final class TanglegramStandaloneTest {
             run("supportsThreeDVisualProperties", TanglegramStandaloneTest::supportsThreeDVisualProperties);
             run("usesMeasuredLeafLabelBandInThreeDAlignment", TanglegramStandaloneTest::usesMeasuredLeafLabelBandInThreeDAlignment);
             run("anchorsThreeDLeafLabelsToSheetFloor", TanglegramStandaloneTest::anchorsThreeDLeafLabelsToSheetFloor);
+            run("calculatesThreeDLeafLabelGeometryFromDeepestTip", TanglegramStandaloneTest::calculatesThreeDLeafLabelGeometryFromDeepestTip);
             run("recalculatesThreeDLayoutWhenLeafNamesVisibilityChanges", TanglegramStandaloneTest::recalculatesThreeDLayoutWhenLeafNamesVisibilityChanges);
             run("recalculatesThreeDLayoutWhenVisualPropertiesChange", TanglegramStandaloneTest::recalculatesThreeDLayoutWhenVisualPropertiesChange);
             run("hidesThreeDLeafNamesFromBaseGuideLineEffects", TanglegramStandaloneTest::hidesThreeDLeafNamesFromBaseGuideLineEffects);
@@ -728,9 +729,26 @@ public final class TanglegramStandaloneTest {
         assertEquals(Integer.valueOf(254),
                 Integer.valueOf(ThreeDTreeAlignmentView.labelBaseYForTest(300, 38, true)),
                 "visible 3D leaf labels should end at the bottom sheet floor in tree-local coordinates");
-        assertEquals(Integer.valueOf(256),
+        assertEquals(Integer.valueOf(254),
                 Integer.valueOf(ThreeDTreeAlignmentView.labelBaseYForTest(300, 38, false)),
                 "hidden 3D leaf labels should let guide lines and tips reach the bottom sheet floor");
+    }
+
+    private static void calculatesThreeDLeafLabelGeometryFromDeepestTip() {
+        Object visibleGeometry = ThreeDTreeAlignmentView.leafLabelGeometryForTest(300, 38, 44, true);
+
+        assertEquals(Integer.valueOf(254), invokeNoArgUnchecked(visibleGeometry, "labelBaseY", Integer.class),
+                "visible leaf label baseline should sit on the sheet floor");
+        assertEquals(Integer.valueOf(210), invokeNoArgUnchecked(visibleGeometry, "labelTopY", Integer.class),
+                "visible longest leaf label top should use the measured label width");
+        assertEquals(Integer.valueOf(206), invokeNoArgUnchecked(visibleGeometry, "desiredDeepestLeafY", Integer.class),
+                "deepest leaf tip should leave the configured gap above the longest label");
+        assertEquals(Integer.valueOf(236), invokeNoArgUnchecked(visibleGeometry, "treeHeight", Integer.class),
+                "tree height should include the single-tree blank length below the deepest tip");
+
+        Object hiddenGeometry = ThreeDTreeAlignmentView.leafLabelGeometryForTest(300, 38, 44, false);
+        assertEquals(Integer.valueOf(284), invokeNoArgUnchecked(hiddenGeometry, "treeHeight", Integer.class),
+                "hidden leaf names should let tips reach the label base plus the single-tree blank length");
     }
 
     private static void recalculatesThreeDLayoutWhenLeafNamesVisibilityChanges() throws Exception {
