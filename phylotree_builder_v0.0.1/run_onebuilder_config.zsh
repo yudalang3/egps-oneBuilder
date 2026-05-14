@@ -44,6 +44,17 @@ aligned_output_path() {
     fi
 }
 
+trimmed_output_path() {
+    local input_file="$1"
+    if [[ "$input_file" == *.* ]]; then
+        local base="${input_file%.*}"
+        local ext="${input_file##*.}"
+        echo "${base}.trim.${ext}"
+    else
+        echo "${input_file}.trim"
+    fi
+}
+
 config_path=""
 positionals=()
 
@@ -108,6 +119,7 @@ with config_path.open(encoding="utf-8") as handle:
 
 run = payload.get("run", {}) if isinstance(payload, dict) else {}
 alignment = payload.get("alignment", {}) if isinstance(payload, dict) else {}
+trim_alignment = payload.get("trim_alignment", {}) if isinstance(payload, dict) else {}
 
 def resolve_path(value: object) -> str:
     if value is None:
@@ -131,6 +143,7 @@ print(resolve_path(run.get("input_file")))
 print(resolve_path(run.get("output_base_dir")))
 print(str(run.get("output_prefix", "")).strip())
 print("1" if bool(alignment.get("run_alignment_first", False)) else "0")
+print("1" if bool(trim_alignment.get("enabled", False)) else "0")
 ' "$config_path"
 )}")
 
@@ -139,6 +152,7 @@ input_file="${config_values[2]:-}"
 output_base_dir="${config_values[3]:-}"
 output_prefix="${config_values[4]:-}"
 run_alignment_first="${config_values[5]:-0}"
+run_trim_alignment="${config_values[6]:-0}"
 
 if [[ "$input_type" != "PROTEIN" && "$input_type" != "DNA_CDS" ]]; then
     echo "Error: unsupported run.input_type '$input_type' in '$config_path'. Expected PROTEIN or DNA_CDS."
@@ -168,6 +182,7 @@ fi
 mkdir -p "$output_base_dir"
 
 align_script="$script_dir/s1_quick_align.zsh"
+trim_script="$script_dir/s1_trim_alignment.zsh"
 protein_script="$script_dir/s2_phylo_4prot.zsh"
 dna_script="$script_dir/s2_phylo_4dna.zsh"
 
@@ -181,6 +196,11 @@ if [[ "$run_alignment_first" -eq 1 && ! -f "$align_script" ]]; then
     exit 1
 fi
 
+if [[ "$run_trim_alignment" -eq 1 && ! -f "$trim_script" ]]; then
+    echo "Error: trim alignment script '$trim_script' does not exist."
+    exit 1
+fi
+
 if [[ ! -f "$build_script" ]]; then
     echo "Error: build script '$build_script' does not exist."
     exit 1
@@ -190,6 +210,10 @@ effective_input_file="$input_file"
 if [[ "$run_alignment_first" -eq 1 ]]; then
     effective_input_file="$(aligned_output_path "$input_file")"
 fi
+trim_input_file="$effective_input_file"
+if [[ "$run_trim_alignment" -eq 1 ]]; then
+    effective_input_file="$(trimmed_output_path "$trim_input_file")"
+fi
 
 pipeline_output_prefix="${output_base_dir}/${output_prefix}"
 
@@ -197,15 +221,32 @@ echo "Running oneBuilder config: $config_path"
 echo "  input type: $input_type"
 echo "  input file: $input_file"
 echo "  run alignment first: $([[ "$run_alignment_first" -eq 1 ]] && echo yes || echo no)"
+echo "  run Trim alignment: $([[ "$run_trim_alignment" -eq 1 ]] && echo yes || echo no)"
 echo "  effective build input: $effective_input_file"
 echo "  output prefix: $pipeline_output_prefix"
 
+total_steps=1
 if [[ "$run_alignment_first" -eq 1 ]]; then
-    echo "Step 1/2: running MAFFT wrapper..."
+    total_steps=$((total_steps + 1))
+fi
+if [[ "$run_trim_alignment" -eq 1 ]]; then
+    total_steps=$((total_steps + 1))
+fi
+current_step=1
+
+if [[ "$run_alignment_first" -eq 1 ]]; then
+    echo "Step ${current_step}/${total_steps}: running MAFFT wrapper..."
     zsh "$align_script" --config "$config_path" "$input_file"
+    current_step=$((current_step + 1))
 fi
 
-echo "Step $([[ "$run_alignment_first" -eq 1 ]] && echo "2/2" || echo "1/1"): running phylogeny wrapper..."
+if [[ "$run_trim_alignment" -eq 1 ]]; then
+    echo "Step ${current_step}/${total_steps}: running Trim alignment wrapper..."
+    zsh "$trim_script" --config "$config_path" "$trim_input_file"
+    current_step=$((current_step + 1))
+fi
+
+echo "Step ${current_step}/${total_steps}: running phylogeny wrapper..."
 build_cmd=(zsh "$build_script")
 if [[ "$force_overwrite" -eq 1 ]]; then
     build_cmd+=(--force-overwrite)

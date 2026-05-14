@@ -6,12 +6,14 @@ import java.util.Optional;
 
 public final class ExecutionPlan {
     private final List<String> alignCommand;
+    private final List<String> trimCommand;
     private final List<String> buildCommand;
     private final Path pipelineOutputDir;
     private final Path effectiveInputFile;
 
-    public ExecutionPlan(List<String> alignCommand, List<String> buildCommand, Path pipelineOutputDir, Path effectiveInputFile) {
+    public ExecutionPlan(List<String> alignCommand, List<String> trimCommand, List<String> buildCommand, Path pipelineOutputDir, Path effectiveInputFile) {
         this.alignCommand = alignCommand;
+        this.trimCommand = trimCommand;
         this.buildCommand = buildCommand;
         this.pipelineOutputDir = pipelineOutputDir;
         this.effectiveInputFile = effectiveInputFile;
@@ -19,6 +21,10 @@ public final class ExecutionPlan {
 
     public Optional<List<String>> alignCommand() {
         return Optional.ofNullable(alignCommand);
+    }
+
+    public Optional<List<String>> trimCommand() {
+        return Optional.ofNullable(trimCommand);
     }
 
     public List<String> buildCommand() {

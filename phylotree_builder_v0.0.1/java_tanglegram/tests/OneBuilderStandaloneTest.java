@@ -35,11 +35,13 @@ public final class OneBuilderStandaloneTest {
             run("buildsProteinExecutionPlanWithoutAlignment", OneBuilderStandaloneTest::buildsProteinExecutionPlanWithoutAlignment);
             run("buildsExecutionPlanWithOverwriteFlag", OneBuilderStandaloneTest::buildsExecutionPlanWithOverwriteFlag);
             run("buildsDnaExecutionPlanWithAlignment", OneBuilderStandaloneTest::buildsDnaExecutionPlanWithAlignment);
+            run("buildsExecutionPlanWithAlignmentAndTrim", OneBuilderStandaloneTest::buildsExecutionPlanWithAlignmentAndTrim);
             run("serializesPipelineRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesPipelineRuntimeConfigAsJson);
             run("roundTripsProteinStructureTreeBuilderMethod", OneBuilderStandaloneTest::roundTripsProteinStructureTreeBuilderMethod);
             run("proteinStructureTreeCommandBuildsNewick", OneBuilderStandaloneTest::proteinStructureTreeCommandBuildsNewick);
             run("serializesRerootRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesRerootRuntimeConfigAsJson);
             run("defaultsRerootPanelToVisibleLadderizationRules", OneBuilderStandaloneTest::defaultsRerootPanelToVisibleLadderizationRules);
+            run("defaultsTrimAlignmentPanelToDisabled", OneBuilderStandaloneTest::defaultsTrimAlignmentPanelToDisabled);
             run("rerootTreeCommandUsesEgpsMidpointRooting", OneBuilderStandaloneTest::rerootTreeCommandUsesEgpsMidpointRooting);
             run("rerootTreeCommandNormalizesPhylipMultiTreeOutput", OneBuilderStandaloneTest::rerootTreeCommandNormalizesPhylipMultiTreeOutput);
             run("rerootTreeCommandRemovesBlankZeroLengthLeafArtifact", OneBuilderStandaloneTest::rerootTreeCommandRemovesBlankZeroLengthLeafArtifact);
@@ -106,6 +108,7 @@ public final class OneBuilderStandaloneTest {
         ExecutionPlan executionPlan = new ExecutionPlanBuilder(scriptDir).build(request, configPath);
 
         assertTrue(executionPlan.alignCommand().isEmpty(), "alignment command should be absent");
+        assertTrue(executionPlan.trimCommand().isEmpty(), "trim command should be absent by default");
         assertEquals(
                 Arrays.asList(
                         "/bin/zsh",
@@ -197,6 +200,51 @@ public final class OneBuilderStandaloneTest {
                         executionPlan.pipelineOutputDir().toString()),
                 executionPlan.buildCommand(),
                 "unexpected dna build command");
+    }
+
+    private static void buildsExecutionPlanWithAlignmentAndTrim() {
+        Path scriptDir = Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1");
+        Path inputFile = Paths.get("/data/input/raw_sequences.fa");
+        Path outputDir = Paths.get("/data/output");
+        Path configPath = Paths.get("/tmp/run-config.json");
+
+        RunRequest request = RunRequest.builder()
+                .inputType(InputType.DNA_CDS)
+                .inputFile(inputFile)
+                .outputDirectory(outputDir)
+                .outputPrefix("dna_demo")
+                .exportConfigFile(true)
+                .runAlignmentFirst(true)
+                .alignOptions(new AlignmentOptions("localpair", 2000, false, Arrays.asList("--thread", "4")))
+                .trimAlignmentConfig(new TrimAlignmentConfig(true, TrimAlignmentPreset.AUTOMATED1, List.of()))
+                .runtimeConfig(PipelineRuntimeConfig.defaultsFor(InputType.DNA_CDS))
+                .build();
+
+        ExecutionPlan executionPlan = new ExecutionPlanBuilder(scriptDir).build(request, configPath);
+
+        assertEquals(
+                Arrays.asList(
+                        "/bin/zsh",
+                        scriptDir.resolve("s1_trim_alignment.zsh").toString(),
+                        "--config",
+                        configPath.toString(),
+                        inputFile.resolveSibling("raw_sequences.aligned.fa").toString()),
+                executionPlan.trimCommand().orElseThrow(),
+                "unexpected trim command");
+        assertEquals(
+                inputFile.resolveSibling("raw_sequences.aligned.trim.fa"),
+                executionPlan.effectiveInputFile(),
+                "unexpected trimmed build input path");
+        assertEquals(
+                Arrays.asList(
+                        "/bin/zsh",
+                        scriptDir.resolve("s2_phylo_4dna.zsh").toString(),
+                        "--config",
+                        configPath.toString(),
+                        inputFile.resolveSibling("raw_sequences.aligned.trim.fa").toString(),
+                        executionPlan.pipelineOutputDir().toString()),
+                executionPlan.buildCommand(),
+                "unexpected trim-enabled build command");
     }
 
     private static void serializesPipelineRuntimeConfigAsJson() throws Exception {
@@ -346,6 +394,8 @@ public final class OneBuilderStandaloneTest {
         assertTrue(json.contains("\"language\": \"english\""), "expected default UI language in run section");
         assertTrue(json.contains("\"alignment\""), "expected alignment section");
         assertTrue(json.contains("\"run_alignment_first\": false"), "expected alignment flag");
+        assertTrue(json.contains("\"trim_alignment\""), "expected trim alignment section");
+        assertTrue(json.contains("\"enabled\": false"), "expected trim alignment to default off");
         assertTrue(json.contains("\"reroot\""), "expected reroot section");
         assertTrue(json.contains("\"method\": \"MAD\""), "expected default MAD reroot method");
         assertTrue(json.contains("\"mafft\""), "expected MAFFT section");
@@ -468,6 +518,17 @@ public final class OneBuilderStandaloneTest {
                 Arrays.asList(Boolean.FALSE, Boolean.FALSE, Boolean.FALSE),
                 panel.ladderizationRuleEnabledStatesForTest(),
                 "ladderization rule checkboxes should be visible but not editable");
+    }
+
+    private static void defaultsTrimAlignmentPanelToDisabled() {
+        TrimAlignmentPanel panel = new TrimAlignmentPanel(() -> { });
+        TrimAlignmentConfig config = panel.toConfig();
+        assertTrue(!config.enabled(), "Trim alignment should default to disabled");
+        assertEquals(
+                TrimAlignmentPreset.GAP_THRESHOLD_CONSERVE,
+                config.preset(),
+                "expected first trim preset as the default selection");
+        assertTrue(!panel.isCustomArgsEditableForTest(), "custom trimAl args should not be editable while Trim is disabled");
     }
 
     private static void rerootTreeCommandUsesEgpsMidpointRooting() throws Exception {
@@ -689,6 +750,7 @@ public final class OneBuilderStandaloneTest {
     private static void tracksWorkflowTabUnlocks() {
         WorkflowTabsState state = WorkflowTabsState.initial();
         assertTrue(state.inputEnabled(), "input tab should be enabled initially");
+        assertTrue(!state.trimAlignmentEnabled(), "trim alignment tab should start disabled");
         assertTrue(!state.treeParametersEnabled(), "tree parameters tab should start disabled");
         assertTrue(!state.rerootTreeEnabled(), "reroot tree tab should start disabled");
         assertTrue(!state.treeBuildEnabled(), "tree build tab should start disabled");
@@ -696,6 +758,7 @@ public final class OneBuilderStandaloneTest {
         assertTrue(!state.visLaunchingEnabled(), "vis launching tab should start disabled");
 
         state = state.markInputConfigured();
+        assertTrue(state.trimAlignmentEnabled(), "trim alignment tab should unlock when input is configured");
         assertTrue(state.treeParametersEnabled(), "tree parameters tab should unlock when input is configured");
         assertTrue(state.rerootTreeEnabled(), "reroot tree tab should unlock when input is configured");
         assertTrue(state.treeBuildEnabled(), "tree build tab should unlock when input is configured");
@@ -754,10 +817,11 @@ public final class OneBuilderStandaloneTest {
                     Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"),
                     PlatformSupport.LINUX);
             assertEquals(
-                    Arrays.asList("Input / Align", "Tree Parameters", "Reroot Tree", "Tree Build", "Tanglegram", "Vis. Launching", "How to cite"),
+                    Arrays.asList("Input / Align", "Trim alignment", "Tree Parameters", "Reroot Tree", "Tree Build", "Tanglegram", "Vis. Launching", "How to cite"),
                     workspacePanel.navigationLabels(),
                     "unexpected left navigation labels");
             assertEquals("Input / Align", workspacePanel.selectedSectionLabel(), "unexpected initial section");
+            assertTrue(!workspacePanel.isSectionEnabled("Trim alignment"), "trim alignment section should start disabled");
             assertTrue(!workspacePanel.isSectionEnabled("Tree Parameters"), "tree parameters section should start disabled");
             assertTrue(!workspacePanel.isSectionEnabled("Reroot Tree"), "reroot tree section should start disabled");
             assertTrue(!workspacePanel.isSectionEnabled("Tree Build"), "tree build section should start disabled");
@@ -771,6 +835,7 @@ public final class OneBuilderStandaloneTest {
             assertTrue(workspacePanel.hasHeaderPanel(), "expected top header");
             assertTrue(workspacePanel.inputAlignPanel().isRunSupported(), "linux should support run");
             assertTrue(workspacePanel.inputAlignPanel().isExportSelected(), "export should default to selected");
+            assertTrue(!workspacePanel.trimAlignmentPanel().toConfig().enabled(), "Trim alignment should default to off");
             assertEquals(
                     Arrays.asList("Distance Method", "Maximum Likelihood", "Bayes Method", "Maximum Parsimony", "Protein Structure"),
                     workspacePanel.treeParametersPanel().parameterTreeLabels(),

@@ -68,6 +68,7 @@ Check the image:
 ```bash
 apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-run-config --help
 apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-align --help
+apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-trim --help
 apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-protein --help
 apptainer exec apptainer/onebuilder-0.0.1-linux64.sif onebuilder-dna --help
 ```

@@ -89,6 +89,9 @@ final class PipelineRunner {
             if (executionPlan.alignCommand().isPresent()) {
                 runCommand("Alignment", executionPlan.alignCommand().orElseThrow(), request.inputType());
             }
+            if (executionPlan.trimCommand().isPresent()) {
+                runCommand("Trim alignment", executionPlan.trimCommand().orElseThrow(), request.inputType());
+            }
             runCommand("Tree Build", executionPlan.buildCommand(), request.inputType());
 
             if (stopRequested) {

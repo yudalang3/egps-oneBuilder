@@ -12,6 +12,7 @@ public final class PipelineConfigWriter {
         JSONObject root = new JSONObject();
         root.put("run", buildRunSection(request));
         root.put("alignment", buildAlignmentSection(request));
+        root.put("trim_alignment", buildTrimAlignmentSection(request.trimAlignmentConfig()));
         root.put("reroot", buildRerootSection(request.runtimeConfig()));
         JSONObject methods = new JSONObject();
         root.put("methods", methods);
@@ -50,6 +51,18 @@ public final class PipelineConfigWriter {
                         .put("common", common)
                         .put("advanced", new JSONObject())
                         .put("extra_args", new JSONArray(request.alignOptions().extraArgs())));
+    }
+
+    private static JSONObject buildTrimAlignmentSection(TrimAlignmentConfig trimConfig) {
+        TrimAlignmentConfig effectiveConfig = trimConfig == null ? TrimAlignmentConfig.defaults() : trimConfig;
+        return new JSONObject()
+                .put("enabled", effectiveConfig.enabled())
+                .put("preset", effectiveConfig.preset().name())
+                .put("trimal", new JSONObject()
+                        .put("common", new JSONObject()
+                                .put("args", new JSONArray(effectiveConfig.effectiveArgs())))
+                        .put("advanced", new JSONObject())
+                        .put("custom_args", new JSONArray(effectiveConfig.customArgs())));
     }
 
     private static JSONObject buildRerootSection(PipelineRuntimeConfig config) {

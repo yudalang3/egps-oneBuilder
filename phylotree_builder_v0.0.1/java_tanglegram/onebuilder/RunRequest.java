@@ -12,6 +12,7 @@ public final class RunRequest {
     private final boolean overwriteExistingOutput;
     private final boolean runAlignmentFirst;
     private final AlignmentOptions alignOptions;
+    private final TrimAlignmentConfig trimAlignmentConfig;
     private final PipelineRuntimeConfig runtimeConfig;
     private final UiLanguage language;
 
@@ -24,6 +25,7 @@ public final class RunRequest {
         this.overwriteExistingOutput = builder.overwriteExistingOutput;
         this.runAlignmentFirst = builder.runAlignmentFirst;
         this.alignOptions = builder.alignOptions;
+        this.trimAlignmentConfig = builder.trimAlignmentConfig == null ? TrimAlignmentConfig.defaults() : builder.trimAlignmentConfig;
         this.runtimeConfig = builder.runtimeConfig;
         this.language = builder.language == null ? UiLanguage.ENGLISH : builder.language;
     }
@@ -64,6 +66,10 @@ public final class RunRequest {
         return alignOptions;
     }
 
+    public TrimAlignmentConfig trimAlignmentConfig() {
+        return trimAlignmentConfig;
+    }
+
     public PipelineRuntimeConfig runtimeConfig() {
         return runtimeConfig;
     }
@@ -90,6 +96,7 @@ public final class RunRequest {
                 .overwriteExistingOutput(overwriteExistingOutput)
                 .runAlignmentFirst(runAlignmentFirst)
                 .alignOptions(alignOptions)
+                .trimAlignmentConfig(trimAlignmentConfig)
                 .runtimeConfig(runtimeConfig)
                 .language(language)
                 .build();
@@ -104,6 +111,7 @@ public final class RunRequest {
         private boolean overwriteExistingOutput;
         private boolean runAlignmentFirst;
         private AlignmentOptions alignOptions = AlignmentOptions.defaults();
+        private TrimAlignmentConfig trimAlignmentConfig = TrimAlignmentConfig.defaults();
         private PipelineRuntimeConfig runtimeConfig;
         private UiLanguage language = UiLanguage.ENGLISH;
 
@@ -144,6 +152,11 @@ public final class RunRequest {
 
         public Builder alignOptions(AlignmentOptions alignOptions) {
             this.alignOptions = alignOptions;
+            return this;
+        }
+
+        public Builder trimAlignmentConfig(TrimAlignmentConfig trimAlignmentConfig) {
+            this.trimAlignmentConfig = trimAlignmentConfig;
             return this;
         }
 

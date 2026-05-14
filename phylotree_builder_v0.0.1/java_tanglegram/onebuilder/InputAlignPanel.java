@@ -51,6 +51,7 @@ final class InputAlignPanel extends JPanel {
     private final PlatformSupport platformSupport;
     private final Runnable inputChangedCallback;
     private final Supplier<PipelineRuntimeConfig> runtimeConfigSupplier;
+    private final Supplier<TrimAlignmentConfig> trimAlignmentConfigSupplier;
     private Path lastInputBrowseDir;
     private Path lastOutputBrowseDir;
     private boolean running;
@@ -62,10 +63,19 @@ final class InputAlignPanel extends JPanel {
             PlatformSupport platformSupport,
             Runnable inputChangedCallback,
             Supplier<PipelineRuntimeConfig> runtimeConfigSupplier) {
+        this(platformSupport, inputChangedCallback, runtimeConfigSupplier, TrimAlignmentConfig::defaults);
+    }
+
+    InputAlignPanel(
+            PlatformSupport platformSupport,
+            Runnable inputChangedCallback,
+            Supplier<PipelineRuntimeConfig> runtimeConfigSupplier,
+            Supplier<TrimAlignmentConfig> trimAlignmentConfigSupplier) {
         super(new BorderLayout(12, 12));
         this.platformSupport = platformSupport;
         this.inputChangedCallback = inputChangedCallback;
         this.runtimeConfigSupplier = runtimeConfigSupplier;
+        this.trimAlignmentConfigSupplier = trimAlignmentConfigSupplier == null ? TrimAlignmentConfig::defaults : trimAlignmentConfigSupplier;
         this.lastInputBrowseDir = UiPreferenceStore.loadRecentOneBuilderInputDir();
         this.lastOutputBrowseDir = UiPreferenceStore.loadRecentOneBuilderOutputDir();
         WorkbenchStyles.applyCanvas(this);
@@ -232,7 +242,7 @@ final class InputAlignPanel extends JPanel {
         constraints.gridx = 0;
         constraints.gridy = 12;
         constraints.weightx = 0.0;
-        formPanel.add(new JLabel("Expected aligned file"), constraints);
+        formPanel.add(new JLabel("Expected build input"), constraints);
         constraints.gridx = 1;
         constraints.gridwidth = 2;
         constraints.weightx = 1.0;
@@ -244,7 +254,7 @@ final class InputAlignPanel extends JPanel {
         JPanel nextStepCard = WorkbenchStyles.createSurfacePanel(new BorderLayout());
         nextStepCard.add(
                 WorkbenchStyles.createNoteArea(
-                        "Next step: open Tree Parameters to adjust the method tree, then use Tree Build to export the full config or run the pipeline."),
+                        "Next step: optionally trim the alignment, then open Tree Parameters to adjust the method tree."),
                 BorderLayout.CENTER);
         add(nextStepCard, BorderLayout.SOUTH);
 
@@ -349,6 +359,10 @@ final class InputAlignPanel extends JPanel {
     }
 
     String buildRunDraftSummary(PipelineRuntimeConfig runtimeConfig) {
+        return buildRunDraftSummary(runtimeConfig, TrimAlignmentConfig.defaults());
+    }
+
+    String buildRunDraftSummary(PipelineRuntimeConfig runtimeConfig, TrimAlignmentConfig trimAlignmentConfig) {
         StringBuilder builder = new StringBuilder();
         builder.append("Input type: ").append(selectedInputType().displayName()).append(System.lineSeparator());
         builder.append("Input FASTA/MSA: ").append(textOrDash(inputFileField.getText())).append(System.lineSeparator());
@@ -369,7 +383,11 @@ final class InputAlignPanel extends JPanel {
                 )
                 .append(System.lineSeparator());
         builder.append("MAFFT threads: ").append(integerTextOrAuto((Integer) alignThreadsSpinner.getValue())).append(System.lineSeparator());
-        builder.append("Expected aligned file: ").append(textOrDash(alignedPreviewValue.getText())).append(System.lineSeparator());
+        TrimAlignmentConfig effectiveTrimConfig = trimAlignmentConfig == null ? TrimAlignmentConfig.defaults() : trimAlignmentConfig;
+        builder.append("Trim alignment: ").append(effectiveTrimConfig.displayText()).append(System.lineSeparator());
+        builder.append("Expected tree-build input: ")
+                .append(textOrDash(expectedBuildInputPath(effectiveTrimConfig)))
+                .append(System.lineSeparator());
         builder.append("Keep config file when running: ").append(exportConfigCheckBox.isSelected() ? "Yes" : "No").append(System.lineSeparator());
         builder.append("Reroot method: ").append(runtimeConfig.reroot().method().jsonValue()).append(System.lineSeparator());
         builder.append("Ladderization direction: ").append(runtimeConfig.reroot().ladderizeDirection().jsonValue()).append(System.lineSeparator());
@@ -420,6 +438,14 @@ final class InputAlignPanel extends JPanel {
 
     void setAlignedPreview(Path alignedOutput) {
         alignedPreviewValue.setText(alignedOutput == null ? "-" : alignedOutput.toString());
+    }
+
+    void refreshEffectiveInputPreview() {
+        Path inputPath = resolvedInputPathOrNull();
+        setAlignedPreview(inputPath == null ? null : effectiveInputPath(
+                inputPath,
+                runAlignmentCheckBox.isSelected(),
+                trimAlignmentConfigSupplier.get()));
     }
 
     private void browseForInputFile() {
@@ -508,6 +534,11 @@ final class InputAlignPanel extends JPanel {
 
         PipelineRuntimeConfig runtimeConfig = runtimeConfigSupplier.get();
         validateRunConfiguration(runtimeConfig);
+        TrimAlignmentConfig trimAlignmentConfig = trimAlignmentConfigSupplier.get();
+        if (trimAlignmentConfig == null) {
+            trimAlignmentConfig = TrimAlignmentConfig.defaults();
+        }
+        trimAlignmentConfig.validate();
 
         RunRequest request = RunRequest.builder()
                 .inputType(selectedInputType())
@@ -523,12 +554,11 @@ final class InputAlignPanel extends JPanel {
                         integerOrNull((Integer) alignThreadsSpinner.getValue()),
                         reorderCheckBox.isSelected(),
                         TextListCodec.splitLines(alignExtraArgsArea.getText())))
+                .trimAlignmentConfig(trimAlignmentConfig)
                 .runtimeConfig(runtimeConfig)
                 .build();
         saveLastUsedInputSettings();
-        setAlignedPreview(request.runAlignmentFirst()
-                ? ExecutionPlanBuilder.alignedOutputPath(request.inputFile())
-                : request.inputFile());
+        setAlignedPreview(effectiveInputPath(request.inputFile(), request.runAlignmentFirst(), trimAlignmentConfig));
         return request;
     }
 
@@ -753,11 +783,24 @@ final class InputAlignPanel extends JPanel {
 
     private void notifyInputChanged() {
         toggleAlignmentControls();
-        Path inputPath = resolvedInputPathOrNull();
-        setAlignedPreview(inputPath == null
-                ? null
-                : (runAlignmentCheckBox.isSelected() ? ExecutionPlanBuilder.alignedOutputPath(inputPath) : inputPath));
+        refreshEffectiveInputPreview();
         inputChangedCallback.run();
+    }
+
+    private String expectedBuildInputPath(TrimAlignmentConfig trimAlignmentConfig) {
+        Path inputPath = resolvedInputPathOrNull();
+        if (inputPath == null) {
+            return "-";
+        }
+        return effectiveInputPath(inputPath, runAlignmentCheckBox.isSelected(), trimAlignmentConfig).toString();
+    }
+
+    private static Path effectiveInputPath(Path inputPath, boolean runAlignmentFirst, TrimAlignmentConfig trimAlignmentConfig) {
+        Path effectivePath = runAlignmentFirst ? ExecutionPlanBuilder.alignedOutputPath(inputPath) : inputPath;
+        if (trimAlignmentConfig != null && trimAlignmentConfig.enabled()) {
+            effectivePath = ExecutionPlanBuilder.trimmedOutputPath(effectivePath);
+        }
+        return effectivePath;
     }
 
     private void handleInputFileChanged() {

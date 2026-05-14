@@ -4,6 +4,7 @@ From: ubuntu:24.04
 %files
     stage/onebuilder /opt/onebuilder
     stage/jre25 /opt/java/jre25
+    /opt/bioinfor/trimAI /opt/bioinfor/trimAI
 
 %post -c /bin/bash
     set -euo pipefail
@@ -32,7 +33,7 @@ set -euo pipefail
 export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
 export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
 export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
-export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:/opt/bioinfor/trimAI/bin:$JAVA_HOME/bin:$PATH"
 export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec zsh "$ONEBUILDER_HOME/run_onebuilder_config.zsh" "$@"
 EOF
@@ -43,9 +44,20 @@ set -euo pipefail
 export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
 export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
 export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
-export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:/opt/bioinfor/trimAI/bin:$JAVA_HOME/bin:$PATH"
 export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec zsh "$ONEBUILDER_HOME/s1_quick_align.zsh" "$@"
+EOF
+
+    cat >/opt/onebuilder/bin/onebuilder-trim <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
+export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
+export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:/opt/bioinfor/trimAI/bin:$JAVA_HOME/bin:$PATH"
+export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec zsh "$ONEBUILDER_HOME/s1_trim_alignment.zsh" "$@"
 EOF
 
     cat >/opt/onebuilder/bin/onebuilder-protein <<'EOF'
@@ -54,7 +66,7 @@ set -euo pipefail
 export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
 export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
 export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
-export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:/opt/bioinfor/trimAI/bin:$JAVA_HOME/bin:$PATH"
 export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec zsh "$ONEBUILDER_HOME/s2_phylo_4prot.zsh" "$@"
 EOF
@@ -65,7 +77,7 @@ set -euo pipefail
 export ONEBUILDER_HOME="${ONEBUILDER_HOME:-/opt/onebuilder}"
 export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtime}"
 export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
-export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:/opt/bioinfor/trimAI/bin:$JAVA_HOME/bin:$PATH"
 export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec zsh "$ONEBUILDER_HOME/s2_phylo_4dna.zsh" "$@"
 EOF
@@ -78,7 +90,7 @@ export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtim
 export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
 export FONTCONFIG_FILE="${FONTCONFIG_FILE:-/etc/fonts/fonts.conf}"
 export FONTCONFIG_PATH="${FONTCONFIG_PATH:-/etc/fonts}"
-export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:/opt/bioinfor/trimAI/bin:$JAVA_HOME/bin:$PATH"
 export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec java -cp "$ONEBUILDER_HOME/lib/*:$ONEBUILDER_HOME/java_tanglegram" onebuilder.launcher "$@"
 EOF
@@ -91,7 +103,7 @@ export ONEBUILDER_RUNTIME_ENV="${ONEBUILDER_RUNTIME_ENV:-$ONEBUILDER_HOME/runtim
 export JAVA_HOME="${JAVA_HOME:-/opt/java/jre25}"
 export FONTCONFIG_FILE="${FONTCONFIG_FILE:-/etc/fonts/fonts.conf}"
 export FONTCONFIG_PATH="${FONTCONFIG_PATH:-/etc/fonts}"
-export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:$JAVA_HOME/bin:$PATH"
+export PATH="$ONEBUILDER_HOME/bin:$ONEBUILDER_RUNTIME_ENV/bin:/opt/bioinfor/trimAI/bin:$JAVA_HOME/bin:$PATH"
 export LD_LIBRARY_PATH="$ONEBUILDER_RUNTIME_ENV/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec java -cp "$ONEBUILDER_HOME/lib/*:$ONEBUILDER_HOME/java_tanglegram" tanglegram.launcher "$@"
 EOF
@@ -99,6 +111,7 @@ EOF
     chmod +x /opt/onebuilder/bin/*
     chmod +x /opt/onebuilder/*.zsh || true
     chmod +x /opt/onebuilder/third_party/mad/mad || true
+    chmod +x /opt/bioinfor/trimAI/bin/trimal || true
 
 %environment
     export ONEBUILDER_HOME=/opt/onebuilder
@@ -106,7 +119,7 @@ EOF
     export JAVA_HOME=/opt/java/jre25
     export FONTCONFIG_FILE=/etc/fonts/fonts.conf
     export FONTCONFIG_PATH=/etc/fonts
-    export PATH=/opt/onebuilder/bin:/opt/onebuilder/runtime/bin:/opt/java/jre25/bin:$PATH
+    export PATH=/opt/onebuilder/bin:/opt/onebuilder/runtime/bin:/opt/bioinfor/trimAI/bin:/opt/java/jre25/bin:$PATH
     export LD_LIBRARY_PATH=/opt/onebuilder/runtime/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 
 %runscript

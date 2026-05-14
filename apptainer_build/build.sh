@@ -44,6 +44,11 @@ if [[ ! -x "$source_dir/third_party/mad/mad" ]]; then
   exit 1
 fi
 
+if [[ ! -x "/opt/bioinfor/trimAI/bin/trimal" ]]; then
+  echo "Error: trimAl executable not found: /opt/bioinfor/trimAI/bin/trimal" >&2
+  exit 1
+fi
+
 if [[ -z "$java_home" ]]; then
   java_bin="$(command -v java || true)"
   if [[ -z "$java_bin" ]]; then

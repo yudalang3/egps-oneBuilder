@@ -23,6 +23,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
     private final JPanel contentPanel;
     private final CardLayout contentLayout;
     private final InputAlignPanel inputAlignPanel;
+    private final TrimAlignmentPanel trimAlignmentPanel;
     private final TreeParametersPanel treeParametersPanel;
     private final RerootTreePanel rerootTreePanel;
     private final TreeBuildPanel treeBuildPanel;
@@ -50,6 +51,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
 
         WorkbenchStyles.applyCanvas(this);
 
+        trimAlignmentPanel = new TrimAlignmentPanel(this::handleTrimChanged);
         treeParametersPanel = new TreeParametersPanel(selectedInputType);
         rerootTreePanel = new RerootTreePanel();
         rerootTreePanel.apply(RerootConfig.defaults());
@@ -66,7 +68,8 @@ final class OneBuilderWorkspacePanel extends JPanel {
         inputAlignPanel = new InputAlignPanel(
                 platformSupport,
                 this::handleInputChanged,
-                this::currentRuntimeConfig);
+                this::currentRuntimeConfig,
+                trimAlignmentPanel::toConfig);
 
         headerContextLabel = WorkbenchStyles.createSubtitleLabel(
                 "Prepare one alignment, review the method tree, run the pipeline, then inspect the tanglegram.");
@@ -83,6 +86,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
         contentPanel = new JPanel(contentLayout);
         WorkbenchStyles.applyCanvas(contentPanel);
         contentPanel.add(inputAlignPanel, WorkspaceSection.INPUT_ALIGN.name());
+        contentPanel.add(trimAlignmentPanel, WorkspaceSection.TRIM_ALIGNMENT.name());
         contentPanel.add(treeParametersPanel, WorkspaceSection.TREE_PARAMETERS.name());
         contentPanel.add(rerootTreePanel, WorkspaceSection.REROOT_TREE.name());
         contentPanel.add(treeBuildPanel, WorkspaceSection.TREE_BUILD.name());
@@ -162,6 +166,10 @@ final class OneBuilderWorkspacePanel extends JPanel {
         return inputAlignPanel;
     }
 
+    TrimAlignmentPanel trimAlignmentPanel() {
+        return trimAlignmentPanel;
+    }
+
     void applyPreferences(UiPreferences preferences) {
         currentRunTanglegramPanel.applyPreferences(preferences);
         howToCitePanel.applyPreferences();
@@ -229,6 +237,9 @@ final class OneBuilderWorkspacePanel extends JPanel {
                         ? "Set input, output, and alignment behavior before moving deeper into the Linux-only pipeline."
                         : "Edit input and alignment settings here, then export the config from Tree Build on Windows.");
                 break;
+            case TRIM_ALIGNMENT:
+                headerContextLabel.setText("Optionally run trimAl after alignment and before tree-parameter configuration.");
+                break;
             case TREE_PARAMETERS:
                 headerContextLabel.setText("Use the method tree to configure Distance, Maximum Likelihood, Bayes, Parsimony, and protein-only Foldseek structure similarity.");
                 break;
@@ -263,6 +274,11 @@ final class OneBuilderWorkspacePanel extends JPanel {
         }
         refreshTreeBuildDraft();
         syncWorkflowTabs();
+    }
+
+    private void handleTrimChanged() {
+        inputAlignPanel.refreshEffectiveInputPreview();
+        refreshTreeBuildDraft();
     }
 
     private void handleRunButtonPressed() {
@@ -314,14 +330,18 @@ final class OneBuilderWorkspacePanel extends JPanel {
         workflowTabsState = workflowTabsState.markInputConfigured().markRunStarted();
         syncWorkflowTabs();
         inputAlignPanel.setRunning(true);
+        trimAlignmentPanel.setRunning(true);
         rerootTreePanel.setRunning(true);
-        treeBuildPanel.setDraftSummary(inputAlignPanel.buildRunDraftSummary(preparedRequest.runtimeConfig()));
+        treeBuildPanel.setDraftSummary(inputAlignPanel.buildRunDraftSummary(
+                preparedRequest.runtimeConfig(),
+                preparedRequest.trimAlignmentConfig()));
         treeBuildPanel.configureOverallProgress(preparedRequest.runtimeConfig());
 
         try {
             pipelineRunner.start(preparedRequest);
         } catch (IllegalStateException exception) {
             inputAlignPanel.setRunning(false);
+            trimAlignmentPanel.setRunning(false);
             rerootTreePanel.setRunning(false);
             treeBuildPanel.setRunning(false);
             JOptionPane.showMessageDialog(this, exception.getMessage(), "eGPS oneBuilder", JOptionPane.ERROR_MESSAGE);
@@ -342,6 +362,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
             }
         }
         inputAlignPanel.setRunning(true);
+        trimAlignmentPanel.setRunning(true);
         rerootTreePanel.setRunning(true);
         treeBuildPanel.setExporting(true);
         Thread exportThread = new Thread(() -> {
@@ -350,6 +371,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
                 pipelineConfigWriter.write(request.exportConfigPath(), request);
                 SwingUtilities.invokeLater(() -> {
                     inputAlignPanel.setRunning(false);
+                    trimAlignmentPanel.setRunning(false);
                     rerootTreePanel.setRunning(false);
                     treeBuildPanel.setExporting(false);
                     JOptionPane.showMessageDialog(
@@ -361,6 +383,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
             } catch (Exception exception) {
                 SwingUtilities.invokeLater(() -> {
                     inputAlignPanel.setRunning(false);
+                    trimAlignmentPanel.setRunning(false);
                     rerootTreePanel.setRunning(false);
                     treeBuildPanel.setExporting(false);
                     JOptionPane.showMessageDialog(
@@ -380,7 +403,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
     }
 
     private void refreshTreeBuildDraft() {
-        treeBuildPanel.setDraftSummary(inputAlignPanel.buildRunDraftSummary(currentRuntimeConfig()));
+        treeBuildPanel.setDraftSummary(inputAlignPanel.buildRunDraftSummary(currentRuntimeConfig(), trimAlignmentPanel.toConfig()));
     }
 
     private PipelineRuntimeConfig currentRuntimeConfig() {
@@ -421,6 +444,10 @@ final class OneBuilderWorkspacePanel extends JPanel {
     private void syncWorkflowTabs() {
         navigationRail.setSectionEnabled(WorkspaceSection.INPUT_ALIGN, workflowTabsState.inputEnabled());
         boolean inputReady = inputAlignPanel.navigationBlockingMessage() == null;
+        navigationRail.setSectionEnabled(
+                WorkspaceSection.TRIM_ALIGNMENT,
+                workflowTabsState.trimAlignmentEnabled() && inputReady,
+                inputAlignPanel.navigationBlockingMessage());
         navigationRail.setSectionEnabled(
                 WorkspaceSection.TREE_PARAMETERS,
                 workflowTabsState.treeParametersEnabled() && inputReady,
@@ -467,6 +494,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
     private String lockedSectionMessage(WorkspaceSection section) {
         switch (section) {
             case TREE_PARAMETERS:
+            case TRIM_ALIGNMENT:
             case REROOT_TREE:
             case TREE_BUILD:
                 return inputAlignPanel.navigationBlockingMessage();
@@ -532,6 +560,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
             workflowTabsState = workflowTabsState.markTanglegramReady().markRunFinished();
             syncWorkflowTabs();
             inputAlignPanel.setRunning(false);
+            trimAlignmentPanel.setRunning(false);
             rerootTreePanel.setRunning(false);
             treeBuildPanel.finishRun("Completed");
             for (TreeMethodKey methodKey : TreeMethodKey.values()) {
@@ -546,6 +575,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
         @Override
         public void onRunFailed(String message) {
             inputAlignPanel.setRunning(false);
+            trimAlignmentPanel.setRunning(false);
             rerootTreePanel.setRunning(false);
             treeBuildPanel.finishRun("Failed");
             WorkbenchStyles.updateStatusChip(headerStatusChip, "Failed");
@@ -559,6 +589,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
         @Override
         public void onRunStopped() {
             inputAlignPanel.setRunning(false);
+            trimAlignmentPanel.setRunning(false);
             rerootTreePanel.setRunning(false);
             treeBuildPanel.finishRun("Interrupted");
             WorkbenchStyles.updateStatusChip(headerStatusChip, "Interrupted");

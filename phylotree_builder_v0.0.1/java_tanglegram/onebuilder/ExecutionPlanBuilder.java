@@ -13,9 +13,10 @@ public final class ExecutionPlanBuilder {
 
     public ExecutionPlan build(RunRequest request, Path configPath) {
         Path pipelineOutputDir = request.pipelineOutputDir();
-        Path effectiveInputFile = request.runAlignmentFirst()
+        Path alignedInputFile = request.runAlignmentFirst()
                 ? alignedOutputPath(request.inputFile())
                 : request.inputFile().normalize();
+        Path effectiveInputFile = alignedInputFile;
 
         List<String> alignCommand = null;
         if (request.runAlignmentFirst()) {
@@ -25,6 +26,18 @@ public final class ExecutionPlanBuilder {
             alignCommand.add("--config");
             alignCommand.add(configPath.toString());
             alignCommand.add(request.inputFile().toString());
+        }
+
+        List<String> trimCommand = null;
+        TrimAlignmentConfig trimConfig = request.trimAlignmentConfig();
+        if (trimConfig != null && trimConfig.enabled()) {
+            effectiveInputFile = trimmedOutputPath(alignedInputFile);
+            trimCommand = new ArrayList<>();
+            trimCommand.add("/bin/zsh");
+            trimCommand.add(scriptDir.resolve("s1_trim_alignment.zsh").toString());
+            trimCommand.add("--config");
+            trimCommand.add(configPath.toString());
+            trimCommand.add(alignedInputFile.toString());
         }
 
         List<String> buildCommand = new ArrayList<>();
@@ -37,7 +50,7 @@ public final class ExecutionPlanBuilder {
         buildCommand.add(configPath.toString());
         buildCommand.add(effectiveInputFile.toString());
         buildCommand.add(pipelineOutputDir.toString());
-        return new ExecutionPlan(alignCommand, buildCommand, pipelineOutputDir, effectiveInputFile);
+        return new ExecutionPlan(alignCommand, trimCommand, buildCommand, pipelineOutputDir, effectiveInputFile);
     }
 
     static Path alignedOutputPath(Path inputFile) {
@@ -54,5 +67,21 @@ public final class ExecutionPlanBuilder {
             return java.nio.file.Paths.get(alignedFileName);
         }
         return parent.resolve(alignedFileName).normalize();
+    }
+
+    static Path trimmedOutputPath(Path inputFile) {
+        String fileName = inputFile.getFileName().toString();
+        int extensionIndex = fileName.lastIndexOf('.');
+        String trimmedFileName;
+        if (extensionIndex > 0) {
+            trimmedFileName = fileName.substring(0, extensionIndex) + ".trim" + fileName.substring(extensionIndex);
+        } else {
+            trimmedFileName = fileName + ".trim";
+        }
+        Path parent = inputFile.getParent();
+        if (parent == null) {
+            return java.nio.file.Paths.get(trimmedFileName);
+        }
+        return parent.resolve(trimmedFileName).normalize();
     }
 }
