@@ -142,6 +142,10 @@ final class TreeBuildPanel extends JPanel {
         return detailsArea.getDocument().getLength();
     }
 
+    String detailsTextForTest() {
+        return detailsArea.getText();
+    }
+
     int overallProgressValueForTest() {
         return overallProgressBar.getValue();
     }

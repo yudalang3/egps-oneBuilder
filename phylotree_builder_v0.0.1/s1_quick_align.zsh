@@ -148,13 +148,20 @@ fi
 
 # 自动构造输出文件名：在扩展名前插入 ".aligned"
 # 例如：all_wnt_gents_in_human_outgroup.fa -> all_wnt_gents_in_human_outgroup.aligned.fa
-if [[ "$input" == *.* ]]; then
-    base="${input%.*}"
-    ext="${input##*.}"
-    output="${base}.aligned.${ext}"
+input_dir="${input:h}"
+input_name="${input:t}"
+if [[ "$input_name" == *.* ]]; then
+    base="${input_name%.*}"
+    ext="${input_name##*.}"
+    output_name="${base}.aligned.${ext}"
 else
     # 如果没有扩展名，直接加 .aligned
-    output="${input}.aligned"
+    output_name="${input_name}.aligned"
+fi
+if [[ "$input_dir" == "." ]]; then
+    output="$output_name"
+else
+    output="${input_dir}/${output_name}"
 fi
 
 # 执行 mafft 命令

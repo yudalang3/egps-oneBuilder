@@ -35,23 +35,39 @@ usage() {
 
 aligned_output_path() {
     local input_file="$1"
-    if [[ "$input_file" == *.* ]]; then
-        local base="${input_file%.*}"
-        local ext="${input_file##*.}"
-        echo "${base}.aligned.${ext}"
+    local input_dir="${input_file:h}"
+    local input_name="${input_file:t}"
+    local output_name
+    if [[ "$input_name" == *.* ]]; then
+        local base="${input_name%.*}"
+        local ext="${input_name##*.}"
+        output_name="${base}.aligned.${ext}"
     else
-        echo "${input_file}.aligned"
+        output_name="${input_name}.aligned"
+    fi
+    if [[ "$input_dir" == "." ]]; then
+        echo "$output_name"
+    else
+        echo "${input_dir}/${output_name}"
     fi
 }
 
 trimmed_output_path() {
     local input_file="$1"
-    if [[ "$input_file" == *.* ]]; then
-        local base="${input_file%.*}"
-        local ext="${input_file##*.}"
-        echo "${base}.trim.${ext}"
+    local input_dir="${input_file:h}"
+    local input_name="${input_file:t}"
+    local output_name
+    if [[ "$input_name" == *.* ]]; then
+        local base="${input_name%.*}"
+        local ext="${input_name##*.}"
+        output_name="${base}.trim.${ext}"
     else
-        echo "${input_file}.trim"
+        output_name="${input_name}.trim"
+    fi
+    if [[ "$input_dir" == "." ]]; then
+        echo "$output_name"
+    else
+        echo "${input_dir}/${output_name}"
     fi
 }
 

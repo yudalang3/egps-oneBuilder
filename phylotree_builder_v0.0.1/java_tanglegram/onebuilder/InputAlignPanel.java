@@ -493,6 +493,15 @@ final class InputAlignPanel extends JPanel {
         return runAlignmentCheckBox.isSelected();
     }
 
+    void setRunAlignmentSelectedForTest(boolean selected) {
+        runAlignmentCheckBox.setSelected(selected);
+        notifyInputChanged();
+    }
+
+    String expectedBuildInputPathForTest() {
+        return expectedBuildInputPath(trimAlignmentConfigSupplier.get());
+    }
+
     Path initialOutputChooserPathForTest() {
         return initialOutputChooserPath();
     }

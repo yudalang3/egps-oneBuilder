@@ -2,6 +2,9 @@
 /phylotree_builder_v0.0.1/__pycache__/
 /phylotree_builder_v0.0.1/lib/
 /phylotree_builder_v0.0.1/test*/
+!/phylotree_builder_v0.0.1/tests/
+/phylotree_builder_v0.0.1/tests/*
+!/phylotree_builder_v0.0.1/tests/test_trim_alignment_zsh.zsh
 /phylotree_builder_v0.0.1/third_party/
 /test1/
 /test2/

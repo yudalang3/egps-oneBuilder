@@ -154,6 +154,27 @@ final class TrimAlignmentPanel extends JPanel {
         return customArgsArea.isEditable();
     }
 
+    String customArgsTextForTest() {
+        return customArgsArea.getText();
+    }
+
+    void setEnabledForTest(boolean enabled) {
+        if (enabledCheckBox.isSelected() != enabled) {
+            enabledCheckBox.doClick();
+        }
+    }
+
+    void selectPresetForTest(TrimAlignmentPreset preset) {
+        JRadioButton button = presetButtons.get(preset);
+        if (button != null && !button.isSelected()) {
+            button.doClick();
+        }
+    }
+
+    void setCustomArgsForTest(String customArgs) {
+        customArgsArea.setText(customArgs == null ? "" : customArgs);
+    }
+
     private TrimAlignmentPreset selectedPreset() {
         for (Map.Entry<TrimAlignmentPreset, JRadioButton> entry : presetButtons.entrySet()) {
             if (entry.getValue().isSelected()) {

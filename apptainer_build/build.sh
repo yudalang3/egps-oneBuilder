@@ -21,6 +21,12 @@ stage_jre="$stage_dir/jre25"
 image_name="${IMAGE_NAME:-onebuilder-0.0.1-linux64.sif}"
 image_path="$build_workspace/$image_name"
 java_home="${JAVA_HOME:-}"
+full_rebuild="${FULL_REBUILD:-0}"
+clean_stage="${CLEAN_STAGE:-$full_rebuild}"
+refresh_runtime="${REFRESH_RUNTIME:-$clean_stage}"
+refresh_jre="${REFRESH_JRE:-$clean_stage}"
+force_prefix_rewrite="${FORCE_PREFIX_REWRITE:-$refresh_runtime}"
+prefix_rewrite_scope="${PREFIX_REWRITE_SCOPE:-runtime}"
 
 if [[ ! -d "$source_dir" ]]; then
   echo "Error: source directory not found: $source_dir" >&2
@@ -82,13 +88,17 @@ echo "Compiling Java classes with $javac_exe"
 )
 
 echo "Preparing stage directory: $stage_dir"
-if [[ "${REUSE_STAGE:-0}" != "1" ]]; then
+if [[ "$clean_stage" == "1" ]]; then
+  echo "FULL_REBUILD/CLEAN_STAGE requested; removing staged workspace."
   rm -rf "$stage_dir"
 fi
 mkdir -p "$stage_app" "$stage_jre"
 
+echo "Syncing application files into stage"
 rsync -a \
+  --delete \
   --exclude='.pixi/' \
+  --exclude='runtime/' \
   --exclude='__pycache__/' \
   --exclude='*.pyc' \
   --exclude='*.log' \
@@ -98,40 +108,56 @@ rsync -a \
   "$source_dir/" "$stage_app/"
 
 mkdir -p "$stage_app/runtime"
-if [[ "${REUSE_STAGE:-0}" == "1" && -d "$stage_app/runtime/bin" ]]; then
+if [[ "$refresh_runtime" != "1" && -d "$stage_app/runtime/bin" ]]; then
   echo "Reusing staged runtime snapshot: $stage_app/runtime"
 else
+  echo "Refreshing staged runtime snapshot from $source_runtime"
+  rm -rf "$stage_app/runtime"
+  mkdir -p "$stage_app/runtime"
   rsync -a "$source_runtime/" "$stage_app/runtime/"
 fi
 
 rm -f "$stage_app/runtime/bin/pixi" "$stage_app/runtime/bin/pixi-global" 2>/dev/null || true
 
-echo "Rewriting text prefixes in staged snapshot"
-new_prefix="/opt/onebuilder/runtime"
-old_prefixes=(
-  "$source_runtime"
-  "/opt/BioInfo/phylotree_builder_v0.0.1/.pixi/envs/default"
-  "/opt/onebuilder/.pixi/envs/default"
-)
-while IFS= read -r -d '' file_path; do
-  if grep -Iq . "$file_path"; then
-    for old_prefix in "${old_prefixes[@]}"; do
-      OLD_PREFIX="$old_prefix" NEW_PREFIX="$new_prefix" perl -0pi -e 's/\Q$ENV{OLD_PREFIX}\E/$ENV{NEW_PREFIX}/g' "$file_path"
-    done
+if [[ "$force_prefix_rewrite" == "1" ]]; then
+  new_prefix="/opt/onebuilder/runtime"
+  old_prefixes=(
+    "$source_runtime"
+    "/opt/BioInfo/phylotree_builder_v0.0.1/.pixi/envs/default"
+    "/opt/onebuilder/.pixi/envs/default"
+  )
+  if [[ "$prefix_rewrite_scope" == "all" ]]; then
+    prefix_rewrite_root="$stage_app"
+  else
+    prefix_rewrite_root="$stage_app/runtime"
   fi
-done < <(find "$stage_app" -type f -size -10M -print0)
+  echo "Rewriting text prefixes under $prefix_rewrite_root"
+  while IFS= read -r -d '' file_path; do
+    if grep -Iq . "$file_path"; then
+      for old_prefix in "${old_prefixes[@]}"; do
+        OLD_PREFIX="$old_prefix" NEW_PREFIX="$new_prefix" perl -0pi -e 's/\Q$ENV{OLD_PREFIX}\E/$ENV{NEW_PREFIX}/g' "$file_path"
+      done
+    fi
+  done < <(find "$prefix_rewrite_root" -type f -size -10M -print0)
+else
+  echo "Reusing existing staged prefix rewrite; set FORCE_PREFIX_REWRITE=1 to rescan text files."
+fi
 
 echo "Removing broken symlinks from staged runtime"
 find "$stage_app" -xtype l -print -delete
 
-echo "Creating Java 25 runtime with jlink"
-rm -rf "$stage_jre"
-"$jlink_exe" \
-  --add-modules java.se,jdk.crypto.ec,jdk.localedata \
-  --strip-debug \
-  --no-man-pages \
-  --no-header-files \
-  --output "$stage_jre"
+if [[ "$refresh_jre" != "1" && -x "$stage_jre/bin/java" ]]; then
+  echo "Reusing staged Java runtime: $stage_jre"
+else
+  echo "Creating Java 25 runtime with jlink"
+  rm -rf "$stage_jre"
+  "$jlink_exe" \
+    --add-modules java.se,jdk.crypto.ec,jdk.localedata \
+    --strip-debug \
+    --no-man-pages \
+    --no-header-files \
+    --output "$stage_jre"
+fi
 
 build_runner="${APPTAINER_EXE:-apptainer}"
 if ! command -v "$build_runner" >/dev/null 2>&1; then

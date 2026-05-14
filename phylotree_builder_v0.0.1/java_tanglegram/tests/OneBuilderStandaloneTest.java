@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import javax.swing.SwingUtilities;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import tanglegram.UiLanguage;
 import tanglegram.UiPreferenceStore;
@@ -36,12 +37,17 @@ public final class OneBuilderStandaloneTest {
             run("buildsExecutionPlanWithOverwriteFlag", OneBuilderStandaloneTest::buildsExecutionPlanWithOverwriteFlag);
             run("buildsDnaExecutionPlanWithAlignment", OneBuilderStandaloneTest::buildsDnaExecutionPlanWithAlignment);
             run("buildsExecutionPlanWithAlignmentAndTrim", OneBuilderStandaloneTest::buildsExecutionPlanWithAlignmentAndTrim);
+            run("buildsExecutionPlanWithTrimOnly", OneBuilderStandaloneTest::buildsExecutionPlanWithTrimOnly);
+            run("buildsExecutionPlanInputPathsForAlignmentAndTrimCombinations", OneBuilderStandaloneTest::buildsExecutionPlanInputPathsForAlignmentAndTrimCombinations);
             run("serializesPipelineRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesPipelineRuntimeConfigAsJson);
+            run("serializesTrimAlignmentPresetAsJson", OneBuilderStandaloneTest::serializesTrimAlignmentPresetAsJson);
+            run("serializesCustomizedTrimAlignmentAsJson", OneBuilderStandaloneTest::serializesCustomizedTrimAlignmentAsJson);
             run("roundTripsProteinStructureTreeBuilderMethod", OneBuilderStandaloneTest::roundTripsProteinStructureTreeBuilderMethod);
             run("proteinStructureTreeCommandBuildsNewick", OneBuilderStandaloneTest::proteinStructureTreeCommandBuildsNewick);
             run("serializesRerootRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesRerootRuntimeConfigAsJson);
             run("defaultsRerootPanelToVisibleLadderizationRules", OneBuilderStandaloneTest::defaultsRerootPanelToVisibleLadderizationRules);
             run("defaultsTrimAlignmentPanelToDisabled", OneBuilderStandaloneTest::defaultsTrimAlignmentPanelToDisabled);
+            run("validatesCustomizedTrimAlignmentArgs", OneBuilderStandaloneTest::validatesCustomizedTrimAlignmentArgs);
             run("rerootTreeCommandUsesEgpsMidpointRooting", OneBuilderStandaloneTest::rerootTreeCommandUsesEgpsMidpointRooting);
             run("rerootTreeCommandNormalizesPhylipMultiTreeOutput", OneBuilderStandaloneTest::rerootTreeCommandNormalizesPhylipMultiTreeOutput);
             run("rerootTreeCommandRemovesBlankZeroLengthLeafArtifact", OneBuilderStandaloneTest::rerootTreeCommandRemovesBlankZeroLengthLeafArtifact);
@@ -81,6 +87,7 @@ public final class OneBuilderStandaloneTest {
             run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
             run("usesGlobalFontForCitationText", OneBuilderStandaloneTest::usesGlobalFontForCitationText);
             run("showsTanglegramSnapshotChipBeforeStatus", OneBuilderStandaloneTest::showsTanglegramSnapshotChipBeforeStatus);
+            run("updatesTrimAlignmentPreviewAndTreeBuildDraft", OneBuilderStandaloneTest::updatesTrimAlignmentPreviewAndTreeBuildDraft);
         } finally {
             UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
             UiPreferenceStore.clearNodeForTests();
@@ -245,6 +252,85 @@ public final class OneBuilderStandaloneTest {
                         executionPlan.pipelineOutputDir().toString()),
                 executionPlan.buildCommand(),
                 "unexpected trim-enabled build command");
+    }
+
+    private static void buildsExecutionPlanWithTrimOnly() {
+        Path scriptDir = Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1");
+        Path inputFile = Paths.get("/data/input/aligned_sequences.fasta");
+        Path outputDir = Paths.get("/data/output");
+        Path configPath = Paths.get("/tmp/run-config.json");
+
+        RunRequest request = RunRequest.builder()
+                .inputType(InputType.PROTEIN)
+                .inputFile(inputFile)
+                .outputDirectory(outputDir)
+                .outputPrefix("protein_demo")
+                .exportConfigFile(true)
+                .runAlignmentFirst(false)
+                .alignOptions(AlignmentOptions.defaults())
+                .trimAlignmentConfig(new TrimAlignmentConfig(true, TrimAlignmentPreset.GAP_THRESHOLD_CONSERVE, List.of()))
+                .runtimeConfig(PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN))
+                .build();
+
+        ExecutionPlan executionPlan = new ExecutionPlanBuilder(scriptDir).build(request, configPath);
+
+        assertTrue(executionPlan.alignCommand().isEmpty(), "alignment command should be absent when alignment is disabled");
+        assertEquals(
+                Arrays.asList(
+                        "/bin/zsh",
+                        scriptDir.resolve("s1_trim_alignment.zsh").toString(),
+                        "--config",
+                        configPath.toString(),
+                        inputFile.toString()),
+                executionPlan.trimCommand().orElseThrow(),
+                "unexpected trim-only command");
+        assertEquals(
+                inputFile.resolveSibling("aligned_sequences.trim.fasta"),
+                executionPlan.effectiveInputFile(),
+                "trim-only build input should use the .trim file");
+        assertEquals(
+                Arrays.asList(
+                        "/bin/zsh",
+                        scriptDir.resolve("s2_phylo_4prot.zsh").toString(),
+                        "--config",
+                        configPath.toString(),
+                        inputFile.resolveSibling("aligned_sequences.trim.fasta").toString(),
+                        executionPlan.pipelineOutputDir().toString()),
+                executionPlan.buildCommand(),
+                "unexpected trim-only build command");
+    }
+
+    private static void buildsExecutionPlanInputPathsForAlignmentAndTrimCombinations() {
+        Path scriptDir = Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1");
+        Path inputFile = Paths.get("/data/input/raw.fa");
+        Path outputDir = Paths.get("/data/output");
+        Path configPath = Paths.get("/tmp/run-config.json");
+
+        assertExecutionPlanEffectiveInput(scriptDir, inputFile, outputDir, configPath, false, false, inputFile);
+        assertExecutionPlanEffectiveInput(
+                scriptDir,
+                inputFile,
+                outputDir,
+                configPath,
+                true,
+                false,
+                inputFile.resolveSibling("raw.aligned.fa"));
+        assertExecutionPlanEffectiveInput(
+                scriptDir,
+                inputFile,
+                outputDir,
+                configPath,
+                false,
+                true,
+                inputFile.resolveSibling("raw.trim.fa"));
+        assertExecutionPlanEffectiveInput(
+                scriptDir,
+                inputFile,
+                outputDir,
+                configPath,
+                true,
+                true,
+                inputFile.resolveSibling("raw.aligned.trim.fa"));
     }
 
     private static void serializesPipelineRuntimeConfigAsJson() throws Exception {
@@ -436,6 +522,71 @@ public final class OneBuilderStandaloneTest {
         assertTrue(json.contains("\"enabled\": false"), "expected distance enabled flag");
     }
 
+    private static void serializesTrimAlignmentPresetAsJson() throws Exception {
+        Path tempFile = Files.createTempFile("onebuilder-trim-preset-", ".json");
+        try {
+            RunRequest request = RunRequest.builder()
+                    .inputType(InputType.PROTEIN)
+                    .inputFile(Paths.get("/data/input/aligned.fasta"))
+                    .outputDirectory(Paths.get("/data/output"))
+                    .outputPrefix("protein_demo")
+                    .exportConfigFile(true)
+                    .runAlignmentFirst(false)
+                    .alignOptions(AlignmentOptions.defaults())
+                    .trimAlignmentConfig(new TrimAlignmentConfig(true, TrimAlignmentPreset.GAP_THRESHOLD_CONSERVE, List.of()))
+                    .runtimeConfig(PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN))
+                    .build();
+
+            new PipelineConfigWriter().write(tempFile, request);
+            JSONObject trim = new JSONObject(Files.readString(tempFile, StandardCharsets.UTF_8)).getJSONObject("trim_alignment");
+            assertTrue(trim.getBoolean("enabled"), "trim alignment should serialize as enabled");
+            assertEquals(
+                    "GAP_THRESHOLD_CONSERVE",
+                    trim.getString("preset"),
+                    "unexpected trim preset JSON value");
+            assertJsonArrayEquals(
+                    Arrays.asList("-gt", "0.9", "-cons", "60"),
+                    trim.getJSONObject("trimal").getJSONObject("common").getJSONArray("args"),
+                    "unexpected preset trimAl args");
+        } finally {
+            Files.deleteIfExists(tempFile);
+        }
+    }
+
+    private static void serializesCustomizedTrimAlignmentAsJson() throws Exception {
+        Path tempFile = Files.createTempFile("onebuilder-trim-custom-", ".json");
+        try {
+            RunRequest request = RunRequest.builder()
+                    .inputType(InputType.DNA_CDS)
+                    .inputFile(Paths.get("/data/input/aligned.fasta"))
+                    .outputDirectory(Paths.get("/data/output"))
+                    .outputPrefix("dna_demo")
+                    .exportConfigFile(true)
+                    .runAlignmentFirst(false)
+                    .alignOptions(AlignmentOptions.defaults())
+                    .trimAlignmentConfig(new TrimAlignmentConfig(
+                            true,
+                            TrimAlignmentPreset.CUSTOMIZED,
+                            Arrays.asList("-gt", "0.8", "-st", "0.001")))
+                    .runtimeConfig(PipelineRuntimeConfig.defaultsFor(InputType.DNA_CDS))
+                    .build();
+
+            new PipelineConfigWriter().write(tempFile, request);
+            JSONObject trim = new JSONObject(Files.readString(tempFile, StandardCharsets.UTF_8)).getJSONObject("trim_alignment");
+            assertTrue(trim.getBoolean("enabled"), "custom trim alignment should serialize as enabled");
+            assertEquals(
+                    "CUSTOMIZED",
+                    trim.getString("preset"),
+                    "unexpected customized trim preset JSON value");
+            assertJsonArrayEquals(
+                    Arrays.asList("-gt", "0.8", "-st", "0.001"),
+                    trim.getJSONObject("trimal").getJSONObject("common").getJSONArray("args"),
+                    "custom trimAl args should come from the text area/config");
+        } finally {
+            Files.deleteIfExists(tempFile);
+        }
+    }
+
     private static void roundTripsProteinStructureTreeBuilderMethod() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             ProteinStructurePanel panel = new ProteinStructurePanel(InputType.PROTEIN);
@@ -528,7 +679,29 @@ public final class OneBuilderStandaloneTest {
                 TrimAlignmentPreset.GAP_THRESHOLD_CONSERVE,
                 config.preset(),
                 "expected first trim preset as the default selection");
+        assertEquals(
+                Arrays.asList("-gt", "0.9", "-cons", "60"),
+                config.preset().arguments(),
+                "default trim preset should use the gap-threshold/conserve recipe");
+        assertEquals("-gappyout", panel.customArgsTextForTest(), "custom text area should keep its example default");
         assertTrue(!panel.isCustomArgsEditableForTest(), "custom trimAl args should not be editable while Trim is disabled");
+    }
+
+    private static void validatesCustomizedTrimAlignmentArgs() {
+        new TrimAlignmentConfig(false, TrimAlignmentPreset.CUSTOMIZED, Arrays.asList("-in", "blocked.fasta")).validate();
+
+        expectIllegalArgument(
+                () -> new TrimAlignmentConfig(true, TrimAlignmentPreset.CUSTOMIZED, List.of()).validate(),
+                "no trimAl arguments",
+                "customized trim should require arguments when enabled");
+        expectIllegalArgument(
+                () -> new TrimAlignmentConfig(true, TrimAlignmentPreset.CUSTOMIZED, Arrays.asList("-in", "x.fasta")).validate(),
+                "must not include -in or -out",
+                "customized trim should reject wrapper-managed -in");
+        expectIllegalArgument(
+                () -> new TrimAlignmentConfig(true, TrimAlignmentPreset.CUSTOMIZED, Arrays.asList("-gt", "0.9", "-out", "x.fasta")).validate(),
+                "must not include -in or -out",
+                "customized trim should reject wrapper-managed -out");
     }
 
     private static void rerootTreeCommandUsesEgpsMidpointRooting() throws Exception {
@@ -1637,6 +1810,63 @@ public final class OneBuilderStandaloneTest {
         });
     }
 
+    private static void updatesTrimAlignmentPreviewAndTreeBuildDraft() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("onebuilder-trim-preview-");
+        Path inputFile = tempDirectory.resolve("demo.fasta");
+        Files.writeString(inputFile, ">a\nACGT\n>b\nACGT\n", StandardCharsets.UTF_8);
+        SwingUtilities.invokeAndWait(() -> {
+            PipelineRuntimeConfig runtimeConfig = PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN);
+            TreeBuildPanel treeBuildPanel = new TreeBuildPanel(PlatformSupport.LINUX, () -> { }, () -> { }, () -> { });
+            TrimAlignmentPanel[] trimPanelRef = new TrimAlignmentPanel[1];
+            InputAlignPanel[] inputPanelRef = new InputAlignPanel[1];
+            Runnable refreshDraft = () -> {
+                if (inputPanelRef[0] == null || trimPanelRef[0] == null) {
+                    return;
+                }
+                inputPanelRef[0].refreshEffectiveInputPreview();
+                treeBuildPanel.setDraftSummary(inputPanelRef[0].buildRunDraftSummary(runtimeConfig, trimPanelRef[0].toConfig()));
+            };
+            trimPanelRef[0] = new TrimAlignmentPanel(refreshDraft);
+            inputPanelRef[0] = new InputAlignPanel(
+                    PlatformSupport.LINUX,
+                    refreshDraft,
+                    () -> runtimeConfig,
+                    () -> trimPanelRef[0].toConfig());
+            inputPanelRef[0].setInputFilePathForTest(inputFile.toString());
+            setTextFieldUnchecked(inputPanelRef[0], "outputDirField", tempDirectory.toString());
+            setTextFieldUnchecked(inputPanelRef[0], "outputPrefixField", "demo_tree");
+            inputPanelRef[0].setRunAlignmentSelectedForTest(false);
+            trimPanelRef[0].setEnabledForTest(true);
+
+            Path trimOnlyPath = inputFile.resolveSibling("demo.trim.fasta");
+            assertEquals(
+                    trimOnlyPath.toString(),
+                    inputPanelRef[0].expectedBuildInputPathForTest(),
+                    "input preview should switch to the trim-only output path");
+            assertTrue(
+                    treeBuildPanel.detailsTextForTest().contains("Expected tree-build input: " + trimOnlyPath),
+                    "tree-build draft should include the trim-only path");
+            assertTrue(
+                    treeBuildPanel.detailsTextForTest().contains("Trim alignment: -gt 0.9 -cons 60"),
+                    "tree-build draft should include the selected trim preset");
+
+            trimPanelRef[0].selectPresetForTest(TrimAlignmentPreset.CUSTOMIZED);
+            trimPanelRef[0].setCustomArgsForTest("-gt 0.8 -cons 50");
+            inputPanelRef[0].setRunAlignmentSelectedForTest(true);
+            Path alignedTrimPath = inputFile.resolveSibling("demo.aligned.trim.fasta");
+            assertEquals(
+                    alignedTrimPath.toString(),
+                    inputPanelRef[0].expectedBuildInputPathForTest(),
+                    "input preview should switch to the aligned then trimmed output path");
+            assertTrue(
+                    treeBuildPanel.detailsTextForTest().contains("Expected tree-build input: " + alignedTrimPath),
+                    "tree-build draft should include the aligned trim path");
+            assertTrue(
+                    treeBuildPanel.detailsTextForTest().contains("Trim alignment: customized: -gt 0.8 -cons 50"),
+                    "tree-build draft should reflect customized trimAl args");
+        });
+    }
+
     private static void run(String name, ThrowingRunnable test) throws Exception {
         try {
             test.run();
@@ -1663,6 +1893,58 @@ public final class OneBuilderStandaloneTest {
         if (!condition) {
             throw new AssertionError(message);
         }
+    }
+
+    private static void assertJsonArrayEquals(List<String> expected, JSONArray actual, String message) {
+        assertEquals(Integer.valueOf(expected.size()), Integer.valueOf(actual.length()), message + " length mismatch");
+        for (int index = 0; index < expected.size(); index++) {
+            assertEquals(expected.get(index), actual.getString(index), message + " at index " + index);
+        }
+    }
+
+    private static void assertExecutionPlanEffectiveInput(
+            Path scriptDir,
+            Path inputFile,
+            Path outputDir,
+            Path configPath,
+            boolean runAlignmentFirst,
+            boolean runTrimAlignment,
+            Path expectedInputFile) {
+        RunRequest request = RunRequest.builder()
+                .inputType(InputType.DNA_CDS)
+                .inputFile(inputFile)
+                .outputDirectory(outputDir)
+                .outputPrefix("dna_demo")
+                .exportConfigFile(true)
+                .runAlignmentFirst(runAlignmentFirst)
+                .alignOptions(AlignmentOptions.defaults())
+                .trimAlignmentConfig(new TrimAlignmentConfig(
+                        runTrimAlignment,
+                        TrimAlignmentPreset.GAP_THRESHOLD_CONSERVE,
+                        List.of()))
+                .runtimeConfig(PipelineRuntimeConfig.defaultsFor(InputType.DNA_CDS))
+                .build();
+
+        ExecutionPlan executionPlan = new ExecutionPlanBuilder(scriptDir).build(request, configPath);
+        assertEquals(expectedInputFile, executionPlan.effectiveInputFile(), "unexpected effective input file");
+        assertEquals(
+                expectedInputFile.toString(),
+                executionPlan.buildCommand().get(executionPlan.buildCommand().size() - 2),
+                "build command should pass the effective input file to s2");
+    }
+
+    private static void expectIllegalArgument(ThrowingRunnable runnable, String expectedMessageFragment, String message) {
+        try {
+            runnable.run();
+        } catch (IllegalArgumentException exception) {
+            assertTrue(
+                    exception.getMessage() != null && exception.getMessage().contains(expectedMessageFragment),
+                    message + " unexpected message: " + exception.getMessage());
+            return;
+        } catch (Exception exception) {
+            throw new AssertionError(message + " expected IllegalArgumentException but got " + exception);
+        }
+        throw new AssertionError(message + " expected IllegalArgumentException");
     }
 
     private static void setTextField(Object target, String fieldName, String value) throws Exception {

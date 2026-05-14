@@ -117,12 +117,19 @@ if [[ ! -f "$input" ]]; then
     exit 1
 fi
 
-if [[ "$input" == *.* ]]; then
-    base="${input%.*}"
-    ext="${input##*.}"
-    output="${base}.trim.${ext}"
+input_dir="${input:h}"
+input_name="${input:t}"
+if [[ "$input_name" == *.* ]]; then
+    base="${input_name%.*}"
+    ext="${input_name##*.}"
+    output_name="${base}.trim.${ext}"
 else
-    output="${input}.trim"
+    output_name="${input_name}.trim"
+fi
+if [[ "$input_dir" == "." ]]; then
+    output="$output_name"
+else
+    output="${input_dir}/${output_name}"
 fi
 
 trimal_exe="${TRIMAL_EXE:-}"
