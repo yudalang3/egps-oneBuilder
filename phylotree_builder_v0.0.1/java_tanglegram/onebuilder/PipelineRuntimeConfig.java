@@ -69,7 +69,7 @@ public final class PipelineRuntimeConfig {
                             null,
                             false,
                             java.util.List.of()),
-                    new BayesianConfig(true, "mixed", "invgamma", 50000, 100, 1000, 5000),
+                    new BayesianConfig(true, "mixed", "invgamma", 100000, 100, 1000, 5000),
                     new SimpleMethodConfig(true),
                     ProteinStructureConfig.defaults(),
                     RerootConfig.defaults());
@@ -96,7 +96,7 @@ public final class PipelineRuntimeConfig {
                         null,
                         false,
                         java.util.List.of()),
-                new BayesianConfig(true, null, "invgamma", 10000, 100, 100, 1000, Integer.valueOf(6)),
+                new BayesianConfig(true, null, "invgamma", 100000, 100, 1000, 5000, Integer.valueOf(6)),
                 new SimpleMethodConfig(true),
                 ProteinStructureConfig.defaults(),
                 RerootConfig.defaults());

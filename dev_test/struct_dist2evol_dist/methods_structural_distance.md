@@ -33,7 +33,11 @@ $$ d_{max} = -\ln(10^{-6}) = 13.81551056 $$
 ## References / 参考文献
 
 - **Foldseek**: van Kempen, M., Kim, S. S., Tumescheit, C., Mirdita, M., Lee, J., Gilchrist, C. L., ... & Steinegger, M. (2023). "Fast and accurate protein structure search with Foldseek." *Nature Biotechnology*, 41(2), 224-232.
+
+- **Neighbor-Joining**: Saitou, N., & Nei, M. (1987). "The neighbor-joining method: a new method for reconstructing phylogenetic trees." *Molecular Biology and Evolution*, 4(4), 406-425.
+
+
+
 - **TM-score & Random Baseline**: Zhang, Y., & Skolnick, J. (2004). "Scoring function for automated assessment of protein structure template quality." *Proteins: Structure, Function, and Bioinformatics*, 57(4), 702-710.
 - **TM-score Significance**: Xu, J., & Zhang, Y. (2010). "How significant is a protein structure similarity with TM-score = 0.5?" *Bioinformatics*, 26(7), 889-895.
 - **US-align**: Zhang, C., Shine, M., Pyle, A. M., & Zhang, Y. (2022). "US-align: universal structure alignments of proteins, nucleic acids, and macromolecular complexes." *Nature Methods*, 19(9), 1109-1115.
-- **Neighbor-Joining**: Saitou, N., & Nei, M. (1987). "The neighbor-joining method: a new method for reconstructing phylogenetic trees." *Molecular Biology and Evolution*, 4(4), 406-425.

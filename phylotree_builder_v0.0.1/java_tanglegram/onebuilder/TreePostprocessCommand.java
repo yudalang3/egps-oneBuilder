@@ -82,7 +82,30 @@ public final class TreePostprocessCommand {
     private static String normalizeInputNewick(String newick) {
         int firstTerminator = newick.indexOf(';');
         String firstTree = firstTerminator >= 0 ? newick.substring(0, firstTerminator + 1) : newick;
-        return firstTree.replaceAll("\\[[^\\[\\]]*\\]", "").trim();
+        return removeWhitespaceOutsideQuotedLabels(firstTree.replaceAll("\\[[^\\[\\]]*\\]", "")).trim();
+    }
+
+    private static String removeWhitespaceOutsideQuotedLabels(String newick) {
+        StringBuilder normalized = new StringBuilder(newick.length());
+        boolean quoted = false;
+        for (int index = 0; index < newick.length(); index++) {
+            char current = newick.charAt(index);
+            if (current == '\'') {
+                normalized.append(current);
+                if (quoted && index + 1 < newick.length() && newick.charAt(index + 1) == '\'') {
+                    normalized.append(newick.charAt(index + 1));
+                    index++;
+                    continue;
+                }
+                quoted = !quoted;
+                continue;
+            }
+            if (!quoted && Character.isWhitespace(current)) {
+                continue;
+            }
+            normalized.append(current);
+        }
+        return normalized.toString();
     }
 
     private static DefaultPhyNode decodeTree(String newick) throws Exception {

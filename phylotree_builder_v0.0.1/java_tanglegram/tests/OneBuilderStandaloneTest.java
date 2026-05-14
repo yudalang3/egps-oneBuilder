@@ -4,6 +4,8 @@ import evoltree.phylogeny.DefaultPhyNode;
 import evoltree.phylogeny.PhyloTreeEncoderDecoder;
 import evoltree.struct.util.EvolNodeUtil;
 import java.awt.GraphicsEnvironment;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -42,6 +44,7 @@ public final class OneBuilderStandaloneTest {
             run("rerootTreeCommandNormalizesPhylipMultiTreeOutput", OneBuilderStandaloneTest::rerootTreeCommandNormalizesPhylipMultiTreeOutput);
             run("rerootTreeCommandRemovesBlankZeroLengthLeafArtifact", OneBuilderStandaloneTest::rerootTreeCommandRemovesBlankZeroLengthLeafArtifact);
             run("treePostprocessCommandUsesEgpsTreeUtilities", OneBuilderStandaloneTest::treePostprocessCommandUsesEgpsTreeUtilities);
+            run("treePostprocessCommandNormalizesPhylipLineWrappedNewick", OneBuilderStandaloneTest::treePostprocessCommandNormalizesPhylipLineWrappedNewick);
             run("treePostprocessCommandRemovesBlankZeroLengthLeafArtifact", OneBuilderStandaloneTest::treePostprocessCommandRemovesBlankZeroLengthLeafArtifact);
             run("treePostprocessCommandRejectsBlankNonzeroLeaf", OneBuilderStandaloneTest::treePostprocessCommandRejectsBlankNonzeroLeaf);
             run("treePostprocessCommandRejectsDuplicateLeafNames", OneBuilderStandaloneTest::treePostprocessCommandRejectsDuplicateLeafNames);
@@ -566,6 +569,42 @@ public final class OneBuilderStandaloneTest {
         assertTrue(output.contains(":1"), "expected branch lengths to be rewritten to one");
         assertTrue(!output.contains(":3") && !output.contains(":4") && !output.contains(":5"),
                 "expected original branch lengths to be replaced");
+    }
+
+    private static void treePostprocessCommandNormalizesPhylipLineWrappedNewick() throws Exception {
+        Path tempDirectory = Files.createTempDirectory("onebuilder-tree-phylip-linewrap-");
+        Path inputTree = tempDirectory.resolve("input.nwk");
+        Path outputTree = tempDirectory.resolve("output.nwk");
+        Files.writeString(inputTree,
+                "((seq2:0.11223,seq3:0.11892):0.01154,((seq4:0.14354,seq5:0.14964):0.21429,\n"
+                        + "((seq6:0.40123,(seq7:0.19484,seq8:0.19266):0.09586):0.14548,\n"
+                        + "(seq9:0.24156,seq10:0.29488):0.43786):0.06597):0.07855,seq1:0.12339);\n",
+                StandardCharsets.UTF_8);
+
+        ByteArrayOutputStream stderrBuffer = new ByteArrayOutputStream();
+        PrintStream originalErr = System.err;
+        int exitCode;
+        try {
+            System.setErr(new PrintStream(stderrBuffer, true, StandardCharsets.UTF_8.name()));
+            exitCode = TreePostprocessCommand.run(new String[] {
+                    "--input", inputTree.toString(),
+                    "--output", outputTree.toString(),
+                    "--sanitize-for-mad"
+            });
+        } finally {
+            System.setErr(originalErr);
+        }
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(exitCode),
+                "line-wrapped PHYLIP Newick should postprocess successfully");
+        assertEquals(
+                new LinkedHashSet<>(Arrays.asList("seq2", "seq3", "seq4", "seq5", "seq6",
+                        "seq7", "seq8", "seq9", "seq10", "seq1")),
+                readLeafNames(outputTree),
+                "line-wrapped PHYLIP Newick should preserve exactly the named leaves");
+        String stderr = stderrBuffer.toString(StandardCharsets.UTF_8.name());
+        assertTrue(!stderr.contains("blank zero-length terminal leaf artifact"),
+                "line wrapping should be normalized before decode instead of reported as blank leaves");
     }
 
     private static void treePostprocessCommandRemovesBlankZeroLengthLeafArtifact() throws Exception {

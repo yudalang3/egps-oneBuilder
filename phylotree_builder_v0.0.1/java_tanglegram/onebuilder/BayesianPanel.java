@@ -64,7 +64,7 @@ final class BayesianPanel extends JPanel {
         add(header, BorderLayout.NORTH);
 
         ratesCombo = new JComboBox<>(new String[] {"invgamma", "gamma", "equal", "propinv", "adgamma"});
-        ngenSpinner = new JSpinner(new SpinnerNumberModel(50000, 1000, 100000000, 1000));
+        ngenSpinner = new JSpinner(new SpinnerNumberModel(100000, 1000, 100000000, 1000));
         samplefreqSpinner = new JSpinner(new SpinnerNumberModel(100, 1, 1000000, 10));
         printfreqSpinner = new JSpinner(new SpinnerNumberModel(1000, 1, 1000000, 10));
         diagnfreqSpinner = new JSpinner(new SpinnerNumberModel(5000, 1, 1000000, 10));
