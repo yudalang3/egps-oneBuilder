@@ -22,6 +22,7 @@ import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingConstants;
 
@@ -85,7 +86,9 @@ final class ThreeDTreeOrderControlPanel extends JPanel {
     private final List<ImportedTreeSpec> treeOrder;
     private final List<TreeCardPanel> treeCards;
     private final JPanel pipelinePanel;
+    private final JScrollPane pipelineScrollPane;
     private final JTextArea detailArea;
+    private final JScrollPane detailScrollPane;
     private int selectedIndex;
 
     ThreeDTreeOrderControlPanel(List<ImportedTreeSpec> currentTrees) {
@@ -102,21 +105,23 @@ final class ThreeDTreeOrderControlPanel extends JPanel {
         JPanel boardPanel = new JPanel(new GridLayout(1, 2, 14, 0));
         boardPanel.setOpaque(false);
 
-        pipelinePanel = new JPanel();
+        pipelinePanel = new ViewportWidthTrackingPanel();
         pipelinePanel.setOpaque(false);
         pipelinePanel.setLayout(new BoxLayout(pipelinePanel, BoxLayout.Y_AXIS));
+        pipelineScrollPane = createContentScrollPane(pipelinePanel);
 
         JPanel orderColumn = createColumnPanel(
                 "Tree display order",
                 "Drag cards to change the left-to-right order in 3D Alignment.");
-        orderColumn.add(pipelinePanel, BorderLayout.CENTER);
+        orderColumn.add(pipelineScrollPane, BorderLayout.CENTER);
         orderColumn.add(createMoveButtonPanel(), BorderLayout.SOUTH);
 
         JPanel detailsColumn = createColumnPanel(
                 "Selected tree",
                 "Inspect the source for the selected tree card.");
         detailArea = createDetailArea();
-        detailsColumn.add(detailArea, BorderLayout.CENTER);
+        detailScrollPane = createContentScrollPane(detailArea);
+        detailsColumn.add(detailScrollPane, BorderLayout.CENTER);
 
         boardPanel.add(orderColumn);
         boardPanel.add(detailsColumn);
@@ -160,6 +165,14 @@ final class ThreeDTreeOrderControlPanel extends JPanel {
 
     void moveSelectedDownForTest() {
         moveSelected(1);
+    }
+
+    JScrollPane cardListScrollPaneForTest() {
+        return pipelineScrollPane;
+    }
+
+    JScrollPane detailScrollPaneForTest() {
+        return detailScrollPane;
     }
 
     private JPanel createIntroPanel() {
@@ -225,6 +238,16 @@ final class ThreeDTreeOrderControlPanel extends JPanel {
         return area;
     }
 
+    private JScrollPane createContentScrollPane(java.awt.Component component) {
+        JScrollPane scrollPane = new JScrollPane(component);
+        scrollPane.setBorder(BorderFactory.createLineBorder(new Color(226, 232, 241)));
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.getViewport().setOpaque(false);
+        scrollPane.setOpaque(false);
+        return scrollPane;
+    }
+
     private void rebuildCards() {
         pipelinePanel.removeAll();
         treeCards.clear();
@@ -252,6 +275,7 @@ final class ThreeDTreeOrderControlPanel extends JPanel {
         ImportedTreeSpec selectedTree = treeOrder.get(selectedIndex);
         detailArea.setText("Tree label\n" + selectedTree.label() + "\n\nSource path\n" + selectedTree.path());
         detailArea.setCaretPosition(0);
+        scrollSelectedCardIntoView();
     }
 
     private void moveSelected(int offset) {
@@ -269,6 +293,13 @@ final class ThreeDTreeOrderControlPanel extends JPanel {
             }
         }
         moveTree(fromIndex, targetIndex);
+    }
+
+    private void scrollSelectedCardIntoView() {
+        if (selectedIndex < 0 || selectedIndex >= treeCards.size()) {
+            return;
+        }
+        pipelinePanel.scrollRectToVisible(treeCards.get(selectedIndex).getBounds());
     }
 
     private final class TreeCardPanel extends JPanel {

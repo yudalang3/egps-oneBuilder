@@ -24,6 +24,7 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
+import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingConstants;
 
@@ -87,7 +88,9 @@ final class TreeLeafArrangementControlPanel extends JPanel {
     private final List<TreeLeafArrangementRule> ruleOrder;
     private final List<RuleCardPanel> ruleCards;
     private final JPanel pipelinePanel;
+    private final JScrollPane pipelineScrollPane;
     private final JTextArea detailArea;
+    private final JScrollPane detailScrollPane;
     private final JRadioButton upRadioButton;
     private final JRadioButton downRadioButton;
     private int selectedIndex;
@@ -110,33 +113,33 @@ final class TreeLeafArrangementControlPanel extends JPanel {
         JPanel boardPanel = new JPanel(new GridLayout(1, 2, 14, 0));
         boardPanel.setOpaque(false);
 
-        pipelinePanel = new JPanel();
+        pipelinePanel = new ViewportWidthTrackingPanel();
         pipelinePanel.setOpaque(false);
         pipelinePanel.setLayout(new BoxLayout(pipelinePanel, BoxLayout.Y_AXIS));
+        pipelineScrollPane = createContentScrollPane(pipelinePanel);
 
         JPanel pipelineColumn = createColumnPanel(
                 "Sorting pipeline",
                 "Drag cards to change priority. Top card runs first.");
-        pipelineColumn.add(pipelinePanel, BorderLayout.CENTER);
+        pipelineColumn.add(pipelineScrollPane, BorderLayout.CENTER);
         pipelineColumn.add(createMoveButtonPanel(), BorderLayout.SOUTH);
 
         JPanel sideColumn = createColumnPanel(
                 "Direction and details",
                 "Choose global ordering direction, then inspect each rule.");
-        JPanel sideContent = new JPanel();
+        JPanel sideContent = new JPanel(new BorderLayout(0, 12));
         sideContent.setOpaque(false);
-        sideContent.setLayout(new BoxLayout(sideContent, BoxLayout.Y_AXIS));
 
         upRadioButton = new JRadioButton("UP", effectiveOptions.direction() == TreeLeafArrangementDirection.UP);
         downRadioButton = new JRadioButton("DOWN", effectiveOptions.direction() == TreeLeafArrangementDirection.DOWN);
         ButtonGroup directionGroup = new ButtonGroup();
         directionGroup.add(upRadioButton);
         directionGroup.add(downRadioButton);
-        sideContent.add(createDirectionPanel());
-        sideContent.add(Box.createVerticalStrut(12));
+        sideContent.add(createDirectionPanel(), BorderLayout.NORTH);
 
         detailArea = createDetailArea();
-        sideContent.add(createDetailsPanel(detailArea));
+        detailScrollPane = createContentScrollPane(detailArea);
+        sideContent.add(createDetailsPanel(detailScrollPane), BorderLayout.CENTER);
         sideColumn.add(sideContent, BorderLayout.CENTER);
 
         boardPanel.add(pipelineColumn);
@@ -207,6 +210,14 @@ final class TreeLeafArrangementControlPanel extends JPanel {
         } else {
             upRadioButton.setSelected(true);
         }
+    }
+
+    JScrollPane cardListScrollPaneForTest() {
+        return pipelineScrollPane;
+    }
+
+    JScrollPane detailScrollPaneForTest() {
+        return detailScrollPane;
     }
 
     private JPanel createIntroPanel() {
@@ -286,7 +297,7 @@ final class TreeLeafArrangementControlPanel extends JPanel {
         button.setMargin(new Insets(8, 10, 8, 10));
     }
 
-    private JPanel createDetailsPanel(JTextArea detailArea) {
+    private JPanel createDetailsPanel(JScrollPane detailScrollPane) {
         JPanel panel = new JPanel(new BorderLayout(0, 8));
         panel.setOpaque(false);
 
@@ -294,7 +305,7 @@ final class TreeLeafArrangementControlPanel extends JPanel {
         label.setFont(label.getFont().deriveFont(Font.BOLD));
         label.setForeground(TEXT);
         panel.add(label, BorderLayout.NORTH);
-        panel.add(detailArea, BorderLayout.CENTER);
+        panel.add(detailScrollPane, BorderLayout.CENTER);
         return panel;
     }
 
@@ -310,6 +321,16 @@ final class TreeLeafArrangementControlPanel extends JPanel {
                 BorderFactory.createEmptyBorder(12, 12, 12, 12)));
         area.setMinimumSize(new Dimension(280, 160));
         return area;
+    }
+
+    private JScrollPane createContentScrollPane(java.awt.Component component) {
+        JScrollPane scrollPane = new JScrollPane(component);
+        scrollPane.setBorder(BorderFactory.createLineBorder(new Color(226, 232, 241)));
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.getViewport().setOpaque(false);
+        scrollPane.setOpaque(false);
+        return scrollPane;
     }
 
     private void rebuildCards() {
@@ -334,6 +355,7 @@ final class TreeLeafArrangementControlPanel extends JPanel {
         }
         detailArea.setText(detailText(ruleOrder.get(selectedIndex)));
         detailArea.setCaretPosition(0);
+        scrollSelectedCardIntoView();
     }
 
     private void moveSelected(int offset) {
@@ -351,6 +373,13 @@ final class TreeLeafArrangementControlPanel extends JPanel {
             }
         }
         moveRule(fromIndex, targetIndex);
+    }
+
+    private void scrollSelectedCardIntoView() {
+        if (selectedIndex < 0 || selectedIndex >= ruleCards.size()) {
+            return;
+        }
+        pipelinePanel.scrollRectToVisible(ruleCards.get(selectedIndex).getBounds());
     }
 
     private static String summaryText(TreeLeafArrangementRule rule) {

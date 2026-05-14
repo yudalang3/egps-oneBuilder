@@ -31,6 +31,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
+import javax.swing.Scrollable;
 import javax.swing.JViewport;
 import javax.swing.JSeparator;
 import javax.swing.JTextArea;
@@ -1302,6 +1303,14 @@ public final class TanglegramStandaloneTest {
     private static void reordersThreeDTreeCards() throws Exception {
         ThreeDTreeOrderControlPanel controlPanel = new ThreeDTreeOrderControlPanel(sampleImportedTrees());
 
+        assertTrue(controlPanel.cardListScrollPaneForTest().getViewport().getView() instanceof Scrollable,
+                "3D tree order cards should be inside a viewport-width-tracking scroll pane");
+        assertTrue(controlPanel.detailScrollPaneForTest().getViewport().getView() instanceof JTextArea,
+                "3D tree order details should be inside a scroll pane");
+        ThreeDTreeOrderControlPanel tallControlPanel = new ThreeDTreeOrderControlPanel(sampleImportedTrees(6));
+        assertListCanScrollVertically(tallControlPanel.cardListScrollPaneForTest(),
+                "3D tree order card list should allow vertical scrolling for many trees");
+
         assertEquals(Arrays.asList("Tree A", "Tree B"), controlPanel.treeLabelsForTest(),
                 "unexpected initial tree card order");
         controlPanel.moveSelectedDownForTest();
@@ -1509,6 +1518,11 @@ public final class TanglegramStandaloneTest {
     private static void supportsTreeLeafArrangementControls() {
         TreeLeafArrangementControlPanel controlPanel = new TreeLeafArrangementControlPanel(TreeLeafArrangementOptions.defaults());
 
+        assertTrue(controlPanel.cardListScrollPaneForTest().getViewport().getView() instanceof Scrollable,
+                "leaf arrangement cards should be inside a viewport-width-tracking scroll pane");
+        assertTrue(controlPanel.detailScrollPaneForTest().getViewport().getView() instanceof JTextArea,
+                "leaf arrangement details should be inside a scroll pane");
+
         assertEquals(
                 Arrays.asList(
                         TreeLeafArrangementRule.CLADE_SIZE,
@@ -1695,6 +1709,24 @@ public final class TanglegramStandaloneTest {
             }
         }
         return null;
+    }
+
+    private static void assertListCanScrollVertically(JScrollPane scrollPane, String message) {
+        scrollPane.setBounds(0, 0, 360, 180);
+        scrollPane.doLayout();
+        Component view = scrollPane.getViewport().getView();
+        view.setSize(360, view.getPreferredSize().height);
+        view.doLayout();
+
+        assertTrue(
+                view.getPreferredSize().height > scrollPane.getViewport().getExtentSize().height,
+                message);
+        assertEquals(
+                Integer.valueOf(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER),
+                Integer.valueOf(scrollPane.getHorizontalScrollBarPolicy()),
+                "card list should track viewport width instead of exposing horizontal scrolling");
+        assertTrue(((Scrollable) view).getScrollableTracksViewportWidth(),
+                "card list view should track viewport width");
     }
 
     private static void collectButtons(Component component, List<JButton> buttons) {
@@ -1986,6 +2018,17 @@ public final class TanglegramStandaloneTest {
         return Arrays.asList(
                 new ImportedTreeSpec(Path.of("tree-a.nwk"), "Tree A", decodeTree("((Dog:1,Cow:1):1,Frog:1);")),
                 new ImportedTreeSpec(Path.of("tree-b.nwk"), "Tree B", decodeTree("((Dog:1,Cow:1):1,Frog:1);")));
+    }
+
+    private static List<ImportedTreeSpec> sampleImportedTrees(int count) throws Exception {
+        List<ImportedTreeSpec> trees = new ArrayList<>();
+        for (int index = 0; index < count; index++) {
+            trees.add(new ImportedTreeSpec(
+                    Path.of("tree-" + index + ".nwk"),
+                    "Tree " + (index + 1),
+                    decodeTree("((Dog:1,Cow:1):1,Frog:1);")));
+        }
+        return trees;
     }
 
     private static List<ImportedTreeSpec> sampleImportedTreesWithMissingQuickClade() throws Exception {
