@@ -10,24 +10,31 @@ import java.awt.Insets;
 import java.awt.Window;
 import java.util.function.Consumer;
 import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JColorChooser;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
 import javax.swing.JSeparator;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 
 final class ThreeDGuideLineEffectsDialog extends JDialog {
-    private final JCheckBox showDashLineCheckBox;
+    private final JRadioButton phylogramWithDashLineRadioButton;
+    private final JRadioButton semiCladogramRadioButton;
     private final JCheckBox showLeafNamesCheckBox;
     private final JSpinner strokeWidthSpinner;
     private final JSpinner dashLengthSpinner;
     private final JSpinner dashGapSpinner;
     private final JButton colorButton;
+    private final JLabel strokeWidthLabel;
+    private final JLabel dashLengthLabel;
+    private final JLabel dashGapLabel;
+    private final JLabel colorLabel;
     private final Consumer<ThreeDGuideLineOptions> applyCallback;
     private Color selectedColor;
 
@@ -50,17 +57,31 @@ final class ThreeDGuideLineEffectsDialog extends JDialog {
         GridBagConstraints constraints = baseConstraints();
 
         showLeafNamesCheckBox = new JCheckBox("Show leaf names", safeOptions.showLeafNames());
-        showDashLineCheckBox = new JCheckBox("Show dash line", safeOptions.showDashLine());
+        phylogramWithDashLineRadioButton = new JRadioButton("Phylogram with dash line", safeOptions.showDashLine());
+        phylogramWithDashLineRadioButton.setToolTipText(
+                "Use dashed base guide lines to show leaf projection from the phylogram tree tips to the shared base plane.");
+        semiCladogramRadioButton = new JRadioButton("Semi-cladogram", !safeOptions.showDashLine());
+        semiCladogramRadioButton.setToolTipText(
+                "Use a simplified semi-cladogram style without dashed guide-line styling controls.");
+        ButtonGroup guideLineModeGroup = new ButtonGroup();
+        guideLineModeGroup.add(phylogramWithDashLineRadioButton);
+        guideLineModeGroup.add(semiCladogramRadioButton);
         strokeWidthSpinner = new JSpinner(new SpinnerNumberModel(
                 Double.valueOf(safeOptions.strokeWidth()), Double.valueOf(0.5d), Double.valueOf(8.0d), Double.valueOf(0.1d)));
         dashLengthSpinner = new JSpinner(new SpinnerNumberModel(
                 Double.valueOf(safeOptions.dashLength()), Double.valueOf(1.0d), Double.valueOf(30.0d), Double.valueOf(0.5d)));
         dashGapSpinner = new JSpinner(new SpinnerNumberModel(
                 Double.valueOf(safeOptions.dashGap()), Double.valueOf(1.0d), Double.valueOf(30.0d), Double.valueOf(0.5d)));
+        strokeWidthLabel = new JLabel("Dashed line width");
+        dashLengthLabel = new JLabel("Dash length");
+        dashGapLabel = new JLabel("Dash gap");
+        colorLabel = new JLabel("Guide line color");
         colorButton = new JButton("Pick color...");
         colorButton.setBackground(selectedColor);
         colorButton.setForeground(contrastingTextColor(selectedColor));
         colorButton.addActionListener(event -> chooseColor());
+        phylogramWithDashLineRadioButton.addActionListener(event -> updateDashStylingControls());
+        semiCladogramRadioButton.addActionListener(event -> updateDashStylingControls());
 
         constraints.gridx = 0;
         constraints.gridy = 0;
@@ -69,13 +90,15 @@ final class ThreeDGuideLineEffectsDialog extends JDialog {
         constraints.gridy = 1;
         formPanel.add(new JSeparator(SwingConstants.HORIZONTAL), constraints);
         constraints.gridy = 2;
-        formPanel.add(showDashLineCheckBox, constraints);
+        formPanel.add(phylogramWithDashLineRadioButton, constraints);
+        constraints.gridy = 3;
+        formPanel.add(semiCladogramRadioButton, constraints);
         constraints.gridwidth = 1;
 
-        addRow(formPanel, constraints, 3, "Dashed line width", strokeWidthSpinner);
-        addRow(formPanel, constraints, 4, "Dash length", dashLengthSpinner);
-        addRow(formPanel, constraints, 5, "Dash gap", dashGapSpinner);
-        addRow(formPanel, constraints, 6, "Guide line color", colorButton);
+        addRow(formPanel, constraints, 4, strokeWidthLabel, strokeWidthSpinner);
+        addRow(formPanel, constraints, 5, dashLengthLabel, dashLengthSpinner);
+        addRow(formPanel, constraints, 6, dashGapLabel, dashGapSpinner);
+        addRow(formPanel, constraints, 7, colorLabel, colorButton);
 
         add(formPanel, BorderLayout.CENTER);
 
@@ -97,6 +120,7 @@ final class ThreeDGuideLineEffectsDialog extends JDialog {
         setPreferredSize(new java.awt.Dimension(560, 360));
         pack();
         setMinimumSize(new java.awt.Dimension(520, 320));
+        updateDashStylingControls();
         setLocationRelativeTo(owner);
     }
 
@@ -109,7 +133,7 @@ final class ThreeDGuideLineEffectsDialog extends JDialog {
 
     private void applyValues() {
         applyCallback.accept(new ThreeDGuideLineOptions(
-                showDashLineCheckBox.isSelected(),
+                phylogramWithDashLineRadioButton.isSelected(),
                 showLeafNamesCheckBox.isSelected(),
                 ((Double) strokeWidthSpinner.getValue()).floatValue(),
                 ((Double) dashLengthSpinner.getValue()).floatValue(),
@@ -127,6 +151,18 @@ final class ThreeDGuideLineEffectsDialog extends JDialog {
         colorButton.setForeground(contrastingTextColor(selectedColor));
     }
 
+    private void updateDashStylingControls() {
+        boolean useDashStyling = phylogramWithDashLineRadioButton.isSelected();
+        strokeWidthLabel.setEnabled(useDashStyling);
+        strokeWidthSpinner.setEnabled(useDashStyling);
+        dashLengthLabel.setEnabled(useDashStyling);
+        dashLengthSpinner.setEnabled(useDashStyling);
+        dashGapLabel.setEnabled(useDashStyling);
+        dashGapSpinner.setEnabled(useDashStyling);
+        colorLabel.setEnabled(useDashStyling);
+        colorButton.setEnabled(useDashStyling);
+    }
+
     private static Color contrastingTextColor(Color background) {
         int brightness = ((background.getRed() * 299) + (background.getGreen() * 587) + (background.getBlue() * 114)) / 1000;
         return brightness < 140 ? Color.WHITE : Color.BLACK;
@@ -140,11 +176,11 @@ final class ThreeDGuideLineEffectsDialog extends JDialog {
         return constraints;
     }
 
-    private static void addRow(JPanel panel, GridBagConstraints constraints, int row, String label, java.awt.Component component) {
+    private static void addRow(JPanel panel, GridBagConstraints constraints, int row, JLabel label, java.awt.Component component) {
         constraints.gridx = 0;
         constraints.gridy = row;
         constraints.weightx = 0.0d;
-        panel.add(new JLabel(label), constraints);
+        panel.add(label, constraints);
 
         constraints.gridx = 1;
         constraints.weightx = 1.0d;

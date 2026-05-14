@@ -40,10 +40,11 @@ final class ParsimonyMethodPanel extends JPanel {
         add(header, BorderLayout.NORTH);
 
         JTextArea descriptionArea = WorkbenchStyles.createNoteArea(
-                "Parsimony mode runs the existing PHYLIP parsimony workflow. Protein mode also exposes the stable protpars output toggles that were previously hard-coded as menu responses 4/5.");
+                "Parsimony mode runs the existing PHYLIP parsimony workflow. Outgroup index is optional; 0 keeps PHYLIP parsimony unrooted. Protein mode also exposes the stable protpars output toggles that were previously hard-coded as menu responses 4/5.");
 
-        outgroupLabel = new JLabel("Outgroup index");
+        outgroupLabel = new JLabel("Outgroup index (optional)");
         outgroupSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 999999, 1));
+        outgroupSpinner.setToolTipText("0 = no PHYLIP outgroup rooting; 1+ selects the input sequence index used as the outgroup.");
         protparsPrintStepsCheckBox = new JCheckBox("Print site steps (protpars 4)", true);
         protparsPrintSequencesCheckBox = new JCheckBox("Print node sequences (protpars 5)", true);
         dnaparsTransversionCheckBox = new JCheckBox("Use transversion parsimony");

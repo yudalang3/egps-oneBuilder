@@ -676,13 +676,13 @@ public final class TanglegramStandaloneTest {
 
         ThreeDGuideLineOptions appliedOptions = invokeNoArg(view, "guideLineOptionsForTest", ThreeDGuideLineOptions.class);
         assertTrue(!appliedOptions.showDashLine(),
-                "unchecked Show dash line should keep guide lines visible as solid strokes");
+                "Semi-cladogram should keep guide lines visible as solid strokes");
         assertTrue(!appliedOptions.showLeafNames(),
                 "unchecked Show leaf names should hide leaf labels in the 3D view");
         assertEquals(Color.BLUE, appliedOptions.color(),
                 "3D guide line color picker should update the rendered guide line color");
         assertTrue(appliedOptions.strokeForTest().getDashArray() == null,
-                "unchecked Show dash line should create a solid stroke");
+                "Semi-cladogram should create a solid stroke");
     }
 
     private static void supportsThreeDVisualProperties() throws Exception {

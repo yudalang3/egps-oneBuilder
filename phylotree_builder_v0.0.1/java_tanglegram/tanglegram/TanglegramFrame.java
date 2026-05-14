@@ -24,6 +24,7 @@ import javax.swing.JTabbedPane;
 import javax.swing.border.EmptyBorder;
 
 final class TanglegramFrame extends JFrame implements PreferenceAware {
+    private static final String WINDOW_TITLE = "eGPS tanglegram & 3D tree alignment viewer";
     private static final String WINDOW_KEY = "tanglegram";
     private static final Dimension DEFAULT_WINDOW_SIZE = new Dimension(1400, 900);
     private static final Color CANVAS_BACKGROUND = new Color(243, 247, 252);
@@ -34,7 +35,7 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
     private String welcomeTabTitle;
 
     TanglegramFrame() {
-        super(UiText.text("Tanglegram", "缠结图"));
+        super(WINDOW_TITLE);
         WindowIconSupport.apply(this);
         this.workspaceTabs = new JideTabbedPane(JTabbedPane.TOP, JTabbedPane.SCROLL_TAB_LAYOUT);
         this.welcomePanel = new TanglegramWelcomePanel(this::openImportedSession);
@@ -97,7 +98,7 @@ final class TanglegramFrame extends JFrame implements PreferenceAware {
         if (preferences.restoreLastWindowSize()) {
             UiPreferenceStore.saveWindowSize(WINDOW_KEY, getSize());
         }
-        setTitle(UiText.text(preferences, "Tanglegram", "缠结图"));
+        setTitle(WINDOW_TITLE);
         exportButton.setText(UiText.text(preferences, "Export", "导出"));
         exportButton.setToolTipText(UiText.text(preferences, "Export the current view as bitmap or vector graphics", "将当前视图导出为位图或矢量图形"));
         propertiesButton.setText(UiText.text(preferences, "Preference", "偏好"));

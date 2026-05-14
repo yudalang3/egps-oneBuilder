@@ -21,6 +21,7 @@ import javax.swing.JSpinner;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
+import tanglegram.UiPreferenceStore;
 
 final class ProteinStructurePanel extends JPanel {
     private final JCheckBox enabledCheckBox;
@@ -52,7 +53,7 @@ final class ProteinStructurePanel extends JPanel {
         setOpaque(false);
         setBorder(BorderFactory.createEmptyBorder(6, 10, 10, 10));
 
-        enabledCheckBox = new JCheckBox("Enable Foldseek protein structure similarity", false);
+        enabledCheckBox = new JCheckBox("Enable Foldseek protein structure clustering tree method", false);
         useStructureManifestCheckBox = new JCheckBox("Use protein structure mapping TSV", false);
         structureManifestField = new JTextField();
         browseButton = new JButton("Browse");
@@ -79,6 +80,14 @@ final class ProteinStructurePanel extends JPanel {
         verbositySpinner = new JSpinner(new SpinnerNumberModel(ProteinStructureConfig.DEFAULT_VERBOSITY, 0, 3, 1));
         extraArgsArea = new JTextArea(4, 28);
 
+        JPanel header = new JPanel(new BorderLayout(8, 0));
+        header.setOpaque(false);
+        header.add(enabledCheckBox, BorderLayout.WEST);
+        header.add(
+                WorkbenchStyles.createNoteArea("Build an additional protein-structure clustering tree from Foldseek structural similarity."),
+                BorderLayout.CENTER);
+        add(header, BorderLayout.NORTH);
+
         JPanel formPanel = new JPanel(new GridBagLayout());
         formPanel.setOpaque(false);
         GridBagConstraints constraints = new GridBagConstraints();
@@ -93,13 +102,10 @@ final class ProteinStructurePanel extends JPanel {
         formPanel.add(new JLabel("Basic Parameters"), constraints);
 
         constraints.gridy = 1;
-        formPanel.add(enabledCheckBox, constraints);
-
-        constraints.gridy = 2;
         formPanel.add(useStructureManifestCheckBox, constraints);
 
         constraints.gridx = 0;
-        constraints.gridy = 3;
+        constraints.gridy = 2;
         constraints.gridwidth = 1;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("Protein structure TSV"), constraints);
@@ -113,7 +119,7 @@ final class ProteinStructurePanel extends JPanel {
         formPanel.add(browseButton, constraints);
 
         constraints.gridx = 0;
-        constraints.gridy = 4;
+        constraints.gridy = 3;
         constraints.gridwidth = 1;
         constraints.weightx = 0.0;
         formPanel.add(new JLabel("ProstT5 model weights"), constraints);
@@ -127,13 +133,13 @@ final class ProteinStructurePanel extends JPanel {
         formPanel.add(prostt5BrowseButton, constraints);
 
         constraints.gridx = 0;
-        constraints.gridy = 5;
+        constraints.gridy = 4;
         constraints.gridwidth = 3;
         constraints.weightx = 1.0;
         formPanel.add(new JLabel("<html><b>Required without TSV:</b> Select local ProstT5 model weights. oneBuilder will not download ProstT5 automatically.</html>"), constraints);
 
         constraints.gridx = 0;
-        constraints.gridy = 6;
+        constraints.gridy = 5;
         constraints.gridwidth = 3;
         constraints.weightx = 1.0;
         constraints.fill = GridBagConstraints.HORIZONTAL;
@@ -182,13 +188,13 @@ final class ProteinStructurePanel extends JPanel {
                 WorkbenchStyles.createNoteArea("Advanced fields map directly to Foldseek search flags. Extra args are appended last; enter one token per line."),
                 BorderLayout.CENTER);
 
-        constraints.gridy = 7;
+        constraints.gridy = 6;
         formPanel.add(TaskPaneFactory.createBlueTaskPane("Advanced Parameters", advancedContent, true), constraints);
 
-        constraints.gridy = 8;
+        constraints.gridy = 7;
         formPanel.add(new JSeparator(), constraints);
 
-        constraints.gridy = 9;
+        constraints.gridy = 8;
         formPanel.add(new JLabel("<html>After Foldseek produces a pair-wise distance matrix, eGPS will build a "
                 + "structure-similarity tree with the selected method.</html>"), constraints);
 
@@ -213,10 +219,10 @@ final class ProteinStructurePanel extends JPanel {
         horizontalFiller.setOpaque(false);
         treeBuilderPanel.add(horizontalFiller, radioConstraints);
 
-        constraints.gridy = 10;
+        constraints.gridy = 9;
         formPanel.add(treeBuilderPanel, constraints);
 
-        add(formPanel, BorderLayout.NORTH);
+        add(formPanel, BorderLayout.CENTER);
 
         enabledCheckBox.addActionListener(event -> updateControlState());
         useStructureManifestCheckBox.addActionListener(event -> updateControlState());
@@ -279,7 +285,7 @@ final class ProteinStructurePanel extends JPanel {
     }
 
     private void browseForStructureManifest() {
-        JFileChooser chooser = new JFileChooser();
+        JFileChooser chooser = createInputDirectoryChooser();
         chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
         int selection = chooser.showOpenDialog(this);
         if (selection == JFileChooser.APPROVE_OPTION) {
@@ -289,13 +295,21 @@ final class ProteinStructurePanel extends JPanel {
     }
 
     private void browseForProstt5Model() {
-        JFileChooser chooser = new JFileChooser();
+        JFileChooser chooser = createInputDirectoryChooser();
         chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
         int selection = chooser.showOpenDialog(this);
         if (selection == JFileChooser.APPROVE_OPTION) {
             Path selectedPath = chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
             prostt5ModelField.setText(selectedPath.toString());
         }
+    }
+
+    private static JFileChooser createInputDirectoryChooser() {
+        Path inputDirectory = UiPreferenceStore.loadRecentOneBuilderInputDir();
+        if (inputDirectory != null && java.nio.file.Files.isDirectory(inputDirectory)) {
+            return new JFileChooser(inputDirectory.toFile());
+        }
+        return new JFileChooser();
     }
 
     private void updateControlState() {
