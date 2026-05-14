@@ -646,12 +646,26 @@ final class TanglegramWelcomePanel extends JPanel {
             showUserError(failureTitle, UiText.text("No file or folder was selected.", "未选择文件或目录。"));
             return null;
         }
+        String selectedPathText = selectedFile.getPath();
+        String trimmedPathText = selectedPathText == null ? "" : selectedPathText.trim();
+        if (isQuotedPathText(trimmedPathText)) {
+            showUserError(failureTitle, "InvalidPathException: quoted paths are not valid on this system.");
+            return null;
+        }
         try {
             return selectedFile.toPath().toAbsolutePath().normalize();
         } catch (Exception exception) {
             showUserError(failureTitle, exception.getMessage());
             return null;
         }
+    }
+
+    private boolean isQuotedPathText(String pathText) {
+        if (pathText.length() < 2) {
+            return false;
+        }
+        return (pathText.startsWith("\"") && pathText.endsWith("\""))
+                || (pathText.startsWith("'") && pathText.endsWith("'"));
     }
 
     private FileFilter createConfigFileFilter() {

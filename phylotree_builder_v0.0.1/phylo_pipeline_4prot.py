@@ -10,6 +10,8 @@ Version: 1.0 (protein)
 """
 
 import os, glob
+import csv
+import math
 import sys
 import subprocess
 import shutil
@@ -907,19 +909,32 @@ class ProteinPhylogeneticPipeline:
             self.logger.error("plt.rcParams setting error.")
             pass
 
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-        axes = axes.flatten()
+        panel_count = max(len(tree_files), len(method_names), 1)
+        columns = min(3, max(1, math.ceil(math.sqrt(panel_count))))
+        rows = math.ceil(panel_count / columns)
+        fig_width = max(8, columns * 8)
+        fig_height = max(6, rows * 6)
+        fig, axes = plt.subplots(rows, columns, figsize=(fig_width, fig_height))
+        axes = list(axes.flat) if hasattr(axes, "flat") else [axes]
 
-        for i, (tree_file, method) in enumerate(zip(tree_files, method_names)):
-            if tree_file and tree_file.exists():
+        for i in range(panel_count):
+            tree_file = tree_files[i] if i < len(tree_files) else None
+            method = method_names[i] if i < len(method_names) else f"Tree {i + 1}"
+            tree_path = Path(tree_file) if tree_file else None
+            if tree_path and tree_path.exists():
                 try:
-                    list_trees = Phylo.parse(tree_file, "newick")
+                    list_trees = Phylo.parse(tree_path, "newick")
                     trees = list(list_trees)
                     Phylo.draw(trees[0], axes=axes[i], do_show=False)
                     if method.startswith("Parsimony"):
                         title = self.translator.text(
                             f"{method} Method (unrooted), # of trees: {len(trees)}",
                             f"{method}法（未定根），树数量: {len(trees)}",
+                        )
+                    elif method.startswith("Protein"):
+                        title = self.translator.text(
+                            "Protein Structure Method (ProteinCluster)",
+                            "蛋白质结构法（ProteinCluster）",
                         )
                     else:
                         title = self.translator.text(
@@ -946,6 +961,8 @@ class ProteinPhylogeneticPipeline:
                     va="center",
                     transform=axes[i].transAxes,
                 )
+        for axis in axes[panel_count:]:
+            axis.axis("off")
         plt.tight_layout()
         plt.savefig(
             vis_dir / "all_protein_trees_comparison.png", dpi=300, bbox_inches="tight"
@@ -1364,6 +1381,7 @@ class ProteinPhylogeneticPipeline:
             distance_matrix_path = work_dir / "distance_matrix.tsv"
             if pairwise_scores_path.exists() and distance_matrix_path.exists():
                 self.logger.info("Protein structure similarity completed")
+                self.log_protein_structure_distance_warnings(distance_matrix_path, missing_distance)
                 return self.build_protein_structure_tree(distance_matrix_path, work_dir)
             self.logger.error(
                 f"Protein structure similarity output not found: {pairwise_scores_path} and {distance_matrix_path}"
@@ -1376,6 +1394,76 @@ class ProteinPhylogeneticPipeline:
             if exception.stderr:
                 self.logger.error(exception.stderr.strip())
             return None
+
+    def log_protein_structure_distance_warnings(self, distance_matrix_path, missing_distance):
+        """Warn about structure distance matrices that can create compressed displays."""
+        try:
+            rows = []
+            with Path(distance_matrix_path).open("r", encoding="utf-8", newline="") as handle:
+                reader = csv.reader(handle, delimiter="\t")
+                header = next(reader, None)
+                if not header or len(header) < 2:
+                    return
+                sample_ids = header[1:]
+                for raw_row in reader:
+                    if len(raw_row) >= 2:
+                        rows.append(raw_row)
+
+            parsed_missing = None
+            try:
+                parsed_missing = float(missing_distance) if missing_distance is not None else None
+            except (TypeError, ValueError):
+                parsed_missing = None
+
+            off_diagonal_distances = []
+            warned_samples = []
+            for row in rows:
+                sample_id = row[0]
+                values = row[1:]
+                missing_count = 0
+                comparable_count = 0
+                for index, value_text in enumerate(values):
+                    if index >= len(sample_ids) or sample_ids[index] == sample_id:
+                        continue
+                    try:
+                        value = float(value_text)
+                    except (TypeError, ValueError):
+                        continue
+                    comparable_count += 1
+                    off_diagonal_distances.append(value)
+                    if parsed_missing is not None and math.isclose(value, parsed_missing, rel_tol=1e-6, abs_tol=1e-6):
+                        missing_count += 1
+                if comparable_count > 0 and missing_count > comparable_count / 2:
+                    warned_samples.append((sample_id, missing_count, comparable_count))
+
+            for sample_id, missing_count, comparable_count in warned_samples:
+                self.logger.warning(
+                    self.translator.text(
+                        f"Protein structure distance warning: {sample_id} uses missing_distance for {missing_count}/{comparable_count} comparisons. The ProteinCluster topology may be dominated by absent Foldseek hits.",
+                        f"蛋白质结构距离警告：{sample_id} 在 {missing_count}/{comparable_count} 个比较中使用 missing_distance。ProteinCluster 拓扑可能主要受缺失 Foldseek 命中影响。",
+                    )
+                )
+
+            positive_distances = [value for value in off_diagonal_distances if value > 0]
+            if len(positive_distances) >= 2:
+                sorted_distances = sorted(positive_distances)
+                midpoint = len(sorted_distances) // 2
+                if len(sorted_distances) % 2:
+                    median_distance = sorted_distances[midpoint]
+                else:
+                    median_distance = (sorted_distances[midpoint - 1] + sorted_distances[midpoint]) / 2
+                max_distance = sorted_distances[-1]
+                if median_distance > 0 and max_distance >= median_distance * 10:
+                    self.logger.warning(
+                        self.translator.text(
+                            f"Protein structure distance warning: max distance {max_distance:.6g} is much larger than median distance {median_distance:.6g}. Long branches may compress the ProteinCluster tree display; distances were not clipped or normalized.",
+                            f"蛋白质结构距离警告：最大距离 {max_distance:.6g} 远大于中位距离 {median_distance:.6g}。长枝可能压缩 ProteinCluster 树显示；距离未被裁剪或归一化。",
+                        )
+                    )
+        except Exception as exception:
+            self.logger.warning(
+                f"Could not inspect protein structure distance matrix for display warnings: {exception}"
+            )
 
     def protein_structure_foldseek_args(self, settings):
         """Convert protein-structure runtime settings into wrapper CLI arguments."""
@@ -1456,6 +1544,52 @@ class ProteinPhylogeneticPipeline:
                 self.logger.error(exception.stdout.strip())
             if exception.stderr:
                 self.logger.error(exception.stderr.strip())
+            return None
+
+    def finalize_protein_structure_tree(self, protein_structure_tree):
+        """Validate, reroot, ladderize, and publish the structure tree to its stable path."""
+        if protein_structure_tree is None or not Path(protein_structure_tree).exists():
+            return None
+
+        self.logger.info("Postprocessing protein structure tree...")
+        source_tree = Path(protein_structure_tree)
+        validated_tree = source_tree.with_name(source_tree.name + ".validated")
+        try:
+            validated_tree = self._postprocess_tree_with_egps(
+                source_tree,
+                output_file=validated_tree,
+                sanitize_for_mad=True,
+            )
+            if validated_tree is None or not self._tree_file_has_content(validated_tree):
+                raise RuntimeError("protein structure tree validation failed")
+            self.logger.info(f"Protein structure tree validated: {validated_tree}")
+
+            rooted_tree_files = self.reroot_trees([validated_tree])
+            rooted_tree = rooted_tree_files[0] if rooted_tree_files else None
+            if rooted_tree is None or not Path(rooted_tree).exists():
+                raise RuntimeError("protein structure tree rerooting failed")
+            self.logger.info(f"Protein structure tree rerooted: {rooted_tree}")
+
+            ladderized_tree_files = self.ladderize_tree_with_egps([rooted_tree])
+            ladderized_tree = ladderized_tree_files[0] if ladderized_tree_files else None
+            if ladderized_tree is None or not Path(ladderized_tree).exists():
+                raise RuntimeError("protein structure tree ladderization failed")
+            self.logger.info(f"Protein structure tree ladderized: {ladderized_tree}")
+
+            export_path = self.output_dir / "protein_structure" / "structure_tree.nwk"
+            published_tree = self._postprocess_tree_with_egps(
+                ladderized_tree,
+                output_file=export_path,
+                sanitize_for_mad=True,
+            )
+            if published_tree is None or not self._tree_file_has_content(export_path):
+                raise RuntimeError("protein structure tree final publish failed")
+            self.logger.info(f"Published final protein structure Newick export: {export_path}")
+            return export_path
+        except Exception as exception:
+            self.logger.warning(
+                f"Could not finalize protein structure tree {protein_structure_tree}: {exception}"
+            )
             return None
 
     def run_pipeline(self):
@@ -1554,13 +1688,14 @@ class ProteinPhylogeneticPipeline:
 
         result_trees = self.restore_names_in_trees(rooted_ladd_tree_files)
         result_trees = self.publish_final_newick_exports(result_trees)
+        protein_structure_tree = self.finalize_protein_structure_tree(protein_structure_tree)
         result_trees.append(protein_structure_tree)
         # 6. Visualization and summary
         os.chdir(entry_path)
 
-        methods = ["Distance", "Maximum Likelihood", "Bayesian", "Parsimony"]
+        methods = ["Distance", "Maximum Likelihood", "Bayesian", "Parsimony", "Protein Structure"]
 
-        self.visualize_trees(result_trees[:4], methods)
+        self.visualize_trees(result_trees, methods)
 
         os.chdir(entry_path)
         self.generate_summary(result_trees, sequences)
