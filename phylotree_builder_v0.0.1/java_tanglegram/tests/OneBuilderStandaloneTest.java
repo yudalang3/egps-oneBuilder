@@ -40,6 +40,10 @@ public final class OneBuilderStandaloneTest {
             run("buildsExecutionPlanWithTrimOnly", OneBuilderStandaloneTest::buildsExecutionPlanWithTrimOnly);
             run("buildsExecutionPlanInputPathsForAlignmentAndTrimCombinations", OneBuilderStandaloneTest::buildsExecutionPlanInputPathsForAlignmentAndTrimCombinations);
             run("serializesPipelineRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesPipelineRuntimeConfigAsJson);
+            run("readsExportedPipelineConfigForImport", OneBuilderStandaloneTest::readsExportedPipelineConfigForImport);
+            run("appliesImportedConfigWithoutAutoDetectionOverride", OneBuilderStandaloneTest::appliesImportedConfigWithoutAutoDetectionOverride);
+            run("importsMissingInputPathButKeepsNavigationBlocked", OneBuilderStandaloneTest::importsMissingInputPathButKeepsNavigationBlocked);
+            run("rejectsInvalidImportedConfigEnum", OneBuilderStandaloneTest::rejectsInvalidImportedConfigEnum);
             run("serializesTrimAlignmentPresetAsJson", OneBuilderStandaloneTest::serializesTrimAlignmentPresetAsJson);
             run("serializesCustomizedTrimAlignmentAsJson", OneBuilderStandaloneTest::serializesCustomizedTrimAlignmentAsJson);
             run("roundTripsProteinStructureTreeBuilderMethod", OneBuilderStandaloneTest::roundTripsProteinStructureTreeBuilderMethod);
@@ -85,6 +89,7 @@ public final class OneBuilderStandaloneTest {
             run("keepsTreeBuildCaretAtEndAfterAppendingLogs", OneBuilderStandaloneTest::keepsTreeBuildCaretAtEndAfterAppendingLogs);
             run("storesLanguageInExportedConfig", OneBuilderStandaloneTest::storesLanguageInExportedConfig);
             run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
+            run("remembersImportConfigChooserFile", OneBuilderStandaloneTest::remembersImportConfigChooserFile);
             run("usesGlobalFontForCitationText", OneBuilderStandaloneTest::usesGlobalFontForCitationText);
             run("showsTanglegramSnapshotChipBeforeStatus", OneBuilderStandaloneTest::showsTanglegramSnapshotChipBeforeStatus);
             run("updatesTrimAlignmentPreviewAndTreeBuildDraft", OneBuilderStandaloneTest::updatesTrimAlignmentPreviewAndTreeBuildDraft);
@@ -520,6 +525,215 @@ public final class OneBuilderStandaloneTest {
         assertTrue(json.contains("\"menu_overrides\": ["), "expected PHYLIP passthrough array");
         assertTrue(json.contains("\"P\""), "expected PHYLIP menu override");
         assertTrue(json.contains("\"enabled\": false"), "expected distance enabled flag");
+    }
+
+    private static void readsExportedPipelineConfigForImport() throws Exception {
+        Path tempFile = Files.createTempFile("onebuilder-import-roundtrip-", ".json");
+        PipelineRuntimeConfig config = PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN)
+                .withDistance(new SimpleMethodConfig(
+                        false,
+                        "F84",
+                        Double.valueOf(2.0d),
+                        true,
+                        "UPGMA",
+                        null,
+                        null,
+                        null,
+                        false,
+                        Arrays.asList("P", "P", "G", "0.7", "Y"),
+                        java.util.Collections.emptyList(),
+                        Arrays.asList("N", "Y"),
+                        java.util.Collections.emptyList(),
+                        java.util.Collections.emptyList()))
+                .withMaximumLikelihood(new MaximumLikelihoodConfig(
+                        true,
+                        2000,
+                        "MFP",
+                        "LG,WAG,JTT",
+                        "AUTO",
+                        Integer.valueOf(12),
+                        Integer.valueOf(42),
+                        true,
+                        false,
+                        true,
+                        false,
+                        true,
+                        "8G",
+                        "seq1",
+                        "AA",
+                        Integer.valueOf(0),
+                        true,
+                        Arrays.asList("-bnni", "-wbtl")))
+                .withBayesian(new BayesianConfig(
+                        true,
+                        "mixed",
+                        "gamma",
+                        75000,
+                        250,
+                        1000,
+                        3000,
+                        null,
+                        Integer.valueOf(2),
+                        Integer.valueOf(4),
+                        Double.valueOf(0.2),
+                        Boolean.TRUE,
+                        Double.valueOf(0.01),
+                        Integer.valueOf(500),
+                        Double.valueOf(0.25),
+                        Boolean.TRUE,
+                        Arrays.asList("charset core = 1-300;", "prset statefreqpr=fixed(equal);")))
+                .withParsimony(new SimpleMethodConfig(
+                        true,
+                        "F84",
+                        Double.valueOf(2.0d),
+                        true,
+                        "NJ",
+                        null,
+                        Integer.valueOf(5),
+                        null,
+                        false,
+                        false,
+                        true,
+                        java.util.Collections.emptyList(),
+                        java.util.Collections.emptyList(),
+                        java.util.Collections.emptyList(),
+                        Arrays.asList("J", "5", "Y"),
+                        java.util.Collections.emptyList()))
+                .withProteinStructure(new ProteinStructureConfig(
+                        true,
+                        true,
+                        "/data/structures.tsv",
+                        null,
+                        "SwiftNJ",
+                        8,
+                        8.5d,
+                        1.0d,
+                        500,
+                        0.4d,
+                        1,
+                        2,
+                        0.6d,
+                        true,
+                        true,
+                        false,
+                        2,
+                        Arrays.asList("--alignment-mode", "3")))
+                .withReroot(new RerootConfig(RerootMethod.ROOT_AT_MIDDLE_POINT, LadderizeDirection.DOWN, false, true, false));
+        RunRequest request = RunRequest.builder()
+                .inputType(InputType.PROTEIN)
+                .inputFile(Paths.get("/data/input/protein.fasta"))
+                .outputDirectory(Paths.get("/data/output"))
+                .outputPrefix("protein_demo")
+                .exportConfigFile(true)
+                .runAlignmentFirst(true)
+                .alignOptions(new AlignmentOptions("genafpair", 800, Integer.valueOf(6), false, Arrays.asList("--retree", "2")))
+                .trimAlignmentConfig(new TrimAlignmentConfig(true, TrimAlignmentPreset.CUSTOMIZED, Arrays.asList("-gt", "0.8")))
+                .runtimeConfig(config)
+                .build();
+
+        new PipelineConfigWriter().write(tempFile, request);
+        ImportedPipelineConfig imported = new PipelineConfigReader().read(tempFile);
+        PipelineRuntimeConfig importedRuntime = imported.runtimeConfig();
+
+        assertEquals(InputType.PROTEIN, imported.inputType(), "unexpected imported input type");
+        assertEquals(Paths.get("/data/input/protein.fasta"), imported.inputFile(), "unexpected imported input file");
+        assertEquals(Paths.get("/data/output"), imported.outputDirectory(), "unexpected imported output dir");
+        assertEquals("protein_demo", imported.outputPrefix(), "unexpected imported output prefix");
+        assertTrue(imported.runAlignmentFirst(), "expected imported alignment flag");
+        assertEquals("genafpair", imported.alignOptions().strategy(), "unexpected imported MAFFT strategy");
+        assertEquals(Integer.valueOf(6), imported.alignOptions().threads(), "unexpected imported MAFFT threads");
+        assertEquals(TrimAlignmentPreset.CUSTOMIZED, imported.trimAlignmentConfig().preset(), "unexpected imported trim preset");
+        assertEquals(Arrays.asList("-gt", "0.8"), imported.trimAlignmentConfig().customArgs(), "unexpected imported trim args");
+        assertTrue(!importedRuntime.distance().enabled(), "expected imported distance enabled flag");
+        assertEquals("UPGMA", importedRuntime.distance().neighborMethod(), "unexpected imported neighbor method");
+        assertEquals(Integer.valueOf(0), importedRuntime.maximumLikelihood().alrt(), "expected imported alrt=0");
+        assertEquals(Arrays.asList("-bnni", "-wbtl"), importedRuntime.maximumLikelihood().extraArgs(), "unexpected imported ML extra args");
+        assertEquals(Double.valueOf(0.25), importedRuntime.bayesian().burninfrac(), "unexpected imported burninfrac");
+        assertEquals(Integer.valueOf(5), importedRuntime.parsimony().protparsOutgroupIndex(), "unexpected imported protpars outgroup");
+        assertEquals("SwiftNJ", importedRuntime.proteinStructure().treeBuilderMethod(), "unexpected imported structure builder");
+        assertEquals(RerootMethod.ROOT_AT_MIDDLE_POINT, importedRuntime.reroot().method(), "unexpected imported reroot method");
+        assertEquals(LadderizeDirection.DOWN, importedRuntime.reroot().ladderizeDirection(), "unexpected imported ladderize direction");
+        assertTrue(!importedRuntime.reroot().sortByCladeSize(), "expected imported clade-size sort flag");
+        assertTrue(importedRuntime.reroot().sortByLeafNameString(), "expected imported leaf-name sort flag");
+        assertTrue(!importedRuntime.reroot().sortByBranchLength(), "expected imported branch-length sort flag");
+    }
+
+    private static void appliesImportedConfigWithoutAutoDetectionOverride() throws Exception {
+        Path tempInputFile = Files.createTempFile("onebuilder-import-dna-looking-", ".fasta");
+        Path tempOutputDirectory = Files.createTempDirectory("onebuilder-import-output-");
+        Files.writeString(tempInputFile, ">seq1\nATGCTA\n>seq2\nATGCTAGCTA\n", StandardCharsets.UTF_8);
+
+        SwingUtilities.invokeAndWait(() -> {
+            InputAlignPanel panel = new InputAlignPanel(
+                    PlatformSupport.LINUX,
+                    () -> { },
+                    () -> PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN));
+            ImportedPipelineConfig importedConfig = new ImportedPipelineConfig(
+                    InputType.PROTEIN,
+                    tempInputFile,
+                    tempOutputDirectory,
+                    "imported_protein",
+                    false,
+                    new AlignmentOptions("localpair", 1200, Integer.valueOf(3), true, Arrays.asList("--anysymbol")),
+                    TrimAlignmentConfig.defaults(),
+                    PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN)
+                            .withMaximumLikelihood(new MaximumLikelihoodConfig(true, 1500, "MFP", "LG,WAG")));
+            panel.applyImportedConfig(importedConfig);
+            assertEquals(InputType.PROTEIN, panel.selectedInputType(),
+                    "import should preserve JSON input type instead of auto-detecting DNA");
+            assertTrue(!panel.isRunAlignmentSelectedForTest(),
+                    "import should preserve JSON run_alignment_first instead of auto-enabling alignment");
+            assertEquals(tempInputFile.toString(), panel.expectedBuildInputPathForTest(),
+                    "expected build input should remain the imported unaligned input");
+        });
+    }
+
+    private static void importsMissingInputPathButKeepsNavigationBlocked() throws Exception {
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
+        Path missingInput = Paths.get("/tmp/onebuilder-missing-import-input.fasta");
+        Path outputDirectory = Files.createTempDirectory("onebuilder-import-missing-output-");
+        SwingUtilities.invokeAndWait(() -> {
+            OneBuilderWorkspacePanel panel = new OneBuilderWorkspacePanel(
+                    Paths.get("/opt/onebuilder/phylotree_builder_v0.0.1"),
+                    PlatformSupport.LINUX);
+            panel.applyImportedConfig(new ImportedPipelineConfig(
+                    InputType.DNA_CDS,
+                    missingInput,
+                    outputDirectory,
+                    "missing_input_demo",
+                    false,
+                    AlignmentOptions.defaults(),
+                    TrimAlignmentConfig.defaults(),
+                    PipelineRuntimeConfig.defaultsFor(InputType.DNA_CDS)));
+            assertEquals(InputType.DNA_CDS, panel.inputAlignPanel().selectedInputType(),
+                    "import should still set input type for missing paths");
+            assertTrue(!panel.isSectionEnabled("Tree Build"),
+                    "missing imported input path should keep Tree Build locked by existing validation");
+            assertTrue(
+                    panel.navigationTooltipText("Tree Build").contains("choose an existing input FASTA/MSA file"),
+                    "expected missing input validation tooltip after import");
+        });
+    }
+
+    private static void rejectsInvalidImportedConfigEnum() throws Exception {
+        Path tempFile = Files.createTempFile("onebuilder-invalid-import-", ".json");
+        Files.writeString(
+                tempFile,
+                "{\n"
+                        + "  \"run\": {\n"
+                        + "    \"input_type\": \"RNA\",\n"
+                        + "    \"input_file\": \"/data/input.fasta\",\n"
+                        + "    \"output_base_dir\": \"/data/output\",\n"
+                        + "    \"output_prefix\": \"bad\"\n"
+                        + "  }\n"
+                        + "}\n",
+                StandardCharsets.UTF_8);
+        expectIllegalArgument(
+                () -> new PipelineConfigReader().read(tempFile),
+                "unsupported input type",
+                "invalid imported input_type should fail");
     }
 
     private static void serializesTrimAlignmentPresetAsJson() throws Exception {
@@ -1067,6 +1281,35 @@ public final class OneBuilderStandaloneTest {
                 Paths.get("/tmp/onebuilder-output-cache").toAbsolutePath().normalize(),
                 panel.initialOutputChooserPathForTest(),
                 "unexpected remembered output browse directory");
+
+        UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
+    }
+
+    private static void remembersImportConfigChooserFile() throws Exception {
+        UiPreferenceStore.useTestNode("/egps-onebuilder/tests/onebuilder/import-config-memory");
+        UiPreferenceStore.clearNodeForTests();
+        Path tempDirectory = Files.createTempDirectory("onebuilder-import-config-memory-");
+        Path configFile = tempDirectory.resolve("demo.onebuilder.json").toAbsolutePath().normalize();
+        Files.writeString(configFile, "{}", StandardCharsets.UTF_8);
+
+        UiPreferenceStore.saveRecentOneBuilderConfigFile(configFile);
+
+        assertEquals(
+                configFile,
+                UiPreferenceStore.loadRecentOneBuilderConfigFile(),
+                "unexpected remembered oneBuilder import config file");
+        assertEquals(
+                tempDirectory.toAbsolutePath().normalize(),
+                OneBuilderWorkspacePanel.initialImportConfigChooserDirectory(configFile),
+                "expected import chooser to open in the remembered config file directory");
+        assertEquals(
+                tempDirectory.toAbsolutePath().normalize(),
+                OneBuilderWorkspacePanel.initialImportConfigChooserDirectory(tempDirectory.resolve("missing.onebuilder.json")),
+                "expected import chooser to reuse the parent directory for a missing remembered file");
+        assertEquals(
+                Paths.get(System.getProperty("user.home", ".")).toAbsolutePath().normalize(),
+                OneBuilderWorkspacePanel.initialImportConfigChooserDirectory(tempDirectory.resolve("missing").resolve("missing.onebuilder.json")),
+                "expected import chooser to fall back to the home directory when the remembered parent is gone");
 
         UiPreferenceStore.useTestNode(SUITE_PREFERENCE_NODE);
     }

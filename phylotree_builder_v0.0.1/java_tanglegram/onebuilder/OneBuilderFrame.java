@@ -20,7 +20,9 @@ final class OneBuilderFrame extends JFrame implements PreferenceAware {
     private static final String WINDOW_KEY = "onebuilder";
     private static final Dimension DEFAULT_WINDOW_SIZE = new Dimension(1520, 960);
     private final OneBuilderWorkspacePanel workspacePanel;
+    private final JMenu fileMenu;
     private final JMenu preferenceMenu;
+    private final JMenuItem importConfigItem;
     private final JMenuItem settingsItem;
 
     OneBuilderFrame(Path scriptDirectory) {
@@ -29,7 +31,9 @@ final class OneBuilderFrame extends JFrame implements PreferenceAware {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
         workspacePanel = new OneBuilderWorkspacePanel(scriptDirectory);
+        fileMenu = new JMenu();
         preferenceMenu = new JMenu();
+        importConfigItem = new JMenuItem();
         settingsItem = new JMenuItem();
         setJMenuBar(createMenuBar());
         add(workspacePanel, BorderLayout.CENTER);
@@ -46,8 +50,11 @@ final class OneBuilderFrame extends JFrame implements PreferenceAware {
 
     private JMenuBar createMenuBar() {
         JMenuBar menuBar = new JMenuBar();
+        importConfigItem.addActionListener(event -> workspacePanel.importConfigFromFileChooser());
         settingsItem.addActionListener(event -> PreferenceDialog.showDialog(this));
+        fileMenu.add(importConfigItem);
         preferenceMenu.add(settingsItem);
+        menuBar.add(fileMenu);
         menuBar.add(preferenceMenu);
         return menuBar;
     }
@@ -58,6 +65,8 @@ final class OneBuilderFrame extends JFrame implements PreferenceAware {
             UiPreferenceStore.saveWindowSize(WINDOW_KEY, getSize());
         }
         setTitle(UiText.text(preferences, "eGPS oneBuilder", "eGPS oneBuilder"));
+        fileMenu.setText(UiText.text(preferences, "File", "文件"));
+        importConfigItem.setText(UiText.text(preferences, "Import Config...", "导入配置..."));
         preferenceMenu.setText(UiText.text(preferences, "Preference", "偏好"));
         settingsItem.setText(UiText.text(preferences, "Settings...", "设置..."));
         workspacePanel.applyPreferences(preferences);

@@ -94,9 +94,9 @@ final class RerootTreePanel extends JPanel {
         RerootConfig effectiveConfig = config == null ? RerootConfig.defaults() : config;
         methodCombo.setSelectedItem(effectiveConfig.method());
         ladderizeDirectionCombo.setSelectedItem(effectiveConfig.ladderizeDirection());
-        sortByCladeSizeCheckBox.setSelected(true);
-        sortByLeafNameStringCheckBox.setSelected(true);
-        sortByBranchLengthCheckBox.setSelected(true);
+        sortByCladeSizeCheckBox.setSelected(effectiveConfig.sortByCladeSize());
+        sortByLeafNameStringCheckBox.setSelected(effectiveConfig.sortByLeafNameString());
+        sortByBranchLengthCheckBox.setSelected(effectiveConfig.sortByBranchLength());
     }
 
     RerootConfig toConfig() {
@@ -105,9 +105,9 @@ final class RerootTreePanel extends JPanel {
         return new RerootConfig(
                 selected instanceof RerootMethod ? (RerootMethod) selected : RerootMethod.MAD,
                 selectedDirection instanceof LadderizeDirection ? (LadderizeDirection) selectedDirection : LadderizeDirection.UP,
-                true,
-                true,
-                true);
+                sortByCladeSizeCheckBox.isSelected(),
+                sortByLeafNameStringCheckBox.isSelected(),
+                sortByBranchLengthCheckBox.isSelected());
     }
 
     void setRunning(boolean running) {

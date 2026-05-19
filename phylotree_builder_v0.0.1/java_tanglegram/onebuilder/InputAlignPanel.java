@@ -56,6 +56,8 @@ final class InputAlignPanel extends JPanel {
     private Path lastOutputBrowseDir;
     private boolean running;
     private boolean alignmentSelectionAutoControlled = true;
+    private boolean applyingImportedConfig;
+    private boolean suppressInputAutoDetection;
     private long inputTypeDetectionToken;
     private Path lastScheduledInputTypeDetectionPath;
 
@@ -498,6 +500,39 @@ final class InputAlignPanel extends JPanel {
         notifyInputChanged();
     }
 
+    void applyImportedConfig(ImportedPipelineConfig importedConfig) {
+        if (importedConfig == null) {
+            return;
+        }
+        boolean previousApplyingImportedConfig = applyingImportedConfig;
+        boolean previousSuppressInputAutoDetection = suppressInputAutoDetection;
+        applyingImportedConfig = true;
+        suppressInputAutoDetection = true;
+        inputTypeDetectionToken++;
+        lastScheduledInputTypeDetectionPath = null;
+        try {
+            inputTypeCombo.setSelectedItem(importedConfig.inputType());
+            inputFileField.setText(importedConfig.inputFile().toString());
+            outputDirField.setText(importedConfig.outputDirectory().toString());
+            outputPrefixField.setText(importedConfig.outputPrefix());
+            runAlignmentCheckBox.setSelected(importedConfig.runAlignmentFirst());
+            AlignmentOptions alignOptions = importedConfig.alignOptions();
+            alignStrategyCombo.setSelectedItem(alignOptions.strategy());
+            maxiterateSpinner.setValue(Integer.valueOf(alignOptions.maxiterate()));
+            alignThreadsSpinner.setValue(Integer.valueOf(alignOptions.threads() == null ? 0 : alignOptions.threads().intValue()));
+            reorderCheckBox.setSelected(alignOptions.reorder());
+            alignExtraArgsArea.setText(TextListCodec.joinLines(alignOptions.extraArgs()));
+            alignmentSelectionAutoControlled = false;
+            inputTypeHintLabel.setText("Imported config: input type and alignment settings came from JSON.");
+        } finally {
+            applyingImportedConfig = previousApplyingImportedConfig;
+            suppressInputAutoDetection = previousSuppressInputAutoDetection;
+        }
+        toggleAlignmentControls();
+        refreshEffectiveInputPreview();
+        inputChangedCallback.run();
+    }
+
     String expectedBuildInputPathForTest() {
         return expectedBuildInputPath(trimAlignmentConfigSupplier.get());
     }
@@ -791,6 +826,9 @@ final class InputAlignPanel extends JPanel {
     }
 
     private void notifyInputChanged() {
+        if (applyingImportedConfig) {
+            return;
+        }
         toggleAlignmentControls();
         refreshEffectiveInputPreview();
         inputChangedCallback.run();
@@ -818,6 +856,9 @@ final class InputAlignPanel extends JPanel {
     }
 
     private void scheduleInputTypeDetection() {
+        if (suppressInputAutoDetection) {
+            return;
+        }
         Path inputPath = resolvedInputPathOrNull();
         if (inputPath == null || !Files.isRegularFile(inputPath)) {
             lastScheduledInputTypeDetectionPath = null;

@@ -7,10 +7,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import tanglegram.UiPreferenceStore;
 import tanglegram.UiPreferences;
 
 final class OneBuilderWorkspacePanel extends JPanel {
@@ -32,6 +35,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
     private final HowToCitePanel howToCitePanel;
     private final PipelineRunner pipelineRunner;
     private final PipelineConfigWriter pipelineConfigWriter;
+    private final PipelineConfigReader pipelineConfigReader;
     private final PlatformSupport platformSupport;
     private WorkflowTabsState workflowTabsState;
     private InputType selectedInputType;
@@ -65,6 +69,7 @@ final class OneBuilderWorkspacePanel extends JPanel {
         howToCitePanel = new HowToCitePanel(scriptDirectory);
         pipelineRunner = new PipelineRunner(scriptDirectory, new RunnerListener());
         pipelineConfigWriter = new PipelineConfigWriter();
+        pipelineConfigReader = new PipelineConfigReader();
         inputAlignPanel = new InputAlignPanel(
                 platformSupport,
                 this::handleInputChanged,
@@ -168,6 +173,96 @@ final class OneBuilderWorkspacePanel extends JPanel {
 
     TrimAlignmentPanel trimAlignmentPanel() {
         return trimAlignmentPanel;
+    }
+
+    void importConfigFromFileChooser() {
+        if (pipelineRunner.isRunning()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Stop the current run before importing a config.",
+                    "eGPS oneBuilder",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        Path rememberedConfigFile = UiPreferenceStore.loadRecentOneBuilderConfigFile();
+        JFileChooser chooser = new JFileChooser(initialImportConfigChooserDirectory(rememberedConfigFile).toFile());
+        chooser.setFileFilter(new FileNameExtensionFilter("oneBuilder JSON config (*.json)", "json"));
+        if (rememberedConfigFile != null) {
+            chooser.setSelectedFile(rememberedConfigFile.toFile());
+        }
+        int selection = chooser.showOpenDialog(this);
+        if (selection != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        Path selectedConfigFile = chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
+        UiPreferenceStore.saveRecentOneBuilderConfigFile(selectedConfigFile);
+        importConfigFromFile(selectedConfigFile);
+    }
+
+    static Path initialImportConfigChooserDirectory(Path rememberedConfigFile) {
+        if (rememberedConfigFile != null) {
+            Path parent = Files.isDirectory(rememberedConfigFile)
+                    ? rememberedConfigFile
+                    : rememberedConfigFile.toAbsolutePath().normalize().getParent();
+            if (parent != null && Files.isDirectory(parent)) {
+                return parent;
+            }
+        }
+        return Path.of(System.getProperty("user.home", ".")).toAbsolutePath().normalize();
+    }
+
+    void importConfigFromFile(Path configFile) {
+        if (pipelineRunner.isRunning()) {
+            throw new IllegalStateException("Stop the current run before importing a config.");
+        }
+        treeBuildPanel.setExporting(true);
+        Thread importThread = new Thread(() -> {
+            try {
+                ImportedPipelineConfig importedConfig = pipelineConfigReader.read(configFile);
+                SwingUtilities.invokeLater(() -> {
+                    treeBuildPanel.setExporting(false);
+                    applyImportedConfig(importedConfig);
+                    JOptionPane.showMessageDialog(
+                            OneBuilderWorkspacePanel.this,
+                            "Config imported from: " + configFile,
+                            "eGPS oneBuilder",
+                            JOptionPane.INFORMATION_MESSAGE);
+                });
+            } catch (Exception exception) {
+                SwingUtilities.invokeLater(() -> {
+                    treeBuildPanel.setExporting(false);
+                    JOptionPane.showMessageDialog(
+                            OneBuilderWorkspacePanel.this,
+                            "Failed to import config: " + exception.getMessage(),
+                            "eGPS oneBuilder",
+                            JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        }, "onebuilder-config-import");
+        importThread.setDaemon(true);
+        importThread.start();
+    }
+
+    void applyImportedConfig(ImportedPipelineConfig importedConfig) {
+        if (importedConfig == null) {
+            return;
+        }
+        if (pipelineRunner.isRunning()) {
+            throw new IllegalStateException("Stop the current run before importing a config.");
+        }
+        latestCompletedOutputDirectory = null;
+        currentRunTanglegramPanel.loadRunResults(null);
+        selectedInputType = importedConfig.inputType();
+        inputAlignPanel.applyImportedConfig(importedConfig);
+        trimAlignmentPanel.apply(importedConfig.trimAlignmentConfig());
+        treeParametersPanel.applyRuntimeConfig(importedConfig.runtimeConfig());
+        rerootTreePanel.apply(importedConfig.runtimeConfig().reroot());
+        workflowTabsState = WorkflowTabsState.initial().markInputConfigured();
+        WorkbenchStyles.updateStatusChip(headerStatusChip, "Imported");
+        refreshTreeBuildDraft();
+        syncWorkflowTabs();
+        revalidate();
+        repaint();
     }
 
     void applyPreferences(UiPreferences preferences) {

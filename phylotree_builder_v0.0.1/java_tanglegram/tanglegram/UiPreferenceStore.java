@@ -23,6 +23,7 @@ public final class UiPreferenceStore {
     private static final String KEY_RECENT_RUNNING_RESULT_DIR = "recent.runningResultDir";
     private static final String KEY_RECENT_CONFIG_FILE = "recent.configFile";
     private static final String KEY_RECENT_TREE_FILE_DIR = "recent.treeFileDir";
+    private static final String KEY_RECENT_ONEBUILDER_CONFIG_FILE = "recent.onebuilder.configFile";
     private static final String KEY_RECENT_ONEBUILDER_INPUT_DIR = "recent.onebuilder.inputDir";
     private static final String KEY_RECENT_ONEBUILDER_OUTPUT_DIR = "recent.onebuilder.outputDir";
     private static final String KEY_LAST_ONEBUILDER_INPUT_FILE = "last.onebuilder.inputFile";
@@ -124,6 +125,14 @@ public final class UiPreferenceStore {
 
     public static void saveRecentTreeFileDir(Path path) {
         savePath(KEY_RECENT_TREE_FILE_DIR, path);
+    }
+
+    public static Path loadRecentOneBuilderConfigFile() {
+        return loadPath(KEY_RECENT_ONEBUILDER_CONFIG_FILE);
+    }
+
+    public static void saveRecentOneBuilderConfigFile(Path path) {
+        savePath(KEY_RECENT_ONEBUILDER_CONFIG_FILE, path);
     }
 
     public static Path loadRecentOneBuilderInputDir() {

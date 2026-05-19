@@ -18,6 +18,9 @@
 /docs/
 /old_archive/
 /apptainer
+/input_demo/*
+!/input_demo/prot_seqs_wnt_human/
+!/input_demo/prot_seqs_fzd_human/
 /input_demo/prot_seqs_fzd_human/demo_outputs/
 /input_demo/prot_seqs_fzd_human/foldseek_structure_similarity/
 /input_demo/prot_seqs_fzd_human/*.aligned.*
