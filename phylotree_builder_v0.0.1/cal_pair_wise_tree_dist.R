@@ -80,24 +80,24 @@ calculate_distance_matrices <- function(trees, tree_names, language = "english")
   rownames(rf_distance_matrix) <- tree_names
   colnames(rf_distance_matrix) <- tree_names
   
-  # 计算所有树对之间的距离
-  for (i in 1:n_trees) {
-    for (j in 1:n_trees) {
-      if (i != j) {
-        tree1 <- trees[[i]]
-        tree2 <- trees[[j]]
-        
-        # 计算TreeDistance
-        tree_dist <- as_scalar_distance(TreeDistance(tree1, tree2))
-        tree_distance_matrix[i, j] <- tree_dist
-        
-        # 计算Robinson-Foulds距离
-        rf_dist <- as_scalar_distance(RobinsonFoulds(tree1, tree2))
-        rf_distance_matrix[i, j] <- rf_dist
-        
-        cat(runtime_text(language, "Calculated:", "计算完成:"), tree_names[i], "vs", tree_names[j], 
-            "TreeDist:", tree_dist, "RF:", rf_dist, "\n")
-      }
+  # 计算所有唯一树对之间的距离，并镜像到对称矩阵的另一侧
+  for (i in 1:(n_trees - 1)) {
+    for (j in (i + 1):n_trees) {
+      tree1 <- trees[[i]]
+      tree2 <- trees[[j]]
+      
+      # 计算TreeDistance
+      tree_dist <- as_scalar_distance(TreeDistance(tree1, tree2))
+      tree_distance_matrix[i, j] <- tree_dist
+      tree_distance_matrix[j, i] <- tree_dist
+      
+      # 计算Robinson-Foulds距离
+      rf_dist <- as_scalar_distance(RobinsonFoulds(tree1, tree2))
+      rf_distance_matrix[i, j] <- rf_dist
+      rf_distance_matrix[j, i] <- rf_dist
+      
+      cat(runtime_text(language, "Calculated:", "计算完成:"), tree_names[i], "vs", tree_names[j], 
+          "TreeDist:", tree_dist, "RF:", rf_dist, "\n")
     }
   }
   

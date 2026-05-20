@@ -7,11 +7,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.SwingUtilities;
 
 final class PipelineRunner {
     private static final int OUTPUT_BATCH_LINES = 20;
     private static final long OUTPUT_BATCH_NANOS = 50_000_000L;
+    private static final long DEFAULT_STAGE_TIMEOUT_SECONDS = TimeUnit.HOURS.toSeconds(24);
+    private static final String STAGE_TIMEOUT_PROPERTY = "onebuilder.stageTimeoutSeconds";
+    private static final String STAGE_TIMEOUT_ENV = "ONEBUILDER_STAGE_TIMEOUT_SECONDS";
 
     interface Listener {
         void onPlanReady(ExecutionPlan executionPlan);
@@ -33,15 +38,21 @@ final class PipelineRunner {
     private final Listener listener;
     private final PipelineProgressInterpreter progressInterpreter;
     private final PipelineConfigWriter pipelineConfigWriter;
+    private final long stageTimeoutSeconds;
     private volatile Process currentProcess;
     private volatile Thread workerThread;
     private volatile boolean stopRequested;
 
     PipelineRunner(Path scriptDirectory, Listener listener) {
+        this(scriptDirectory, listener, configuredStageTimeoutSeconds());
+    }
+
+    PipelineRunner(Path scriptDirectory, Listener listener, long stageTimeoutSeconds) {
         this.scriptDirectory = scriptDirectory;
         this.listener = listener;
         this.progressInterpreter = new PipelineProgressInterpreter();
         this.pipelineConfigWriter = new PipelineConfigWriter();
+        this.stageTimeoutSeconds = stageTimeoutSeconds;
     }
 
     synchronized boolean isRunning() {
@@ -78,7 +89,7 @@ final class PipelineRunner {
                 configPath = request.exportConfigPath();
                 Files.createDirectories(configPath.getParent());
             } else {
-                configPath = Files.createTempFile("onebuilder-runtime-", ".json");
+                configPath = Files.createTempFile(request.outputDirectory(), "onebuilder-runtime-", ".json");
                 deleteConfigPath = true;
             }
             pipelineConfigWriter.write(configPath, request);
@@ -112,7 +123,10 @@ final class PipelineRunner {
             if (deleteConfigPath && configPath != null) {
                 try {
                     Files.deleteIfExists(configPath);
-                } catch (IOException ignored) {
+                } catch (IOException exception) {
+                    String message = "Warning: could not remove temporary oneBuilder config file: "
+                            + configPath + " (" + exception.getMessage() + ")" + System.lineSeparator();
+                    dispatch(() -> listener.onProcessOutput(message));
                 }
             }
         }
@@ -135,6 +149,51 @@ final class PipelineRunner {
             destroyProcessTree(process);
             throw new InterruptedException("Run stopped during " + stageName);
         }
+
+        AtomicReference<IOException> outputFailure = new AtomicReference<>();
+        Thread outputReader = new Thread(
+                () -> readProcessOutput(process, inputType, outputFailure),
+                "onebuilder-process-output-reader");
+        outputReader.setDaemon(true);
+        outputReader.start();
+
+        boolean completed;
+        try {
+            if (stageTimeoutSeconds > 0L) {
+                completed = process.waitFor(stageTimeoutSeconds, TimeUnit.SECONDS);
+            } else {
+                process.waitFor();
+                completed = true;
+            }
+        } catch (InterruptedException interruptedException) {
+            destroyProcessTree(process);
+            throw interruptedException;
+        } finally {
+            currentProcess = null;
+        }
+
+        if (!completed) {
+            destroyProcessTree(process);
+            waitForOutputReader(outputReader);
+            throw new IOException(stageName + " timed out after " + stageTimeoutSeconds + " seconds");
+        }
+
+        waitForOutputReader(outputReader);
+        if (stopRequested) {
+            throw new InterruptedException("Run stopped during " + stageName);
+        }
+        IOException outputException = outputFailure.get();
+        if (outputException != null) {
+            throw outputException;
+        }
+
+        int exitCode = process.exitValue();
+        if (exitCode != 0) {
+            throw new IOException(stageName + " failed with exit code " + exitCode);
+        }
+    }
+
+    private void readProcessOutput(Process process, InputType inputType, AtomicReference<IOException> outputFailure) {
         StringBuilder pendingOutput = new StringBuilder();
         int pendingLineCount = 0;
         long lastOutputDispatch = System.nanoTime();
@@ -155,20 +214,21 @@ final class PipelineRunner {
                     dispatch(() -> listener.onMethodProgress(event));
                 }
                 if (stopRequested) {
-                    throw new InterruptedException("Run stopped during " + stageName);
+                    destroyProcessTree(process);
+                    break;
                 }
             }
+        } catch (IOException exception) {
+            outputFailure.compareAndSet(null, exception);
+        } finally {
+            flushPendingOutput(pendingOutput);
         }
+    }
 
-        flushPendingOutput(pendingOutput);
-
-        int exitCode = process.waitFor();
-        currentProcess = null;
-        if (stopRequested) {
-            throw new InterruptedException("Run stopped during " + stageName);
-        }
-        if (exitCode != 0) {
-            throw new IOException(stageName + " failed with exit code " + exitCode);
+    private static void waitForOutputReader(Thread outputReader) throws InterruptedException {
+        outputReader.join(5000L);
+        if (outputReader.isAlive()) {
+            outputReader.interrupt();
         }
     }
 
@@ -206,6 +266,22 @@ final class PipelineRunner {
             runnable.run();
         } else {
             SwingUtilities.invokeLater(runnable);
+        }
+    }
+
+    private static long configuredStageTimeoutSeconds() {
+        String configured = System.getProperty(STAGE_TIMEOUT_PROPERTY);
+        if (configured == null || configured.trim().isEmpty()) {
+            configured = System.getenv(STAGE_TIMEOUT_ENV);
+        }
+        if (configured == null || configured.trim().isEmpty()) {
+            return DEFAULT_STAGE_TIMEOUT_SECONDS;
+        }
+        try {
+            long parsed = Long.parseLong(configured.trim());
+            return Math.max(0L, parsed);
+        } catch (NumberFormatException exception) {
+            return DEFAULT_STAGE_TIMEOUT_SECONDS;
         }
     }
 }

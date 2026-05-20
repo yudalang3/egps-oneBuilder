@@ -575,6 +575,8 @@ final class InputAlignPanel extends JPanel {
             prefix = defaultOutputPrefix(inputPath);
             outputPrefixField.setText(prefix);
         }
+        prefix = RunRequest.validateOutputPrefix(prefix);
+        outputPrefixField.setText(prefix);
 
         PipelineRuntimeConfig runtimeConfig = runtimeConfigSupplier.get();
         validateRunConfiguration(runtimeConfig);

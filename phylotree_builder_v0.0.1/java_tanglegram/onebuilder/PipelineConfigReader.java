@@ -20,10 +20,7 @@ final class PipelineConfigReader {
             InputType inputType = parseInputType(requireString(run, "input_type"), "run.input_type");
             Path inputFile = parsePath(requireString(run, "input_file"), "run.input_file");
             Path outputDirectory = parsePath(requireString(run, "output_base_dir"), "run.output_base_dir");
-            String outputPrefix = requireString(run, "output_prefix").trim();
-            if (outputPrefix.isEmpty()) {
-                throw new IllegalArgumentException("Config field run.output_prefix must not be blank.");
-            }
+            String outputPrefix = validateOutputPrefix(requireString(run, "output_prefix"));
 
             AlignmentImport alignmentImport = parseAlignment(optionalObject(root, "alignment"));
             TrimAlignmentConfig trimConfig = parseTrimAlignment(optionalObject(root, "trim_alignment"));
@@ -58,6 +55,14 @@ final class PipelineConfigReader {
                 parseParsimony(inputType, optionalObject(safeMethods, "parsimony"), defaults.parsimony()),
                 parseProteinStructure(optionalObject(safeMethods, "protein_structure"), defaults.proteinStructure()),
                 reroot);
+    }
+
+    private static String validateOutputPrefix(String rawPrefix) {
+        try {
+            return RunRequest.validateOutputPrefix(rawPrefix);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Config field run.output_prefix is invalid: " + exception.getMessage(), exception);
+        }
     }
 
     private static AlignmentImport parseAlignment(JSONObject alignment) {

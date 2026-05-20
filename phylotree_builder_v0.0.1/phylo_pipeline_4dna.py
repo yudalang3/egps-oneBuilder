@@ -238,7 +238,6 @@ class PhylogeneticPipeline:
         self.iqtree_path = None
         self.mrbayes_path = None
         self.mad_method_path = str(self.script_dir / "third_party" / "mad" / "mad")
-        self.ktreedist_method_path = "/opt/BioInfo/Ktreedist/Ktreedist_v1/Ktreedist.pl"
         self.cal_treedist_method_path = str(
             self.script_dir / "cal_pair_wise_tree_dist.R"
         )
@@ -1213,42 +1212,6 @@ class PhylogeneticPipeline:
 
         published_trees.extend(tree_files[4:])
         return published_trees
-
-    def compare_tree_ktreedist(self, tree_files):
-        ret_paths: List[Path] = []
-
-        lst_of_contents = []
-        for tree_file in tree_files:
-            if not isinstance(tree_file, Path):
-                tree_file = Path(tree_file)
-            content = tree_file.read_text().rstrip()
-            if not content.endswith(";"):
-                content += ";"
-            lst_of_contents.append(content)
-            # 未完成，需要计算两两之间的距离
-
-            tree_file = str(tree_file)
-
-            # 运行IQ-TREE
-            cmd = [self.ktreedist_method_path, "-rt", tree_file, "-ct", tree_file, "-t"]
-            self.logger.info(cmd)
-
-            proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            stdout, stderr = proc.communicate()
-            self.logger.debug("==Stdout of Ktree dist==")
-            self.logger.debug(stdout)
-            if proc.returncode != 0:
-                print(self.translator.text("Standard error:", "标准错误:"))
-                print(stderr)
-                sys.exit(1)
-            else:
-                self.logger.info(f"定根完成，{tree_file}")
 
     def ladderize_tree_with_egps(self, tree_files) -> List[Path]:
         ret_paths: List[Path] = []

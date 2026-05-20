@@ -39,8 +39,10 @@ public final class OneBuilderStandaloneTest {
             run("buildsExecutionPlanWithAlignmentAndTrim", OneBuilderStandaloneTest::buildsExecutionPlanWithAlignmentAndTrim);
             run("buildsExecutionPlanWithTrimOnly", OneBuilderStandaloneTest::buildsExecutionPlanWithTrimOnly);
             run("buildsExecutionPlanInputPathsForAlignmentAndTrimCombinations", OneBuilderStandaloneTest::buildsExecutionPlanInputPathsForAlignmentAndTrimCombinations);
+            run("rejectsOutputPrefixPathTraversal", OneBuilderStandaloneTest::rejectsOutputPrefixPathTraversal);
             run("serializesPipelineRuntimeConfigAsJson", OneBuilderStandaloneTest::serializesPipelineRuntimeConfigAsJson);
             run("readsExportedPipelineConfigForImport", OneBuilderStandaloneTest::readsExportedPipelineConfigForImport);
+            run("rejectsImportedOutputPrefixPathTraversal", OneBuilderStandaloneTest::rejectsImportedOutputPrefixPathTraversal);
             run("appliesImportedConfigWithoutAutoDetectionOverride", OneBuilderStandaloneTest::appliesImportedConfigWithoutAutoDetectionOverride);
             run("importsMissingInputPathButKeepsNavigationBlocked", OneBuilderStandaloneTest::importsMissingInputPathButKeepsNavigationBlocked);
             run("rejectsInvalidImportedConfigEnum", OneBuilderStandaloneTest::rejectsInvalidImportedConfigEnum);
@@ -86,6 +88,7 @@ public final class OneBuilderStandaloneTest {
             run("interpretsMethodProgressFromLogs", OneBuilderStandaloneTest::interpretsMethodProgressFromLogs);
             run("tracksTreeBuildOverallProgressFromEnabledMethodsAndLogs", OneBuilderStandaloneTest::tracksTreeBuildOverallProgressFromEnabledMethodsAndLogs);
             run("destroysPipelineDescendantProcessTree", OneBuilderStandaloneTest::destroysPipelineDescendantProcessTree);
+            run("timesOutHungPipelineStageAndDeletesRuntimeConfig", OneBuilderStandaloneTest::timesOutHungPipelineStageAndDeletesRuntimeConfig);
             run("keepsTreeBuildCaretAtEndAfterAppendingLogs", OneBuilderStandaloneTest::keepsTreeBuildCaretAtEndAfterAppendingLogs);
             run("storesLanguageInExportedConfig", OneBuilderStandaloneTest::storesLanguageInExportedConfig);
             run("remembersInputAlignBrowseDirectories", OneBuilderStandaloneTest::remembersInputAlignBrowseDirectories);
@@ -336,6 +339,35 @@ public final class OneBuilderStandaloneTest {
                 true,
                 true,
                 inputFile.resolveSibling("raw.aligned.trim.fa"));
+    }
+
+    private static void rejectsOutputPrefixPathTraversal() {
+        expectIllegalArgument(
+                () -> RunRequest.builder()
+                        .inputType(InputType.PROTEIN)
+                        .inputFile(Paths.get("/data/input/aligned.fasta"))
+                        .outputDirectory(Paths.get("/data/output"))
+                        .outputPrefix("../outside")
+                        .exportConfigFile(true)
+                        .runAlignmentFirst(false)
+                        .alignOptions(AlignmentOptions.defaults())
+                        .runtimeConfig(PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN))
+                        .build(),
+                "path separators",
+                "expected path traversal output prefix to be rejected");
+        expectIllegalArgument(
+                () -> RunRequest.builder()
+                        .inputType(InputType.PROTEIN)
+                        .inputFile(Paths.get("/data/input/aligned.fasta"))
+                        .outputDirectory(Paths.get("/data/output"))
+                        .outputPrefix("..")
+                        .exportConfigFile(true)
+                        .runAlignmentFirst(false)
+                        .alignOptions(AlignmentOptions.defaults())
+                        .runtimeConfig(PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN))
+                        .build(),
+                "'..'",
+                "expected parent-directory output prefix to be rejected");
     }
 
     private static void serializesPipelineRuntimeConfigAsJson() throws Exception {
@@ -656,6 +688,25 @@ public final class OneBuilderStandaloneTest {
         assertTrue(!importedRuntime.reroot().sortByCladeSize(), "expected imported clade-size sort flag");
         assertTrue(importedRuntime.reroot().sortByLeafNameString(), "expected imported leaf-name sort flag");
         assertTrue(!importedRuntime.reroot().sortByBranchLength(), "expected imported branch-length sort flag");
+    }
+
+    private static void rejectsImportedOutputPrefixPathTraversal() throws Exception {
+        Path tempFile = Files.createTempFile("onebuilder-import-bad-prefix-", ".json");
+        Files.writeString(tempFile,
+                "{\n"
+                        + "  \"run\": {\n"
+                        + "    \"input_type\": \"PROTEIN\",\n"
+                        + "    \"input_file\": \"/data/input/aligned.fasta\",\n"
+                        + "    \"output_base_dir\": \"/data/output\",\n"
+                        + "    \"output_prefix\": \"../outside\"\n"
+                        + "  }\n"
+                        + "}\n",
+                StandardCharsets.UTF_8);
+
+        expectIllegalArgument(
+                () -> new PipelineConfigReader().read(tempFile),
+                "run.output_prefix",
+                "expected imported path traversal output prefix to be rejected");
     }
 
     private static void appliesImportedConfigWithoutAutoDetectionOverride() throws Exception {
@@ -1987,6 +2038,67 @@ public final class OneBuilderStandaloneTest {
                     "descendant process should be destroyed");
         } finally {
             PipelineRunner.destroyProcessTreeForTest(process);
+        }
+    }
+
+    private static void timesOutHungPipelineStageAndDeletesRuntimeConfig() throws Exception {
+        Path scriptDir = Files.createTempDirectory("onebuilder-timeout-script-");
+        Path outputDirectory = Files.createTempDirectory("onebuilder-timeout-output-");
+        Path buildScript = scriptDir.resolve("s2_phylo_4prot.zsh");
+        Files.writeString(buildScript, "sleep 60\n", StandardCharsets.UTF_8);
+
+        RunRequest request = RunRequest.builder()
+                .inputType(InputType.PROTEIN)
+                .inputFile(scriptDir.resolve("input.fasta"))
+                .outputDirectory(outputDirectory)
+                .outputPrefix("timeout_demo")
+                .exportConfigFile(false)
+                .runAlignmentFirst(false)
+                .alignOptions(AlignmentOptions.defaults())
+                .runtimeConfig(PipelineRuntimeConfig.defaultsFor(InputType.PROTEIN))
+                .build();
+
+        String[] failureMessage = new String[1];
+        PipelineRunner runner = new PipelineRunner(scriptDir, new PipelineRunner.Listener() {
+            @Override
+            public void onPlanReady(ExecutionPlan executionPlan) {
+            }
+
+            @Override
+            public void onStageStarted(String stageName, List<String> command) {
+            }
+
+            @Override
+            public void onProcessOutput(String line) {
+            }
+
+            @Override
+            public void onMethodProgress(MethodProgressEvent event) {
+            }
+
+            @Override
+            public void onRunCompleted(Path outputDirectory, InputType inputType) {
+            }
+
+            @Override
+            public void onRunFailed(String message) {
+                failureMessage[0] = message;
+            }
+
+            @Override
+            public void onRunStopped() {
+            }
+        }, 1L);
+
+        runner.start(request);
+        waitUntil(() -> failureMessage[0] != null, 7000L, "pipeline timeout failure was not reported");
+
+        assertTrue(failureMessage[0].contains("timed out after 1 seconds"),
+                "expected timeout failure message");
+        try (java.util.stream.Stream<Path> paths = Files.list(outputDirectory)) {
+            assertTrue(
+                    paths.noneMatch(path -> path.getFileName().toString().startsWith("onebuilder-runtime-")),
+                    "temporary runtime config should be deleted after timeout");
         }
     }
 

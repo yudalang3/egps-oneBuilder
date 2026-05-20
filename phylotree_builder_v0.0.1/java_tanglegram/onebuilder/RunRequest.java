@@ -1,6 +1,7 @@
 package onebuilder;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import tanglegram.UiLanguage;
 
 public final class RunRequest {
@@ -84,6 +85,35 @@ public final class RunRequest {
 
     public Path pipelineOutputDir() {
         return outputDirectory.resolve(outputPrefix).toAbsolutePath().normalize();
+    }
+
+    static String validateOutputPrefix(String value) {
+        String prefix = value == null ? "" : value.trim();
+        if (prefix.isEmpty()) {
+            throw new IllegalArgumentException("Output prefix must not be blank.");
+        }
+        if (containsControlCharacter(prefix)) {
+            throw new IllegalArgumentException("Output prefix must not contain control characters.");
+        }
+        if (prefix.indexOf('/') >= 0 || prefix.indexOf('\\') >= 0) {
+            throw new IllegalArgumentException("Output prefix must be a simple name without path separators.");
+        }
+        if (".".equals(prefix) || "..".equals(prefix)) {
+            throw new IllegalArgumentException("Output prefix must not be '.' or '..'.");
+        }
+        if (Paths.get(prefix).isAbsolute()) {
+            throw new IllegalArgumentException("Output prefix must not be an absolute path.");
+        }
+        return prefix;
+    }
+
+    private static boolean containsControlCharacter(String text) {
+        for (int index = 0; index < text.length(); index++) {
+            if (Character.isISOControl(text.charAt(index))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public RunRequest withOverwriteExistingOutput(boolean overwriteExistingOutput) {
@@ -172,9 +202,10 @@ public final class RunRequest {
 
         public RunRequest build() {
             if (inputType == null || inputFile == null || outputDirectory == null || outputPrefix == null
-                    || outputPrefix.trim().isEmpty() || runtimeConfig == null) {
+                    || runtimeConfig == null) {
                 throw new IllegalStateException("RunRequest is missing required fields");
             }
+            outputPrefix = validateOutputPrefix(outputPrefix);
             return new RunRequest(this);
         }
     }
