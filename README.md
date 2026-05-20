@@ -26,8 +26,10 @@ A Linux-based phylogenetic workflow that combines scriptable CLI wrappers with J
 - The parameter editor is now separated from the run page: method settings live in `Tree Parameters`, while `Tree Build` focuses on draft review, run/export controls, live logs, and compact method-status indicators.
 - The existing CLI wrappers remain first-class entrypoints, so the same workflow can still be scripted for repeated or batch-style runs.
 - GUI and CLI now work together through a shared `--config` runtime JSON bridge instead of maintaining separate execution logic.
+- oneBuilder now validates output prefixes as simple names before running or importing configs, so prefixes cannot contain path separators, absolute paths, `.` / `..`, or control characters.
+- GUI-started Linux pipeline stages have a configurable timeout guard. The default is 24 hours per stage; set `ONEBUILDER_STAGE_TIMEOUT_SECONDS` or Java property `onebuilder.stageTimeoutSeconds` to override it.
 - `tanglegram.launcher` loads one `tree_summary/` result and renders the four inferred trees as six fixed pairwise comparison tabs.
-- `tree_summary/` now includes a combined TreeDist + Robinson-Foulds heatmap figure in addition to the raw distance matrices.
+- `tree_summary/` now includes a combined TreeDist + Robinson-Foulds heatmap figure in addition to the raw distance matrices. Pairwise TreeDist/RF calculation now computes each unique tree pair once and mirrors the symmetric matrix entries.
 - Protein runs can add a Foldseek-based `Protein Structure` step with basic TSV/FASTA controls, an Advanced Parameters drawer for Foldseek search flags, and optional structure-tree generation for tanglegram comparison.
 - The left workflow includes `7. How to cite`, which loads the citation guide from `phylotree_builder_v0.0.1/how_to_cite.md`; the repository root also exposes it through the `how_to_cite.md` symlink.
 - On Windows, `onebuilder.launcher` now shows a startup warning explaining that pipeline execution is disabled there, with a preference toggle to hide or re-enable that notice later.
@@ -229,7 +231,7 @@ Detailed parameter reference:
 The timings below come from real runs of the bundled demo inputs on the current development machine. Treat them as order-of-magnitude guidance, not fixed guarantees.
 
 - Protein demo `gold_standard_protein_aligned.fasta`: about 8 to 9 minutes end to end.
-- In the protein workflow, the slowest step is MrBayes. With the current default `ngen=50000`, that step alone took about 7.5 to 8.5 minutes.
+- In the protein workflow, the slowest step is MrBayes. The current default `ngen` is `100000`, so current runs may take longer than older benchmark notes that used `50000`.
 - In the same protein run, IQ-TREE took about 35 to 40 seconds, distance and parsimony steps finished within seconds, and post-processing (MAD rerooting, visualization, and tree-distance summaries) took another roughly 20 to 30 seconds.
 - DNA/CDS demo `gold_standard_cds_aligned.fasta`: about 40 to 45 seconds end to end.
 - In the current DNA/CDS demo, IQ-TREE took about 10 to 12 seconds, MrBayes took about 9 to 10 seconds, and MAD rerooting plus visualization plus tree-distance summaries added another roughly 15 to 25 seconds.
@@ -312,7 +314,7 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 
 Usage notes:
 
-- The left workflow is `Input / Align`, `Tree Parameters`, `Reroot Tree`, `Tree Build`, `Tanglegram`, `Vis. Launching`, and `How to cite`.
+- The left workflow is fixed to four main sections: `Input / Align`, `Tree Parameters`, `Tree Build`, and `Tanglegram`.
 - `Input / Align` is the only page that must be completed first. If required fields are missing, later sections stay clickable but explain why navigation is blocked.
 - `Tree Parameters` uses a method tree with `Distance Method`, `Maximum Likelihood`, `Bayes Method`, `Maximum Parsimony`, and `Protein Structure`.
 - `Protein Structure` is always visible in the method tree. It is enabled for protein input and shown as `Protein only` for non-protein input.
@@ -337,7 +339,9 @@ Usage notes:
 - Preference changes are applied live to currently open Java windows and are reused on the next launch.
 - Shared GUI preferences are stored in `~/.egps.onebuilder.prop` instead of the Windows registry, so the same storage model is used on Linux and Windows.
 - `Export config file when running` is enabled by default. When it stays enabled, Linux runs save `<output_base_dir>/<output_prefix>.onebuilder.json` and pass that file into the wrappers.
-- If `Export config file when running` is disabled, Linux runs still work but use a temporary runtime JSON file for that run only.
+- `output_prefix` must be a plain file/directory name. The GUI and config importer reject path separators, absolute paths, `.` / `..`, and control characters to keep generated output inside the selected output base directory.
+- If `Export config file when running` is disabled, Linux runs still work but use a temporary runtime JSON file for that run only. That file is created under the selected output base directory and removed when the run exits; a warning is logged if cleanup fails.
+- GUI-started Linux stages time out after 24 hours by default. Use `ONEBUILDER_STAGE_TIMEOUT_SECONDS=<seconds>` or JVM property `-Donebuilder.stageTimeoutSeconds=<seconds>` to change this; use `0` to disable the guard.
 - `Export JSON` always writes the current GUI settings to `<output_base_dir>/<output_prefix>.onebuilder.json`.
 - The exported `<output_prefix>.onebuilder.json` is now directly executable on Linux through `zsh phylotree_builder_v0.0.1/run_onebuilder_config.zsh /path/to/file.onebuilder.json`.
 - Inside `onebuilder.launcher`, the `Tanglegram` page unlocks only after a successful Linux run and then auto-loads the current output directory. On Windows, use the standalone `tanglegram.launcher` to inspect an existing `tree_summary/`.
@@ -423,7 +427,7 @@ Usage notes:
 - If you run the main Python scripts directly rather than using the wrapper scripts, some environments also require `LD_LIBRARY_PATH=phylotree_builder_v0.0.1/.pixi/envs/default/lib`; otherwise dependencies such as NumPy, R, or IQ-TREE may fail to load.
 - In the current Pixi environment, IQ-TREE may appear as `iqtree3`; the repository scripts handle this automatically, but manual commands need to account for the binary name.
 - MAD rerooting depends on the vendored binary at `phylotree_builder_v0.0.1/third_party/mad/mad`. If it is missing, the pipelines keep the original trees and continue.
-- With the current defaults, the protein workflow is much slower than the DNA/CDS workflow mainly because the protein pipeline runs MrBayes with more generations (`50000` vs `10000`), not because the other tree-building methods are inherently different in kind.
+- With the current defaults, the protein workflow is much slower than the DNA/CDS workflow mainly because MrBayes dominates runtime at larger `ngen` values, not because the other tree-building methods are inherently different in kind.
 - Sample inputs and sample output directories live at the repository root, not inside `phylotree_builder_v0.0.1/`.
 
 ## License

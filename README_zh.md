@@ -15,9 +15,11 @@ English documentation: [`README.md`](README.md)
 - 支持 MAFFT 比对、PHYLIP 距离法/简约法、IQ-TREE 极大似然、MrBayes 贝叶斯分析，以及蛋白输入可选的 Foldseek 蛋白质结构相似性分析。
 - GUI 可以通过 `--config` 运行时 JSON，把 MAFFT、方法启停、极大似然参数和贝叶斯参数传入现有 shell wrapper 与 Python 管线。
 - 保留 CLI wrapper，方便脚本化和批量式运行，因此同一套流程既能走 GUI，也能走命令行自动化。GUI 与 CLI 现在通过共享的 `--config` 运行时 JSON 串联起来，而不是各自维护独立执行逻辑。（现有 CLI wrapper 继续保留为一等入口，因此同一套流程仍然可以用于脚本化、重复性和批量式运行。）
-- 在 `tree_summary/` 中输出树图可视化、TreeDist / Robinson-Foulds 距离矩阵，以及合并热图。
+- 在 `tree_summary/` 中输出树图可视化、TreeDist / Robinson-Foulds 距离矩阵，以及合并热图。TreeDist/RF 两两距离现在只计算唯一树对，再镜像填充对称矩阵，避免重复计算。
 - `onebuilder.launcher` 新增了交互式 Java Swing 全流程 GUI，并整理成四步工作流：`Input / Align`、`Tree Parameters`、`Tree Build`、`Tanglegram`。
 - 参数编辑页和运行页已经拆开：方法参数集中在 `Tree Parameters`，`Tree Build` 专门负责配置摘要、运行/导出按钮、日志和方法状态指示灯。
+- oneBuilder 现在会把输出前缀限制为普通名称；GUI 和配置导入都会拒绝路径分隔符、绝对路径、`.` / `..` 和控制字符，避免输出逃逸用户选择的输出目录。
+- GUI 在 Linux 下启动的每个管线阶段现在都有可配置超时保护。默认每阶段 24 小时；可通过 `ONEBUILDER_STAGE_TIMEOUT_SECONDS` 或 Java property `onebuilder.stageTimeoutSeconds` 调整。
 
 - 借助于强大的 GUI 功能，`tanglegram.launcher` 可以直接加载一次流程输出的 `tree_summary/`，渲染四棵序列建树结果，并在存在 Protein Structure 树时额外加入结构树比较。
 - 提供独立的 Java 纠缠树（Tanglegram）查看器，可在 Linux 或 Windows 下交互比较流程生成的树。
@@ -222,7 +224,7 @@ zsh phylotree_builder_v0.0.1/run_onebuilder_config.zsh tree_build_full_config_te
 下面的时间来自当前仓库自带示例数据在当前开发机上的实际运行日志，只能作为量级参考，不代表所有数据集的固定耗时。
 
 - 蛋白质示例 `gold_standard_protein_aligned.fasta`：整条流程约 8 到 9 分钟。
-- 蛋白质流程里最慢的是 MrBayes 贝叶斯步骤；当前默认参数是 `ngen=50000`，单这一步大约用了 7.5 到 8.5 分钟。
+- 蛋白质流程里最慢的是 MrBayes 贝叶斯步骤；当前默认 `ngen` 是 `100000`，因此现在的实际耗时可能比旧的 `50000` 基准记录更长。
 - 同一条蛋白质流程中，IQ-TREE 极大似然步骤大约 35 到 40 秒，距离法和简约法通常只要几秒内，后处理（MAD 定根、可视化、树距离统计）大约还需要 20 到 30 秒。
 - DNA/CDS 示例 `gold_standard_cds_aligned.fasta`：整条流程约 40 到 45 秒。
 - 当前 DNA/CDS 示例里，IQ-TREE 大约 10 到 12 秒，MrBayes 大约 9 到 10 秒，MAD 定根、可视化和树距离统计加起来大约 15 到 25 秒。
@@ -305,7 +307,7 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 
 使用说明：
 
-- 左侧工作流依次为 `Input / Align`、`Tree Parameters`、`Reroot Tree`、`Tree Build`、`Tanglegram`、`Vis. Launching` 和 `How to cite`。
+- 左侧工作流固定为四个主要页面：`Input / Align`、`Tree Parameters`、`Tree Build`、`Tanglegram`。
 - `Input / Align` 是必须先完成的入口页。如果必填项还没准备好，后续步骤仍然可以点击，但会解释为什么当前不能跳转。
 - `Tree Parameters` 使用方法树来组织参数，包含 `Distance Method`、`Maximum Likelihood`、`Bayes Method`、`Maximum Parsimony`、`Protein Structure`。
 - `Protein Structure` 节点会一直显示。蛋白输入时可用；非蛋白输入时保留显示并提示 `Protein only`。
@@ -330,7 +332,9 @@ java -cp "java_tanglegram;lib/*" onebuilder.launcher
 - 这些 Preference 修改后会立即作用到当前已打开的 Java 窗口，并在下次启动时继续沿用。
 - 这些共享 GUI 偏好现在统一保存在 `~/.egps.onebuilder.prop`，不再依赖 Windows 注册表。
 - `Export config file when running` 默认勾选。勾选状态下，Linux run 会把配置保存为 `<output_base_dir>/<output_prefix>.onebuilder.json`，然后把这个 JSON 文件传给 wrapper。
-- 如果取消勾选，Linux run 仍然可以执行，但只会生成本次运行使用的临时 JSON 配置。
+- `output_prefix` 必须是普通文件/目录名。GUI 和配置导入都会拒绝路径分隔符、绝对路径、`.` / `..` 和控制字符，确保生成输出留在所选 output base dir 内。
+- 如果取消勾选，Linux run 仍然可以执行，但只会生成本次运行使用的临时 JSON 配置。该临时文件会创建在所选 output base dir 下，并在运行结束时删除；如果清理失败，会在日志中写出 warning。
+- GUI 在 Linux 下启动的每个阶段默认 24 小时超时。可以用 `ONEBUILDER_STAGE_TIMEOUT_SECONDS=<秒>` 或 JVM property `-Donebuilder.stageTimeoutSeconds=<秒>` 调整；设为 `0` 表示关闭这个保护。
 - `Export JSON` 按钮总是会把当前 GUI 参数写入 `<output_base_dir>/<output_prefix>.onebuilder.json`。
 - 导出的 `<output_prefix>.onebuilder.json` 现在可以在 Linux 下直接用 `zsh phylotree_builder_v0.0.1/run_onebuilder_config.zsh /path/to/file.onebuilder.json` 执行。
 - `onebuilder.launcher` 里的 `Tanglegram` 页面只会在 Linux 成功运行后解锁，并自动载入当前这次 run 的结果。Windows 下请使用独立的 `tanglegram.launcher` 查看已有 `tree_summary/`。
@@ -416,7 +420,7 @@ java -cp "phylotree_builder_v0.0.1\java_tanglegram;phylotree_builder_v0.0.1\lib/
 - 如果直接运行主 Python 脚本而不是用包装脚本，某些环境下还需要设置 `LD_LIBRARY_PATH=phylotree_builder_v0.0.1/.pixi/envs/default/lib`，否则 `numpy`、`Rscript` 或 IQ-TREE 可能无法正常加载依赖。
 - IQ-TREE 在当前 Pixi 环境里可能显示为 `iqtree3`；仓库脚本已经做了兼容处理，但如果你手动调命令，需要留意这个命令名差异。
 - MAD 重新定根依赖仓库内的 `phylotree_builder_v0.0.1/third_party/mad/mad`。如果缺失，主管线会保留原树继续执行。
-- 当前默认参数下，蛋白质流程比 DNA/CDS 流程慢得多，主要原因不是算法类别不同，而是蛋白质流程默认给 MrBayes 设置了更高的迭代代数（`50000` 对 `10000`）。
+- 当前默认参数下，蛋白质流程比 DNA/CDS 流程慢得多，主要原因通常是 MrBayes 在较高 `ngen` 下占据主要运行时间，而不是其他建树方法在算法类别上有本质差异。
 - 本仓库里的示例数据和示例输出都在仓库根目录，不在 `phylotree_builder_v0.0.1/` 子目录里。
 
 ## 开源协议
