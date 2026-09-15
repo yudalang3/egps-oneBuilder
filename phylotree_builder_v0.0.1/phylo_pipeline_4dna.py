@@ -543,9 +543,9 @@ class PhylogeneticPipeline:
             self.logger.debug("==Stdout of PHYLIP==")
             self.logger.debug(stdout)
             if proc.returncode != 0:
-                print(self.translator.text("Standard error:", "标准错误:"))
-                print(stderr)
-                sys.exit(1)
+                self.logger.error(self.translator.text("Standard error:", "标准错误:"))
+                self.logger.error(stderr)
+                return None
             # 2. 邻接法建树 (neighbor)
             if os.path.exists("outfile"):
                 shutil.copy2("outfile", "distance_matrix.txt")
@@ -566,9 +566,9 @@ class PhylogeneticPipeline:
             self.logger.debug("==Stdout of PHYLIP==")
             self.logger.debug(stdout)
             if proc.returncode != 0:
-                print(self.translator.text("Standard error:", "标准错误:"))
-                print(stderr)
-                sys.exit(1)
+                self.logger.error(self.translator.text("Standard error:", "标准错误:"))
+                self.logger.error(stderr)
+                return None
 
             # 重命名输出文件
             if os.path.exists("outtree"):
@@ -629,9 +629,9 @@ class PhylogeneticPipeline:
             self.logger.debug("==Stdout of PHYLIP==")
             self.logger.debug(stdout)
             if proc.returncode != 0:
-                print(self.translator.text("Standard error:", "标准错误:"))
-                print(stderr)
-                sys.exit(1)
+                self.logger.error(self.translator.text("Standard error:", "标准错误:"))
+                self.logger.error(stderr)
+                return None
             # 重命名输出文件
             if os.path.exists("outtree"):
                 shutil.move("outtree", "parsimony_tree.nwk")
@@ -645,7 +645,8 @@ class PhylogeneticPipeline:
             self.logger.error(f"简约法建树失败: {e}")
             return None
         finally:
-            os.remove("infile")
+            if os.path.exists("infile"):
+                os.remove("infile")
             os.chdir(self.output_dir.parent)
 
     def maximum_likelihood_method(self):
@@ -692,9 +693,9 @@ class PhylogeneticPipeline:
             self.logger.debug("==Stdout of IQ-Tree==")
             self.logger.debug(stdout)
             if proc.returncode != 0:
-                print("标准错误:")
-                print(stderr)
-                sys.exit(1)
+                self.logger.error(self.translator.text("Standard error:", "标准错误:"))
+                self.logger.error(stderr)
+                return None
             else:
                 self.logger.info("极大似然法建树完成")
                 # 如何你要共识树，那么可以用 ml_tree.contree
@@ -750,7 +751,7 @@ class PhylogeneticPipeline:
                         f"MrBayes运行失败，退出码：{return_code}",
                     )
                 )
-                sys.exit(1)
+                return None
 
             # 查找输出的树文件（*.con.tre）
             consensus_tree = None
