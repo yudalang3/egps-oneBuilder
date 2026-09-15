@@ -1325,8 +1325,24 @@ class PhylogeneticPipeline:
 
         self.generate_summary(result_trees, sequences)
 
+        method_names = ["distance", "maximum_likelihood", "bayesian", "parsimony"]
+        failed_methods = [
+            method_name
+            for method_name, tree_file in zip(method_names, result_trees[:4])
+            if self.runtime_settings[method_name]["enabled"] and tree_file is None
+        ]
+        if failed_methods:
+            self.logger.error(
+                self.translator.text(
+                    f"Phylogenetic pipeline finished with failed methods: {', '.join(failed_methods)}",
+                    f"进化树分析流程完成，但以下方法失败: {', '.join(failed_methods)}",
+                )
+            )
+            return False
+
         self.logger.info("Phylogenetic pipeline completed!")
         self.logger.info(f"Results saved to: {self.output_dir}")
+        return True
 
 
 def main():
@@ -1346,7 +1362,7 @@ def main():
 
     # 创建并运行管道
     pipeline = PhylogeneticPipeline(args.input_file, args.output, runtime_config=runtime_config)
-    pipeline.run_pipeline()
+    sys.exit(0 if pipeline.run_pipeline() else 1)
 
 
 if __name__ == "__main__":
